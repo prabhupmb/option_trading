@@ -1,0 +1,58 @@
+/* Additional custom styles for Prabhu Stocks */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* Smooth animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.slide-in-from-bottom-10 {
+  animation: slideUp 0.3s ease-out;
+}
+
+/* Custom scrollbar for modal */
+.max-h-\[60vh\]::-webkit-scrollbar {
+  width: 6px;
+}
+
+.max-h-\[60vh\]::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.max-h-\[60vh\]::-webkit-scrollbar-thumb {
+  background: rgba(127, 19, 236, 0.3);
+  border-radius: 3px;
+}
+
+.max-h-\[60vh\]::-webkit-scrollbar-thumb:hover {
+  background: rgba(127, 19, 236, 0.5);
+}
