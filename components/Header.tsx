@@ -1,13 +1,23 @@
 
 import React from 'react';
 
-const Header: React.FC = () => {
+interface HeaderProps {
+  lastUpdated?: Date | null;
+  onRefresh?: () => void;
+  loading?: boolean;
+}
+
+const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading }) => {
   return (
     <header className="sticky top-0 z-40 glass-header px-8 py-4 flex items-center justify-between">
       {/* Left: Page Title */}
       <div className="flex flex-col">
         <h2 className="text-xl font-bold text-white tracking-tight">Trading Terminal</h2>
-        <span className="text-xs text-slate-400">Real-time market signals powered by AI</span>
+        <span className="text-xs text-slate-400">
+          {lastUpdated
+            ? `Last synced: ${lastUpdated.toLocaleTimeString()}`
+            : 'Real-time market signals from Google Sheets'}
+        </span>
       </div>
 
       {/* Center: Search Bar */}
@@ -28,6 +38,21 @@ const Header: React.FC = () => {
 
       {/* Right: Actions */}
       <div className="flex items-center gap-4">
+        {/* Sync Status */}
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/10 border border-primary/20">
+          <span className={`flex h-2 w-2 rounded-full ${loading ? 'bg-yellow-500' : 'bg-green-500'} pulse-live`}></span>
+          <span className="text-xs text-primary font-semibold uppercase tracking-wide">
+            {loading ? 'Syncing...' : 'Live Sync'}
+          </span>
+        </div>
+
+        <button
+          onClick={onRefresh}
+          className="text-slate-300 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/5"
+          title="Refresh data"
+        >
+          <span className={`material-symbols-outlined text-xl ${loading ? 'animate-spin' : ''}`}>sync</span>
+        </button>
         <button className="relative text-slate-300 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/5">
           <span className="material-symbols-outlined text-xl">notifications</span>
           <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full"></span>
