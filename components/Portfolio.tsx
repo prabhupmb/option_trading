@@ -25,80 +25,24 @@ interface PortfolioStats {
     openPositions: number;
 }
 
-// --- CONSTANTS & MOCK DATA ---
-const MOCK_STATS: PortfolioStats = {
-    totalEquity: 124592.84,
-    dailyGainAmount: 4210.30,
-    dailyGainPercent: 3.2,
-    realizedProfit: "12.4k",
-    profitGrowth: 8,
-    openPositions: 8
-};
-
-const MOCK_TRADES: Trade[] = [
-    {
-        id: '1',
-        ticker: 'NVDA',
-        name: 'NVIDIA Corporation',
-        price: 185.41,
-        entryPrice: 172.10,
-        status: 'Strong Buy',
-        gainAmount: 1240.50,
-        gainPercent: 7.2,
-        progress: 75,
-        icon: 'memory'
-    },
-    {
-        id: '2',
-        ticker: 'AAPL',
-        name: 'Apple Inc.',
-        price: 212.89,
-        entryPrice: 215.10,
-        status: 'Neutral',
-        gainAmount: -240.20,
-        gainPercent: -1.2,
-        progress: 45,
-        icon: 'phone_iphone'
-    },
-    {
-        id: '3',
-        ticker: 'TSLA',
-        name: 'Tesla, Inc.',
-        price: 248.15,
-        entryPrice: 240.00,
-        status: 'Strong Buy',
-        gainAmount: 815.00,
-        gainPercent: 3.4,
-        progress: 50,
-        icon: 'electric_car'
-    },
-    {
-        id: '4',
-        ticker: 'AMD',
-        name: 'Advanced Micro Devices',
-        price: 156.78,
-        entryPrice: 145.20,
-        status: 'Strong Buy',
-        gainAmount: 512.40,
-        gainPercent: 4.5,
-        progress: 60,
-        icon: 'developer_board'
-    },
-    {
-        id: '5',
-        ticker: 'GOOGL',
-        name: 'Alphabet Inc.',
-        price: 178.35,
-        entryPrice: 180.00,
-        status: 'Neutral',
-        gainAmount: -120.50,
-        gainPercent: -0.9,
-        progress: 30,
-        icon: 'search'
-    },
-];
-
 // --- COMPONENTS ---
+
+const EmptyState: React.FC = () => (
+    <div className="flex flex-col items-center justify-center h-[50vh] text-center space-y-6 animate-in fade-in duration-700">
+        <div className="w-24 h-24 bg-slate-100 dark:bg-white/5 rounded-full flex items-center justify-center animate-pulse">
+            <span className="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">satellite_alt</span>
+        </div>
+        <div className="space-y-2 max-w-md mx-auto">
+            <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+                Waiting for Signal Status
+            </h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                Connect your portfolio via n8n webhook to see live performance data.
+                <br />Waiting for data stream...
+            </p>
+        </div>
+    </div>
+);
 
 const TotalEquityCard: React.FC<{ stats: PortfolioStats }> = ({ stats }) => (
     <section className="bg-white dark:bg-[#111111] rounded-xl p-8 border border-gray-100 dark:border-white/10 h-full flex flex-col justify-between shadow-sm">
@@ -221,9 +165,92 @@ const TradeCard: React.FC<{ trade: Trade }> = ({ trade }) => {
     );
 };
 
+import { fetchPortfolioData, PortfolioData } from '../services/n8n'; // Import service
+
 const Portfolio: React.FC = () => {
-    const [trades] = useState(MOCK_TRADES);
-    const [stats] = useState(MOCK_STATS);
+    const [trades, setTrades] = useState<Trade[] | null>(null);
+    const [stats, setStats] = useState<PortfolioStats | null>(null);
+    const [aiInsight, setAiInsight] = useState<{ message: string } | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    React.useEffect(() => {
+        const loadData = async () => {
+            setLoading(true);
+            const data = await fetchPortfolioData();
+
+            if (data) {
+                // Map API data
+                if (data.trades && Array.isArray(data.trades)) {
+                    setTrades(data.trades);
+                }
+                if (data.stats) {
+                    setStats(data.stats);
+                }
+                if (data.aiInsight?.message) {
+                    setAiInsight({ message: data.aiInsight.message });
+                }
+            }
+            setLoading(false);
+        };
+
+        loadData(); // Initial load
+
+        // Auto-refresh every 15 minutes ONLY when screen is visible
+        const FIFTEEN_MINUTES = 15 * 60 * 1000;
+        let intervalId: ReturnType<typeof setInterval> | null = null;
+
+        const startPolling = () => {
+            if (!intervalId) {
+                intervalId = setInterval(loadData, FIFTEEN_MINUTES);
+            }
+        };
+
+        const stopPolling = () => {
+            if (intervalId) {
+                clearInterval(intervalId);
+                intervalId = null;
+            }
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                loadData(); // Refresh immediately when returning
+                startPolling();
+            } else {
+                stopPolling();
+            }
+        };
+
+        // Start polling if initially visible
+        if (document.visibilityState === 'visible') {
+            startPolling();
+        }
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            stopPolling();
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, []);
+
+    // Skeleton loading state could be added here, but for now we settle for keeping old data until new arrives
+    // or just showing the UI updates when they happen.
+
+    // Loading State
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full space-y-4 animate-pulse">
+                <div className="w-12 h-12 rounded-full border-4 border-slate-100 border-t-rh-green animate-spin"></div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Syncing Portfolio...</p>
+            </div>
+        );
+    }
+
+    // Empty State (No data from API)
+    if (!trades || !stats) {
+        return <EmptyState />;
+    }
 
     return (
         <div className="flex-1 overflow-y-auto animate-in no-scrollbar rounded-2xl">
@@ -240,20 +267,22 @@ const Portfolio: React.FC = () => {
                 </div>
 
                 {/* AI Suggestion Banner */}
-                <section className="bg-slate-50 dark:bg-white/5 rounded-xl p-6 border border-gray-200 dark:border-white/5 border-dashed flex flex-col md:flex-row items-center gap-6">
-                    <div className="w-12 h-12 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0">
-                        <span className="material-symbols-outlined text-2xl">psychology</span>
-                    </div>
-                    <div className="flex-1 text-center md:text-left">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">AI Insight</p>
-                        <p className="text-sm text-slate-700 dark:text-slate-300 font-medium italic">
-                            "Market sentiment shifting. Consider hedging your TSLA position before the Q4 earnings call next week due to increased volatility."
-                        </p>
-                    </div>
-                    <button className="text-[10px] font-black text-indigo-500 bg-indigo-500/10 px-6 py-3 rounded-lg hover:bg-indigo-500/20 transition-colors uppercase tracking-widest">
-                        View Analysis
-                    </button>
-                </section>
+                {aiInsight && (
+                    <section className="bg-slate-50 dark:bg-white/5 rounded-xl p-6 border border-gray-200 dark:border-white/5 border-dashed flex flex-col md:flex-row items-center gap-6">
+                        <div className="w-12 h-12 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0">
+                            <span className="material-symbols-outlined text-2xl">psychology</span>
+                        </div>
+                        <div className="flex-1 text-center md:text-left">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">AI Insight</p>
+                            <p className="text-sm text-slate-700 dark:text-slate-300 font-medium italic">
+                                "{aiInsight.message}"
+                            </p>
+                        </div>
+                        <button className="text-[10px] font-black text-indigo-500 bg-indigo-500/10 px-6 py-3 rounded-lg hover:bg-indigo-500/20 transition-colors uppercase tracking-widest">
+                            View Analysis
+                        </button>
+                    </section>
+                )}
 
                 {/* Active Trades Grid */}
                 <section className="space-y-6">
@@ -274,11 +303,17 @@ const Portfolio: React.FC = () => {
                             </button>
                         </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {trades.map(trade => (
-                            <TradeCard key={trade.id} trade={trade} />
-                        ))}
-                    </div>
+                    {trades.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                            {trades.map(trade => (
+                                <TradeCard key={trade.id} trade={trade} />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-20 text-slate-400 dark:text-slate-600 text-sm font-bold uppercase tracking-widest">
+                            No active trades found
+                        </div>
+                    )}
                 </section>
             </div>
         </div>

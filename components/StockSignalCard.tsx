@@ -48,15 +48,16 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis }) => {
         </div>
       </div>
 
-      <div className={`grid grid-cols-2 gap-4 mb-4 ${signal.status === 'ANALYZING' ? 'opacity-50' : ''}`}>
-        <div className="flex flex-col gap-2">
-          <div className="flex justify-between items-center text-[10px] text-slate-400 uppercase font-black">
+      <div className={`grid grid-cols-3 gap-2 mb-4 ${signal.status === 'ANALYZING' ? 'opacity-50' : ''}`}>
+        {/* AI Conviction */}
+        <div className="flex flex-col gap-1.5 col-span-2">
+          <div className="flex items-center gap-2 text-[10px] text-slate-400 uppercase font-black mb-1">
             <span>AI Conviction</span>
             <span className={convictionVal > 70 ? 'text-rh-green' : 'text-rh-red'}>
               {convictionVal}%
             </span>
           </div>
-          <div className="h-1.5 w-full bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden">
+          <div className="h-1.5 w-full max-w-[120px] bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-1000 ${signal.status === 'ANALYZING' ? 'bg-gray-300 animate-pulse w-1/3' :
                 (isHighConviction ? 'bg-rh-green' : 'bg-rh-red')
@@ -65,17 +66,31 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis }) => {
             ></div>
           </div>
         </div>
-        <div className="flex flex-col gap-2">
-          <div className="text-[10px] text-slate-400 uppercase font-black text-center">Trend</div>
-          <div className="flex gap-2 justify-center">
-            {trendColors.map((color, idx) => (
-              <div
-                key={idx}
-                className={`w-3 h-3 rounded-full ${color}`}
-              ></div>
-            ))}
-          </div>
+
+        {/* ADX Strength */}
+        <div className="flex flex-col items-center justify-center bg-slate-50 dark:bg-white/5 rounded-lg px-2 py-1.5">
+          <span className="text-[9px] text-slate-400 uppercase font-black tracking-wide">ADX</span>
+          <span className={`text-sm font-black tracking-tight ${signal.adxTrend?.toLowerCase().replace('_', ' ').includes('very strong') ? 'text-rh-green' : 'text-yellow-500'}`}>
+            {signal.adxValue || '--'}
+          </span>
+          <span className={`text-[8px] font-bold uppercase tracking-wider ${signal.adxTrend?.toLowerCase().replace('_', ' ').includes('very strong') ? 'text-rh-green' : 'text-yellow-500'}`}>
+            {signal.adxTrend?.replace('_', ' ') || 'N/A'}
+          </span>
         </div>
+      </div>
+
+      {/* Timeframe Trend Matrix - Small Dots with Labels */}
+      <div className={`flex items-center justify-center gap-4 mb-4 ${signal.status === 'ANALYZING' ? 'opacity-50' : ''}`}>
+        {['4H', '1H', '15M'].map((time) => {
+          const trend = signal.matrix[time as keyof typeof signal.matrix];
+          const dotColor = trend === 'UP' ? 'bg-rh-green' : trend === 'DOWN' ? 'bg-rh-red' : 'bg-yellow-400';
+          return (
+            <div key={time} className="flex items-center gap-1.5">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide">{time}</span>
+              <div className={`w-2.5 h-2.5 rounded-full ${dotColor}`}></div>
+            </div>
+          );
+        })}
       </div>
 
       <div className="flex gap-2">
