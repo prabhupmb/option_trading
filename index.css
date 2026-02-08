@@ -22,6 +22,7 @@ body {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -32,6 +33,7 @@ body {
     transform: translateY(10px);
     opacity: 0;
   }
+
   to {
     transform: translateY(0);
     opacity: 1;
@@ -89,4 +91,18 @@ main::-webkit-scrollbar-thumb:hover {
 
 .glass-card:hover {
   box-shadow: 0 8px 32px rgba(127, 19, 236, 0.15);
+}
+
+/* Portfolio Page Effects */
+.glow-purple {
+  box-shadow: 0 0 20px rgba(127, 19, 236, 0.4);
+}
+
+.glow-green {
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+}
+
+.trade-card-gradient {
+  background: linear-gradient(145deg, rgba(26, 17, 34, 0.6) 0%, rgba(26, 17, 34, 0.3) 100%);
+  backdrop-filter: blur(12px);
 }

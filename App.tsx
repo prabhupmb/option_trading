@@ -3,14 +3,14 @@ import React, { useState } from 'react';
 import Header from './components/Header';
 import SummaryCard from './components/SummaryCard';
 import StockSignalCard from './components/StockSignalCard';
-import Navigation from './components/Navigation';
+import Navigation, { View } from './components/Navigation';
 import AnalysisModal from './components/AnalysisModal';
+import Portfolio from './components/Portfolio';
 import { StockSignal, SignalType, SummaryStat } from './types';
 import {
   useSheetData,
   SheetSignal,
   parseTrend,
-  getSignalType,
   getConviction
 } from './services/googleSheets';
 import { GoogleGenAI } from '@google/genai';
@@ -84,6 +84,7 @@ const App: React.FC = () => {
   const [selectedSignal, setSelectedSignal] = useState<StockSignal | null>(null);
   const [filter, setFilter] = useState<SignalType | 'ALL'>('ALL');
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
+  const [currentView, setCurrentView] = useState<View>('signals');
 
   // Convert sheet data to app format
   const signals: StockSignal[] = sheetData.map(convertToStockSignal);
@@ -135,139 +136,150 @@ const App: React.FC = () => {
   return (
     <div className="flex min-h-screen">
       {/* Left Sidebar */}
-      <Navigation />
+      <Navigation activeView={currentView} onNavigate={setCurrentView} />
 
       {/* Main Content Area */}
       <div className="flex-1 ml-64 flex flex-col">
         <Header lastUpdated={lastUpdated} onRefresh={refresh} loading={loading} />
 
-        <main className="flex-1 overflow-y-auto p-8">
-          {/* Loading State */}
-          {loading && signals.length === 0 && (
-            <div className="flex items-center justify-center h-64">
-              <div className="text-center">
-                <span className="material-symbols-outlined text-4xl text-primary animate-spin-slow">refresh</span>
-                <p className="text-slate-400 mt-4">Loading signals from Google Sheets...</p>
-              </div>
-            </div>
-          )}
-
-          {/* Warning State (Cached Data) */}
-          {warning && (
-            <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4 mb-6 animate-in">
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-orange-400">warning</span>
-                <div>
-                  <p className="text-orange-400 font-semibold">Using Cached Data</p>
-                  <p className="text-orange-400/70 text-sm">{warning}</p>
+        {currentView === 'signals' ? (
+          <main className="flex-1 overflow-y-auto p-8 animate-in">
+            {/* Loading State */}
+            {loading && signals.length === 0 && (
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center">
+                  <span className="material-symbols-outlined text-4xl text-primary animate-spin-slow">refresh</span>
+                  <p className="text-slate-400 mt-4">Loading signals from Google Sheets...</p>
                 </div>
-                <button
-                  onClick={refresh}
-                  className="ml-auto px-4 py-2 bg-orange-500/20 text-orange-400 rounded-lg hover:bg-orange-500/30 transition-colors"
-                >
-                  Retry Sync
-                </button>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Error State (No Data) */}
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6">
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-red-400">error</span>
-                <div>
-                  <p className="text-red-400 font-semibold">Failed to load data</p>
-                  <p className="text-red-400/70 text-sm">{error}</p>
-                </div>
-                <button
-                  onClick={refresh}
-                  className="ml-auto px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
-                >
-                  Retry
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Summary Cards Row */}
-          {(!loading || signals.length > 0) && (
-            <section className="mb-8">
-              <div className="grid grid-cols-4 gap-4">
-                {summaryStats.map((stat, idx) => (
-                  <div key={stat.type} onClick={() => setFilter(filter === stat.type ? 'ALL' : stat.type)} className="cursor-pointer transition-transform active:scale-95">
-                    <SummaryCard stat={stat} isPrimary={filter === stat.type} />
+            {/* Warning State (Cached Data) */}
+            {warning && (
+              <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4 mb-6 animate-in">
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-orange-400">warning</span>
+                  <div>
+                    <p className="text-orange-400 font-semibold">Using Cached Data</p>
+                    <p className="text-orange-400/70 text-sm">{warning}</p>
                   </div>
-                ))}
-                {/* Total Signals Card */}
-                <div
+                  <button
+                    onClick={refresh}
+                    className="ml-auto px-4 py-2 bg-orange-500/20 text-orange-400 rounded-lg hover:bg-orange-500/30 transition-colors"
+                  >
+                    Retry Sync
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Error State (No Data) */}
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6">
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-red-400">error</span>
+                  <div>
+                    <p className="text-red-400 font-semibold">Failed to load data</p>
+                    <p className="text-red-400/70 text-sm">{error}</p>
+                  </div>
+                  <button
+                    onClick={refresh}
+                    className="ml-auto px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Summary Cards Row */}
+            {(!loading || signals.length > 0) && (
+              <section className="mb-8">
+                <div className="grid grid-cols-4 gap-4">
+                  {summaryStats.map((stat, idx) => (
+                    <div key={stat.type} onClick={() => setFilter(filter === stat.type ? 'ALL' : stat.type)} className="cursor-pointer transition-transform active:scale-95">
+                      <SummaryCard stat={stat} isPrimary={filter === stat.type} />
+                    </div>
+                  ))}
+                  {/* Total Signals Card */}
+                  <div
+                    onClick={() => setFilter('ALL')}
+                    className={`glass-card rounded-xl p-4 flex flex-col gap-1 border border-white/5 cursor-pointer transition-transform active:scale-95 ${filter === 'ALL' ? 'ring-2 ring-primary bg-primary/5' : ''}`}
+                  >
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Total Signals
+                    </span>
+                    <span className="text-2xl font-bold text-white tracking-tighter">
+                      {signals.length}
+                    </span>
+                    <div className="flex items-center gap-1 text-primary">
+                      <span className="material-symbols-outlined text-sm">sync</span>
+                      <span className="text-xs font-semibold">Live</span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* List Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex flex-col">
+                <h2 className="text-xl font-bold text-white tracking-tight">Market Signals</h2>
+                <span className="text-xs text-slate-500 uppercase font-bold tracking-widest">
+                  {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : 'Powered by Google Sheets'}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={refresh}
+                  className="text-sm font-semibold text-slate-400 flex items-center gap-2 px-4 py-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 hover:text-white transition-all"
+                >
+                  <span className={`material-symbols-outlined text-lg ${loading ? 'animate-spin' : ''}`}>refresh</span>
+                  Refresh
+                </button>
+                <button className="text-sm font-semibold text-slate-400 flex items-center gap-2 px-4 py-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 hover:text-white transition-all">
+                  <span className="material-symbols-outlined text-lg">sort</span>
+                  Sort
+                </button>
+                <button
                   onClick={() => setFilter('ALL')}
-                  className={`glass-card rounded-xl p-4 flex flex-col gap-1 border border-white/5 cursor-pointer transition-transform active:scale-95 ${filter === 'ALL' ? 'ring-2 ring-primary bg-primary/5' : ''}`}
+                  className={`text-sm font-semibold flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${filter !== 'ALL' ? 'text-primary bg-primary/10 border-primary/20' : 'text-slate-400 bg-white/5 border-white/10'}`}
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Total Signals
-                  </span>
-                  <span className="text-2xl font-bold text-white tracking-tighter">
-                    {signals.length}
-                  </span>
-                  <div className="flex items-center gap-1 text-primary">
-                    <span className="material-symbols-outlined text-sm">sync</span>
-                    <span className="text-xs font-semibold">Live</span>
-                  </div>
-                </div>
+                  <span className="material-symbols-outlined text-lg">tune</span>
+                  {filter === 'ALL' ? 'Filter' : 'Clear Filter'}
+                </button>
               </div>
-            </section>
-          )}
-
-          {/* List Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex flex-col">
-              <h2 className="text-xl font-bold text-white tracking-tight">Market Signals</h2>
-              <span className="text-xs text-slate-500 uppercase font-bold tracking-widest">
-                {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : 'Powered by Google Sheets'}
-              </span>
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={refresh}
-                className="text-sm font-semibold text-slate-400 flex items-center gap-2 px-4 py-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 hover:text-white transition-all"
-              >
-                <span className={`material-symbols-outlined text-lg ${loading ? 'animate-spin' : ''}`}>refresh</span>
-                Refresh
-              </button>
-              <button className="text-sm font-semibold text-slate-400 flex items-center gap-2 px-4 py-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 hover:text-white transition-all">
-                <span className="material-symbols-outlined text-lg">sort</span>
-                Sort
-              </button>
-              <button
-                onClick={() => setFilter('ALL')}
-                className={`text-sm font-semibold flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${filter !== 'ALL' ? 'text-primary bg-primary/10 border-primary/20' : 'text-slate-400 bg-white/5 border-white/10'}`}
-              >
-                <span className="material-symbols-outlined text-lg">tune</span>
-                {filter === 'ALL' ? 'Filter' : 'Clear Filter'}
-              </button>
+
+            {/* Signals Grid */}
+            <section className="grid grid-cols-3 gap-6">
+              {actionableSignals.map((signal) => (
+                <StockSignalCard
+                  key={signal.symbol}
+                  signal={signal}
+                  onViewAnalysis={handleViewAnalysis}
+                />
+              ))}
+            </section>
+
+            {actionableSignals.length > 0 && (
+              <div className="py-8 text-center">
+                <p className="text-xs text-slate-600 uppercase font-bold tracking-widest">
+                  Showing {actionableSignals.length} actionable signals • {signals.length - actionableSignals.length} filtered out
+                </p>
+              </div>
+            )}
+          </main>
+        ) : currentView === 'portfolio' ? (
+          <Portfolio />
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-slate-500">
+            <div className="text-center">
+              <span className="material-symbols-outlined text-6xl mb-4 opacity-20">construction</span>
+              <p className="uppercase tracking-widest font-bold">Coming Soon</p>
             </div>
           </div>
-
-          {/* Signals Grid */}
-          <section className="grid grid-cols-3 gap-6">
-            {actionableSignals.map((signal) => (
-              <StockSignalCard
-                key={signal.symbol}
-                signal={signal}
-                onViewAnalysis={handleViewAnalysis}
-              />
-            ))}
-          </section>
-
-          {actionableSignals.length > 0 && (
-            <div className="py-8 text-center">
-              <p className="text-xs text-slate-600 uppercase font-bold tracking-widest">
-                Showing {actionableSignals.length} actionable signals • {signals.length - actionableSignals.length} filtered out
-              </p>
-            </div>
-          )}
-        </main>
+        )}
       </div>
 
       <AnalysisModal
