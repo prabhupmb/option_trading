@@ -8,22 +8,21 @@ interface Props {
 }
 
 const SummaryCard: React.FC<Props> = ({ stat, isPrimary }) => {
-  const labelColor = stat.type === SignalType.STRONG_BUY ? 'text-primary' : 'text-slate-400';
-  const borderColor = isPrimary ? 'border-primary/50 shadow-[0_0_10px_rgba(127,19,236,0.2)]' : 'border-white/5';
-
   return (
-    <div className={`glass-card ${borderColor} rounded-xl p-4 flex flex-col gap-1 transition-all hover:scale-[1.02] cursor-pointer`}>
-      <span className={`text-[10px] font-bold uppercase tracking-wider ${labelColor}`}>
+    <div className={`bg-white dark:bg-[#111111] border shadow-sm rounded-xl p-4 flex flex-col gap-1 hover:border-rh-green/20 transition-all h-full ${isPrimary ? 'border-rh-green/50 ring-1 ring-rh-green/50 bg-rh-green/5' : 'border-gray-100 dark:border-white/10'
+      }`}>
+      <span className={`text-[10px] font-black uppercase tracking-wider ${stat.type === SignalType.STRONG_BUY ? 'text-rh-green' : 'text-slate-400'
+        }`}>
         {stat.type.replace('_', ' ')}
       </span>
-      <span className="text-2xl font-bold text-white tracking-tighter">
+      <span className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
         {stat.count}
       </span>
-      <div className={`flex items-center gap-1 ${stat.change >= 0 ? 'text-green-400' : 'text-orange-400'}`}>
+      <div className={`flex items-center gap-1 ${stat.change >= 0 ? 'text-rh-green' : 'text-rh-red'}`}>
         <span className="material-symbols-outlined text-sm">
           {stat.change >= 0 ? 'trending_up' : 'trending_down'}
         </span>
-        <span className="text-xs font-semibold">{stat.change >= 0 ? '+' : ''}{stat.change}%</span>
+        <span className="text-xs font-bold">{stat.change > 0 ? '+' : ''}{stat.change}%</span>
       </div>
     </div>
   );

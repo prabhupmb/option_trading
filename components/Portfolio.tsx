@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 
 // --- TYPES ---
@@ -102,41 +101,39 @@ const MOCK_TRADES: Trade[] = [
 // --- COMPONENTS ---
 
 const TotalEquityCard: React.FC<{ stats: PortfolioStats }> = ({ stats }) => (
-    <section className="relative overflow-hidden bg-gradient-to-br from-primary via-[#6D28D9] to-surface-dark rounded-[24px] p-8 glow-purple h-full flex flex-col justify-between">
-        <div className="relative z-10">
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-white/60 mb-2">Total Equity</p>
+    <section className="bg-white dark:bg-[#111111] rounded-xl p-8 border border-gray-100 dark:border-white/10 h-full flex flex-col justify-between shadow-sm">
+        <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Equity</p>
             <div className="mb-6">
-                <h2 className="text-[48px] font-[900] text-white tracking-tighter leading-none">
+                <h2 className="text-5xl font-black text-slate-900 dark:text-white tracking-tighter leading-none">
                     ${stats.totalEquity.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </h2>
             </div>
-            <div className="inline-flex items-center gap-2 bg-black/30 backdrop-blur-xl px-4 py-2 rounded-full border border-white/10">
-                <span className="material-symbols-outlined text-green-400 text-[18px]">trending_up</span>
-                <span className="text-sm font-black text-green-400 tracking-tight">
+            <div className="inline-flex items-center gap-2 bg-rh-green/10 px-4 py-2 rounded-lg">
+                <span className="material-symbols-outlined text-rh-green text-lg">trending_up</span>
+                <span className="text-sm font-black text-rh-green tracking-tight">
                     +${stats.dailyGainAmount.toLocaleString()} ({stats.dailyGainPercent}%)
                 </span>
-                <span className="text-[10px] text-white/40 ml-1 font-bold tracking-widest uppercase">Today</span>
+                <span className="text-[10px] text-rh-green/70 ml-1 font-bold tracking-widest uppercase">Today</span>
             </div>
         </div>
-        <div className="absolute -right-12 -bottom-12 w-48 h-48 bg-white/10 rounded-full blur-[60px]"></div>
-        <div className="absolute left-1/2 top-0 w-32 h-32 bg-primary/20 rounded-full blur-[40px]"></div>
     </section>
 );
 
 const StatsColumn: React.FC<{ stats: PortfolioStats }> = ({ stats }) => (
     <div className="flex flex-col gap-4 h-full">
-        <div className="bg-surface-dark p-6 rounded-[20px] border border-white/5 flex-1 flex flex-col justify-center">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-2">Realized Profit</p>
+        <div className="bg-white dark:bg-[#111111] p-6 rounded-xl border border-gray-100 dark:border-white/10 flex-1 flex flex-col justify-center shadow-sm">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Realized Profit</p>
             <div className="flex items-center gap-3">
-                <span className="text-[28px] font-black text-white tracking-tight">${stats.realizedProfit}</span>
-                <span className="text-[11px] text-green-400 font-mono font-bold bg-green-500/10 px-2 py-1 rounded-md">+{stats.profitGrowth}%</span>
+                <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">${stats.realizedProfit}</span>
+                <span className="text-[11px] text-rh-green font-bold bg-rh-green/10 px-2 py-1 rounded-md">+{stats.profitGrowth}%</span>
             </div>
         </div>
-        <div className="bg-surface-dark p-6 rounded-[20px] border border-white/5 flex-1 flex flex-col justify-center">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-2">Open Positions</p>
+        <div className="bg-white dark:bg-[#111111] p-6 rounded-xl border border-gray-100 dark:border-white/10 flex-1 flex flex-col justify-center shadow-sm">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Open Positions</p>
             <div className="flex items-center gap-3">
-                <span className="text-[28px] font-black text-white tracking-tight">{stats.openPositions.toString().padStart(2, '0')}</span>
-                <span className="px-2 py-1 bg-primary/20 text-primary text-[10px] rounded-md font-[900] uppercase tracking-wider">Active</span>
+                <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{stats.openPositions.toString().padStart(2, '0')}</span>
+                <span className="px-2 py-1 bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-gray-400 text-[10px] rounded-md font-bold uppercase tracking-wider">Active</span>
             </div>
         </div>
     </div>
@@ -144,68 +141,80 @@ const StatsColumn: React.FC<{ stats: PortfolioStats }> = ({ stats }) => (
 
 const TradeCard: React.FC<{ trade: Trade }> = ({ trade }) => {
     const isProfit = trade.gainAmount >= 0;
-    const statusColor = trade.status === 'Neutral' ? 'bg-slate-700 text-slate-300' : 'bg-green-500/10 text-green-400';
-    const accentBorder = isProfit ? 'border-l-[4px] border-green-500' : 'border-l-[4px] border-red-500';
-    const glowClass = isProfit ? 'glow-green shadow-green-500/5' : '';
+    const isNeutral = trade.status === 'Neutral';
+
+    // Status Styles
+    let accentBorder = 'border-l-4 border-slate-300 dark:border-gray-600';
+    let statusColor = 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-gray-400';
+
+    if (trade.status === 'Strong Buy' || trade.status === 'Strong Sell') { // Assuming 'Strong Sell' might be noteworthy but keeping simple logic for now
+        if (isProfit || trade.status === 'Strong Buy') {
+            accentBorder = 'border-l-4 border-rh-green';
+            statusColor = 'bg-rh-green text-white shadow-lg shadow-rh-green/20';
+        }
+    }
+
+    if (!isProfit && !isNeutral) {
+        // accentBorder = 'border-l-4 border-rh-red'; // Optional: Use red for loss/sell
+    }
 
     return (
-        <div className={`trade-card-gradient rounded-[22px] p-5 space-y-4 border border-white/5 ${accentBorder} ${glowClass} hover:translate-y-[-4px] transition-all duration-300`}>
+        <div className={`bg-white dark:bg-[#111111] rounded-xl p-5 space-y-4 border border-gray-100 dark:border-white/10 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 ${accentBorder}`}>
             <div className="flex justify-between items-start">
-                <div className="flex gap-3">
-                    <div className="w-10 h-10 bg-slate-800/80 rounded-xl flex items-center justify-center border border-white/10 shrink-0">
-                        <span className="material-symbols-outlined text-white text-[20px]">{trade.icon}</span>
+                <div className="flex gap-3 min-w-0">
+                    <div className="w-10 h-10 bg-slate-50 dark:bg-white/5 rounded-xl flex items-center justify-center border border-gray-100 dark:border-white/5 shrink-0">
+                        <span className="material-symbols-outlined text-slate-700 dark:text-slate-300 text-xl">{trade.icon}</span>
                     </div>
                     <div className="space-y-0.5 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="text-base font-black text-white tracking-tight truncate">{trade.ticker}</h4>
-                            <span className={`${statusColor} text-[9px] px-1.5 py-0.5 rounded-full font-[900] uppercase tracking-wider shrink-0`}>
+                            <h4 className="text-base font-black text-slate-900 dark:text-white tracking-tight truncate">{trade.ticker}</h4>
+                            <span className={`${statusColor} text-[9px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider shrink-0`}>
                                 {trade.status}
                             </span>
                         </div>
-                        <p className="text-[11px] font-medium text-slate-400 truncate">{trade.name}</p>
+                        <p className="text-[11px] font-bold text-slate-400 truncate">{trade.name}</p>
                     </div>
                 </div>
             </div>
 
-            <div className="flex justify-between items-end border-t border-white/5 pt-3 mt-1">
+            <div className="flex justify-between items-end border-t border-gray-50 dark:border-white/5 pt-3 mt-1">
                 <div>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
                         Price
                     </p>
-                    <p className="text-[16px] font-mono font-bold text-white tracking-tighter">
+                    <p className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
                         ${trade.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </p>
                 </div>
                 <div className="text-right">
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
                         P&L
                     </p>
-                    <p className={`text-[16px] font-mono font-bold tracking-tighter ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
+                    <p className={`text-base font-bold tracking-tight ${isProfit ? 'text-rh-green' : 'text-rh-red'}`}>
                         {isProfit ? '+' : ''}${Math.abs(trade.gainAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </p>
                 </div>
             </div>
 
             <div className="space-y-1.5">
-                <div className="flex justify-between text-[9px] font-[900] tracking-widest uppercase">
+                <div className="flex justify-between text-[9px] font-black tracking-widest uppercase">
                     <span className="text-slate-400">Progress</span>
-                    <span className={isProfit ? 'text-green-400' : 'text-red-400'}>
+                    <span className={isProfit ? 'text-rh-green' : 'text-rh-red'}>
                         {trade.gainPercent}%
                     </span>
                 </div>
-                <div className="w-full h-[6px] bg-slate-800/50 rounded-full overflow-hidden relative">
+                <div className="w-full h-1.5 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
                     <div
-                        className={`h-full ${isProfit ? 'bg-green-500' : 'bg-red-500'} rounded-full transition-all duration-700`}
+                        className={`h-full ${isProfit ? 'bg-rh-green' : 'bg-rh-red'} rounded-full transition-all duration-700`}
                         style={{
-                            width: `${trade.progress}%`,
-                            boxShadow: isProfit ? '0 0 10px rgba(34, 197, 94, 0.4)' : '0 0 10px rgba(239, 68, 68, 0.3)'
+                            width: `${trade.progress}%`
                         }}
                     ></div>
                 </div>
             </div>
 
-            <button className={`w-full ${isProfit ? 'bg-primary' : 'bg-primary/20 border border-primary/30 text-primary'} hover:brightness-110 active:scale-[0.98] text-white font-[900] text-[10px] py-3 rounded-[14px] flex items-center justify-center gap-2 uppercase tracking-[0.2em] transition-all shadow-lg shadow-black/20 mt-2`}>
-                <span className="material-symbols-outlined text-[16px]">bolt</span>
+            <button className={`w-full ${isProfit ? 'bg-rh-green text-white shadow-lg shadow-rh-green/20' : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400'} hover:brightness-110 active:scale-[0.98] font-black text-[10px] py-3 rounded-xl flex items-center justify-center gap-2 uppercase tracking-widest transition-all mt-2`}>
+                <span className="material-symbols-outlined text-base">bolt</span>
                 Execute
             </button>
         </div>
@@ -217,50 +226,50 @@ const Portfolio: React.FC = () => {
     const [stats] = useState(MOCK_STATS);
 
     return (
-        <div className="flex-1 overflow-y-auto p-8 animate-in no-scrollbar">
+        <div className="flex-1 overflow-y-auto animate-in no-scrollbar rounded-2xl">
             <div className="max-w-[1600px] mx-auto space-y-8">
 
                 {/* Top Section: Equity & Stats */}
-                <div className="grid grid-cols-12 gap-6 h-[220px]">
-                    <div className="col-span-8 h-full">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:h-[220px]">
+                    <div className="md:col-span-8 h-full">
                         <TotalEquityCard stats={stats} />
                     </div>
-                    <div className="col-span-4 h-full">
+                    <div className="md:col-span-4 h-full">
                         <StatsColumn stats={stats} />
                     </div>
                 </div>
 
                 {/* AI Suggestion Banner */}
-                <section className="bg-surface-dark/40 rounded-[22px] p-4 border border-white/5 border-dashed flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary shrink-0 animate-pulse">
-                        <span className="material-symbols-outlined text-[20px]">psychology</span>
+                <section className="bg-slate-50 dark:bg-white/5 rounded-xl p-6 border border-gray-200 dark:border-white/5 border-dashed flex flex-col md:flex-row items-center gap-6">
+                    <div className="w-12 h-12 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0">
+                        <span className="material-symbols-outlined text-2xl">psychology</span>
                     </div>
-                    <div className="flex-1">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">AI Insight</p>
-                        <p className="text-sm text-white/90 leading-relaxed italic font-medium">
+                    <div className="flex-1 text-center md:text-left">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">AI Insight</p>
+                        <p className="text-sm text-slate-700 dark:text-slate-300 font-medium italic">
                             "Market sentiment shifting. Consider hedging your TSLA position before the Q4 earnings call next week due to increased volatility."
                         </p>
                     </div>
-                    <button className="text-[10px] font-bold text-primary bg-primary/10 px-4 py-2 rounded-lg hover:bg-primary/20 transition-colors uppercase tracking-widest border border-primary/20">
+                    <button className="text-[10px] font-black text-indigo-500 bg-indigo-500/10 px-6 py-3 rounded-lg hover:bg-indigo-500/20 transition-colors uppercase tracking-widest">
                         View Analysis
                     </button>
                 </section>
 
                 {/* Active Trades Grid */}
-                <section className="space-y-5">
-                    <div className="flex items-center justify-between px-1">
+                <section className="space-y-6">
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
-                            <h3 className="text-[12px] font-[900] uppercase tracking-[0.25em] text-slate-500">Active Positions</h3>
-                            <span className="bg-white/10 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{trades.length}</span>
+                            <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">Active Positions</h3>
+                            <span className="bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-white text-[10px] font-bold px-2 py-0.5 rounded-md">{trades.length}</span>
                         </div>
 
                         <div className="flex gap-2">
-                            <button className="text-slate-400 text-[10px] font-black flex items-center gap-1 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors uppercase tracking-widest">
-                                <span className="material-symbols-outlined text-[14px]">filter_list</span>
+                            <button className="text-slate-500 dark:text-slate-400 text-[10px] font-bold flex items-center gap-1 bg-white dark:bg-[#1e2124] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/5 hover:border-rh-green hover:text-rh-green transition-all uppercase tracking-wider">
+                                <span className="material-symbols-outlined text-base">filter_list</span>
                                 Filter
                             </button>
-                            <button className="text-primary text-[10px] font-black flex items-center gap-1 bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/20 hover:bg-primary/20 transition-colors uppercase tracking-widest">
-                                <span className="material-symbols-outlined text-[14px]">sort</span>
+                            <button className="text-slate-500 dark:text-slate-400 text-[10px] font-bold flex items-center gap-1 bg-white dark:bg-[#1e2124] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/5 hover:border-rh-green hover:text-rh-green transition-all uppercase tracking-wider">
+                                <span className="material-symbols-outlined text-base">sort</span>
                                 Sort
                             </button>
                         </div>

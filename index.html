@@ -12,86 +12,29 @@
         rel="stylesheet" />
     <script>
         tailwind.config = {
-            darkMode: "class",
             theme: {
                 extend: {
                     colors: {
-                        "primary": "#7f13ec",
-                        "background-dark": "#0a0712",
-                        "surface-dark": "#1a1122",
+                        "rh-green": "#00C805",
+                        "rh-red": "#FF5000",
+                        "rh-background": "#FFFFFF",
+                        "rh-surface": "#F5F8FA",
                     },
                     fontFamily: {
-                        "display": ["Inter", "sans-serif"]
+                        sans: ["Inter", "sans-serif"],
                     },
                 },
             },
+            darkMode: 'class',
+        }
+
+        // Initialize theme
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark')
+        } else {
+            document.documentElement.classList.remove('dark')
         }
     </script>
-    <style type="text/css">
-        body {
-            background-color: #0a0712;
-            color: white;
-            font-family: 'Inter', sans-serif;
-        }
-
-        .cyber-gradient {
-            background: radial-gradient(circle at top right, #2a1444 0%, #0a0712 100%);
-            min-height: 100vh;
-        }
-
-        .glass-card {
-            background: rgba(54, 35, 72, 0.4);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        .glass-header {
-            background: rgba(26, 17, 34, 0.7);
-            backdrop-filter: blur(16px);
-            border-bottom: 1px solid rgba(127, 19, 236, 0.2);
-        }
-
-        .pulse-live {
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-
-        @keyframes pulse {
-
-            0%,
-            100% {
-                opacity: 1;
-                transform: scale(1);
-            }
-
-            50% {
-                opacity: .5;
-                transform: scale(1.2);
-            }
-        }
-
-        .animate-spin-slow {
-            animation: spin 3s linear infinite;
-        }
-
-        @keyframes spin {
-            from {
-                transform: rotate(0deg);
-            }
-
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-    </style>
     <script type="importmap">
 {
   "imports": {
@@ -105,7 +48,7 @@
     <link rel="stylesheet" href="/index.css">
 </head>
 
-<body class="cyber-gradient overflow-x-hidden">
+<body class="antialiased">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
 </body>

@@ -134,150 +134,163 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen">
-      {/* Left Sidebar */}
+
+    <div className="flex min-h-screen bg-slate-50 dark:bg-[#0a0712] transition-colors font-sans text-slate-900 dark:text-white">
+      {/* Sidebar */}
       <Navigation activeView={currentView} onNavigate={setCurrentView} />
 
-      {/* Main Content Area */}
-      <div className="flex-1 ml-64 flex flex-col">
+      {/* Main Content */}
+      <div className="flex-1 ml-64 flex flex-col min-w-0">
         <Header lastUpdated={lastUpdated} onRefresh={refresh} loading={loading} />
 
         {currentView === 'signals' ? (
-          <main className="flex-1 overflow-y-auto p-8 animate-in">
+          <main className="flex-1 p-8 overflow-y-auto">
             {/* Loading State */}
             {loading && signals.length === 0 && (
               <div className="flex items-center justify-center h-64">
                 <div className="text-center">
-                  <span className="material-symbols-outlined text-4xl text-primary animate-spin-slow">refresh</span>
-                  <p className="text-slate-400 mt-4">Loading signals from Google Sheets...</p>
+                  <span className="material-symbols-outlined text-4xl text-rh-green animate-spin-slow">refresh</span>
+                  <p className="text-slate-400 mt-4 font-medium animate-pulse">Syncing Market Data...</p>
                 </div>
               </div>
             )}
 
             {/* Warning State (Cached Data) */}
             {warning && (
-              <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4 mb-6 animate-in">
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-orange-400">warning</span>
-                  <div>
-                    <p className="text-orange-400 font-semibold">Using Cached Data</p>
-                    <p className="text-orange-400/70 text-sm">{warning}</p>
-                  </div>
-                  <button
-                    onClick={refresh}
-                    className="ml-auto px-4 py-2 bg-orange-500/20 text-orange-400 rounded-lg hover:bg-orange-500/30 transition-colors"
-                  >
-                    Retry Sync
-                  </button>
+              <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4 mb-6 flex items-center gap-3">
+                <span className="material-symbols-outlined text-orange-500 text-xl">warning</span>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-orange-600 dark:text-orange-400">Using Cached Data</p>
+                  <p className="text-xs text-orange-600/70 dark:text-orange-400/70">{warning}</p>
                 </div>
+                <button onClick={refresh} className="text-xs font-bold text-orange-500 hover:text-orange-600 uppercase tracking-wide">Retry</button>
               </div>
             )}
 
             {/* Error State (No Data) */}
             {error && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6">
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-red-400">error</span>
-                  <div>
-                    <p className="text-red-400 font-semibold">Failed to load data</p>
-                    <p className="text-red-400/70 text-sm">{error}</p>
-                  </div>
-                  <button
-                    onClick={refresh}
-                    className="ml-auto px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
-                  >
-                    Retry
-                  </button>
+              <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 mb-6 flex items-center gap-3">
+                <span className="material-symbols-outlined text-red-500 text-xl">error</span>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-red-600 dark:text-red-400">Connection Failed</p>
+                  <p className="text-xs text-red-600/70 dark:text-red-400/70">{error}</p>
                 </div>
+                <button onClick={refresh} className="text-xs font-bold text-red-500 hover:text-red-600 uppercase tracking-wide">Retry</button>
               </div>
             )}
 
-            {/* Summary Cards Row */}
+            {/* Top Summaries */}
             {(!loading || signals.length > 0) && (
-              <section className="mb-8">
-                <div className="grid grid-cols-4 gap-4">
-                  {summaryStats.map((stat, idx) => (
-                    <div key={stat.type} onClick={() => setFilter(filter === stat.type ? 'ALL' : stat.type)} className="cursor-pointer transition-transform active:scale-95">
-                      <SummaryCard stat={stat} isPrimary={filter === stat.type} />
-                    </div>
-                  ))}
-                  {/* Total Signals Card */}
-                  <div
-                    onClick={() => setFilter('ALL')}
-                    className={`glass-card rounded-xl p-4 flex flex-col gap-1 border border-white/5 cursor-pointer transition-transform active:scale-95 ${filter === 'ALL' ? 'ring-2 ring-primary bg-primary/5' : ''}`}
-                  >
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {summaryStats.map((stat) => (
+                  <div key={stat.type} onClick={() => setFilter(filter === stat.type ? 'ALL' : stat.type)} className="cursor-pointer active:scale-[0.98] transition-transform">
+                    <SummaryCard stat={stat} isPrimary={filter === stat.type} />
+                  </div>
+                ))}
+                {/* Total Signals Card */}
+                <div
+                  onClick={() => setFilter('ALL')}
+                  className={`bg-white dark:bg-[#1e2124] border border-gray-100 dark:border-white/5 shadow-sm rounded-xl p-4 flex flex-col justify-between hover:border-rh-green/30 transition-all cursor-pointer group ${filter === 'ALL' ? 'ring-1 ring-rh-green border-rh-green bg-rh-green/5' : ''}`}
+                >
+                  <div className="flex justify-between items-start">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 group-hover:text-rh-green transition-colors">
                       Total Signals
                     </span>
-                    <span className="text-2xl font-bold text-white tracking-tighter">
-                      {signals.length}
-                    </span>
-                    <div className="flex items-center gap-1 text-primary">
-                      <span className="material-symbols-outlined text-sm">sync</span>
-                      <span className="text-xs font-semibold">Live</span>
+                    <div className="flex items-center gap-1 text-rh-green bg-rh-green/10 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rh-green animate-pulse"></span>
+                      LIVE
                     </div>
                   </div>
+                  <div className="mt-2">
+                    <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter block">
+                      {signals.length}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">Active Opportunities</span>
+                  </div>
                 </div>
-              </section>
+              </div>
             )}
 
-            {/* List Header */}
+            {/* Section Header */}
             <div className="flex items-center justify-between mb-6">
-              <div className="flex flex-col">
-                <h2 className="text-xl font-bold text-white tracking-tight">Market Signals</h2>
-                <span className="text-xs text-slate-500 uppercase font-bold tracking-widest">
-                  {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : 'Powered by Google Sheets'}
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={refresh}
-                  className="text-sm font-semibold text-slate-400 flex items-center gap-2 px-4 py-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 hover:text-white transition-all"
-                >
-                  <span className={`material-symbols-outlined text-lg ${loading ? 'animate-spin' : ''}`}>refresh</span>
-                  Refresh
-                </button>
-                <button className="text-sm font-semibold text-slate-400 flex items-center gap-2 px-4 py-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 hover:text-white transition-all">
-                  <span className="material-symbols-outlined text-lg">sort</span>
-                  Sort
-                </button>
-                <button
-                  onClick={() => setFilter('ALL')}
-                  className={`text-sm font-semibold flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${filter !== 'ALL' ? 'text-primary bg-primary/10 border-primary/20' : 'text-slate-400 bg-white/5 border-white/10'}`}
-                >
-                  <span className="material-symbols-outlined text-lg">tune</span>
-                  {filter === 'ALL' ? 'Filter' : 'Clear Filter'}
-                </button>
-              </div>
-            </div>
-
-            {/* Signals Grid */}
-            <section className="grid grid-cols-3 gap-6">
-              {actionableSignals.map((signal) => (
-                <StockSignalCard
-                  key={signal.symbol}
-                  signal={signal}
-                  onViewAnalysis={handleViewAnalysis}
-                />
-              ))}
-            </section>
-
-            {actionableSignals.length > 0 && (
-              <div className="py-8 text-center">
-                <p className="text-xs text-slate-600 uppercase font-bold tracking-widest">
-                  Showing {actionableSignals.length} actionable signals • {signals.length - actionableSignals.length} filtered out
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                  Market Feed
+                  <span className="text-xs font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-1 rounded-md align-middle">{actionableSignals.length} Active</span>
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+                  {lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString()}` : 'Real-time data stream'}
                 </p>
               </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex items-center bg-white dark:bg-[#1e2124] rounded-lg border border-gray-200 dark:border-white/5 p-1">
+                  <button
+                    onClick={() => setFilter('ALL')}
+                    className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${filter === 'ALL' ? 'bg-slate-100 dark:bg-white/10 text-slate-900 dark:text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setFilter(SignalType.STRONG_BUY)}
+                    className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${filter === SignalType.STRONG_BUY ? 'bg-rh-green text-white shadow-lg shadow-rh-green/20' : 'text-slate-400 hover:text-rh-green'}`}
+                  >
+                    Strong Buy
+                  </button>
+                  <button
+                    onClick={() => setFilter(SignalType.SELL)}
+                    className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${filter === SignalType.SELL ? 'bg-rh-red text-white shadow-lg shadow-rh-red/20' : 'text-slate-400 hover:text-rh-red'}`}
+                  >
+                    Sell
+                  </button>
+                </div>
+                <button
+                  onClick={refresh}
+                  className="bg-white dark:bg-[#1e2124] hover:bg-slate-50 dark:hover:bg-white/5 text-slate-400 hover:text-slate-900 dark:hover:text-white p-2 rounded-lg border border-gray-200 dark:border-white/5 transition-all active:scale-95"
+                  title="Refresh Data"
+                >
+                  <span className={`material-symbols-outlined text-xl ${loading ? 'animate-spin' : ''}`}>refresh</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Signals Grid - Desktop Optimized */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {actionableSignals.map((signal) => (
+                <div key={signal.symbol} className="hover:z-10 relative">
+                  <StockSignalCard
+                    signal={signal}
+                    onViewAnalysis={handleViewAnalysis}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {actionableSignals.length === 0 && !loading && (
+              <div className="flex flex-col items-center justify-center py-20 opacity-50">
+                <span className="material-symbols-outlined text-6xl text-slate-300 dark:text-white/10 mb-4">filter_list_off</span>
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">No signals match your filter</p>
+                <button onClick={() => setFilter('ALL')} className="mt-4 text-rh-green font-bold text-xs uppercase hover:underline">Clear Filters</button>
+              </div>
             )}
+
+            <div className="mt-12 text-center border-t border-gray-100 dark:border-white/5 pt-8">
+              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest opacity-60">
+                Signal Feed AI • v2.0.4 • Connected to Google Sheets
+              </p>
+            </div>
           </main>
         ) : currentView === 'portfolio' ? (
-          <Portfolio />
+          <div className="flex-1 overflow-y-auto">
+            <Portfolio />
+          </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-slate-500">
-            <div className="text-center">
-              <span className="material-symbols-outlined text-6xl mb-4 opacity-20">construction</span>
-              <p className="uppercase tracking-widest font-bold">Coming Soon</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+            <div className="w-24 h-24 bg-slate-100 dark:bg-white/5 rounded-full flex items-center justify-center mb-6">
+              <span className="material-symbols-outlined text-5xl opacity-40">construction</span>
             </div>
+            <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2 uppercase tracking-tight">Coming Soon</h3>
+            <p className="max-w-xs text-center text-sm font-medium opacity-70">This module is currently under development.</p>
           </div>
         )}
       </div>
