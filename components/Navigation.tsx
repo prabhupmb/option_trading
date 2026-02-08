@@ -26,7 +26,7 @@ const Navigation: React.FC = () => {
             <span className="material-symbols-outlined text-white text-2xl">insights</span>
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight text-white">PRABHU STOCKS</h1>
+            <h1 className="text-lg font-bold tracking-tight text-white">ZERO TO HERO STOCKS</h1>
             <div className="flex items-center gap-1.5">
               <span className="flex h-2 w-2 rounded-full bg-green-500 pulse-live"></span>
               <span className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">Live Market</span>
@@ -40,11 +40,10 @@ const Navigation: React.FC = () => {
         {navItems.map((item) => (
           <button
             key={item.label}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
-              item.isActive
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${item.isActive
                 ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_15px_rgba(127,19,236,0.15)]'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
-            }`}
+              }`}
           >
             <span className={`material-symbols-outlined text-xl ${item.isActive ? 'text-primary' : 'group-hover:text-white'}`}>
               {item.icon}
@@ -61,9 +60,9 @@ const Navigation: React.FC = () => {
       <div className="px-4 py-4 border-t border-white/5">
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer">
           <div className="w-10 h-10 rounded-full bg-primary/20 border border-primary/40 overflow-hidden">
-            <img 
-              alt="User Profile" 
-              className="w-full h-full object-cover" 
+            <img
+              alt="User Profile"
+              className="w-full h-full object-cover"
               src="https://lh3.googleusercontent.com/aida-public/AB6AXuBxAYywO2Fu9hoUIg6vKs2SkJqrV1wO6H05i1HrLlwPOd3aDCVqpBkObqhTjLnWL1V4MJEpG4eWzFPXmF430c0r-NCE8SG32Rc_tIbJCK9dI_vX5pWJbaxS8WQnRnr5488CCc6GO4jqpczR0Vsc-Ir3PhG97jSls7yJKuefBmXzf0WOPQRYWeCyL-BY6GlOIHVvg6t4fEwSos-UU51drxaPkHW7XnTbPsh07hY81wZXvikwV-P9awwKcAMUo-kdEPT6wDE9bn5hUhU"
             />
           </div>
