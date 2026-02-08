@@ -10,9 +10,9 @@ interface Props {
 const SummaryCard: React.FC<Props> = ({ stat, isPrimary }) => {
   const labelColor = stat.type === SignalType.STRONG_BUY ? 'text-primary' : 'text-slate-400';
   const borderColor = isPrimary ? 'border-primary/50 shadow-[0_0_10px_rgba(127,19,236,0.2)]' : 'border-white/5';
-  
+
   return (
-    <div className={`glass-card ${borderColor} rounded-xl p-4 min-w-[140px] flex flex-col gap-1 transition-all hover:scale-[1.02]`}>
+    <div className={`glass-card ${borderColor} rounded-xl p-4 flex flex-col gap-1 transition-all hover:scale-[1.02] cursor-pointer`}>
       <span className={`text-[10px] font-bold uppercase tracking-wider ${labelColor}`}>
         {stat.type.replace('_', ' ')}
       </span>

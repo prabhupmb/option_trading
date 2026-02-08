@@ -1,4 +1,4 @@
-/* Additional custom styles for Prabhu Stocks */
+/* Additional custom styles for Prabhu Stocks Desktop */
 
 html {
   scroll-behavior: smooth;
@@ -8,6 +8,13 @@ body {
   margin: 0;
   padding: 0;
   overflow-x: hidden;
+}
+
+/* Sidebar glass effect */
+.glass-sidebar {
+  background: rgba(26, 17, 34, 0.95);
+  backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(127, 19, 236, 0.2);
 }
 
 /* Smooth animations */
@@ -39,6 +46,24 @@ body {
   animation: slideUp 0.3s ease-out;
 }
 
+/* Custom scrollbar for main content */
+main::-webkit-scrollbar {
+  width: 8px;
+}
+
+main::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+main::-webkit-scrollbar-thumb {
+  background: rgba(127, 19, 236, 0.3);
+  border-radius: 4px;
+}
+
+main::-webkit-scrollbar-thumb:hover {
+  background: rgba(127, 19, 236, 0.5);
+}
+
 /* Custom scrollbar for modal */
 .max-h-\[60vh\]::-webkit-scrollbar {
   width: 6px;
@@ -55,4 +80,13 @@ body {
 
 .max-h-\[60vh\]::-webkit-scrollbar-thumb:hover {
   background: rgba(127, 19, 236, 0.5);
+}
+
+/* Card hover effects */
+.glass-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.glass-card:hover {
+  box-shadow: 0 8px 32px rgba(127, 19, 236, 0.15);
 }
