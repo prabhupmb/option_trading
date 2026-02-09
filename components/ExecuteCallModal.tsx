@@ -66,13 +66,34 @@ interface Props {
 }
 
 const ExecuteCallModal: React.FC<Props> = ({ signal, onClose }) => {
-    const [budget, setBudget] = useState<string>("5,000.00");
+    const [budget, setBudget] = useState<string>("1,000.00");
     const [risk, setRisk] = useState<RiskLevel>(RiskLevel.LOW);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
+    const [availableBalance, setAvailableBalance] = useState<number>(0);
 
-    // Mock available balance for now - can be passed as prop later
-    const availableBalance = 24500.00;
+    // Fetch available balance from portfolio
+    React.useEffect(() => {
+        const fetchBalance = async () => {
+            // Try to get from cache first
+            const cached = localStorage.getItem('portfolio_cache');
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                // Check if it's the new version 'v2' (implied by new structure or explicit version check)
+                if (parsed.version === 'v2' && parsed.stats?.buyingPower) {
+                    setAvailableBalance(parsed.stats.buyingPower);
+                    return;
+                }
+            }
+
+            // Fallback to fresh fetch if not in cache or missing buyingPower
+            const data = await import('../services/n8n').then(m => m.fetchPortfolioData());
+            if (data?.stats?.buyingPower) {
+                setAvailableBalance(data.stats.buyingPower);
+            }
+        };
+        fetchBalance();
+    }, []);
 
     const numericBudget = parseFloat(budget.replace(/,/g, '')) || 0;
 

@@ -23,6 +23,7 @@ interface PortfolioStats {
     realizedProfit: string;
     profitGrowth: number;
     openPositions: number;
+    buyingPower?: number;
 }
 
 // --- COMPONENTS ---
@@ -169,17 +170,25 @@ import { fetchPortfolioData, PortfolioData } from '../services/n8n'; // Import s
 
 const Portfolio: React.FC = () => {
     // Initialize state from LocalStorage if available to prevent loading screen
+    const CACHE_VERSION = 'v2'; // Increment to force invalidation
+
     const [trades, setTrades] = useState<Trade[] | null>(() => {
         const cached = localStorage.getItem('portfolio_cache');
-        return cached ? JSON.parse(cached).trades : null;
+        if (!cached) return null;
+        const parsed = JSON.parse(cached);
+        return parsed.version === CACHE_VERSION ? parsed.trades : null;
     });
     const [stats, setStats] = useState<PortfolioStats | null>(() => {
         const cached = localStorage.getItem('portfolio_cache');
-        return cached ? JSON.parse(cached).stats : null;
+        if (!cached) return null;
+        const parsed = JSON.parse(cached);
+        return parsed.version === CACHE_VERSION ? parsed.stats : null;
     });
     const [aiInsight, setAiInsight] = useState<{ message: string } | null>(() => {
         const cached = localStorage.getItem('portfolio_cache');
-        return cached ? JSON.parse(cached).aiInsight : null;
+        if (!cached) return null;
+        const parsed = JSON.parse(cached);
+        return parsed.version === CACHE_VERSION ? parsed.aiInsight : null;
     });
 
     // Only show loading if we didn't find anything in cache
@@ -207,7 +216,8 @@ const Portfolio: React.FC = () => {
                     trades: data.trades || trades,
                     stats: data.stats || stats,
                     aiInsight: data.aiInsight ? { message: data.aiInsight.message } : aiInsight,
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    version: CACHE_VERSION
                 }));
             }
             setLoading(false);

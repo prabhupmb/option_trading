@@ -7,6 +7,7 @@ export interface PortfolioData {
         realizedProfit: string;
         profitGrowth: number;
         openPositions: number;
+        buyingPower: number;
     };
     trades: Array<{
         id: string;
@@ -99,7 +100,8 @@ export const fetchPortfolioData = async (): Promise<PortfolioData | null> => {
                 dailyGainPercent: parseFloat((rawData.account.dayPLPercent * 100).toFixed(2)), // Convert decimal to %
                 realizedProfit: `${(rawData.account.totalPL / 1000).toFixed(1)}k`, // Approximation/Formatting
                 profitGrowth: parseFloat(rawData.account.totalPLPercent.toFixed(2)),
-                openPositions: rawData.stats.totalPositions
+                openPositions: rawData.stats.totalPositions,
+                buyingPower: rawData.account.cash
             },
             trades: rawData.positions.map((pos, index) => ({
                 id: `pos-${index}`,
