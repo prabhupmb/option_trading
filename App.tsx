@@ -1,10 +1,10 @@
-
 import React, { useState } from 'react';
 import Header from './components/Header';
 import SummaryCard from './components/SummaryCard';
 import StockSignalCard from './components/StockSignalCard';
 import Navigation, { View } from './components/Navigation';
 import AnalysisModal from './components/AnalysisModal';
+import ExecuteCallModal from './components/ExecuteCallModal';
 import Portfolio from './components/Portfolio';
 import { StockSignal, SignalType, SummaryStat } from './types';
 import {
@@ -82,6 +82,7 @@ function calculateSummaryStats(signals: StockSignal[]): SummaryStat[] {
 const App: React.FC = () => {
   const { data: sheetData, loading, error, warning, lastUpdated, refresh } = useSheetData(900000); // Refresh every 15 minutes
   const [selectedSignal, setSelectedSignal] = useState<StockSignal | null>(null);
+  const [executeSignal, setExecuteSignal] = useState<StockSignal | null>(null);
   const [filter, setFilter] = useState<SignalType | 'ALL'>('ALL');
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
   const [currentView, setCurrentView] = useState<View>('signals');
@@ -112,7 +113,7 @@ const App: React.FC = () => {
 
     setIsAnalysisLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: (import.meta as any).env.VITE_API_KEY || '' });
       const prompt = `Analyze the stock ${signal.symbol} which is currently at $${signal.price.toFixed(2)}. 
       Technical trends: 4H: ${signal.matrix['4H']}, 1H: ${signal.matrix['1H']}, 15M: ${signal.matrix['15M']}. 
       ADX: ${signal.adxValue} (${signal.adxTrend}).
@@ -120,7 +121,7 @@ const App: React.FC = () => {
       Provide a concise 3-sentence technical summary and a conviction rating.`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-2.0-flash',
         contents: prompt,
       });
 
@@ -133,13 +134,15 @@ const App: React.FC = () => {
     }
   };
 
-  return (
+  const handleExecute = (signal: StockSignal) => {
+    setExecuteSignal(signal);
+  };
 
+  return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-[#0a0712] transition-colors font-sans text-slate-900 dark:text-white">
       {/* Sidebar */}
       <Navigation activeView={currentView} onNavigate={setCurrentView} />
 
-      {/* Main Content */}
       <div className="flex-1 ml-64 flex flex-col min-w-0">
         <Header lastUpdated={lastUpdated} onRefresh={refresh} loading={loading} />
 
@@ -155,7 +158,6 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {/* Warning State (Cached Data) */}
             {warning && (
               <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4 mb-6 flex items-center gap-3">
                 <span className="material-symbols-outlined text-orange-500 text-xl">warning</span>
@@ -167,7 +169,6 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {/* Error State (No Data) */}
             {error && (
               <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 mb-6 flex items-center gap-3">
                 <span className="material-symbols-outlined text-red-500 text-xl">error</span>
@@ -179,7 +180,6 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {/* Top Summaries */}
             {(!loading || signals.length > 0) && (
               <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {summaryStats.map((stat) => (
@@ -261,6 +261,7 @@ const App: React.FC = () => {
                   <StockSignalCard
                     signal={signal}
                     onViewAnalysis={handleViewAnalysis}
+                    onExecute={handleExecute}
                   />
                 </div>
               ))}
@@ -300,6 +301,13 @@ const App: React.FC = () => {
         onClose={() => setSelectedSignal(null)}
         loading={isAnalysisLoading}
       />
+
+      {executeSignal && (
+        <ExecuteCallModal
+          signal={executeSignal}
+          onClose={() => setExecuteSignal(null)}
+        />
+      )}
     </div>
   );
 };
