@@ -168,18 +168,30 @@ const TradeCard: React.FC<{ trade: Trade }> = ({ trade }) => {
 import { fetchPortfolioData, PortfolioData } from '../services/n8n'; // Import service
 
 const Portfolio: React.FC = () => {
-    const [trades, setTrades] = useState<Trade[] | null>(null);
-    const [stats, setStats] = useState<PortfolioStats | null>(null);
-    const [aiInsight, setAiInsight] = useState<{ message: string } | null>(null);
-    const [loading, setLoading] = useState(true);
+    // Initialize state from LocalStorage if available to prevent loading screen
+    const [trades, setTrades] = useState<Trade[] | null>(() => {
+        const cached = localStorage.getItem('portfolio_cache');
+        return cached ? JSON.parse(cached).trades : null;
+    });
+    const [stats, setStats] = useState<PortfolioStats | null>(() => {
+        const cached = localStorage.getItem('portfolio_cache');
+        return cached ? JSON.parse(cached).stats : null;
+    });
+    const [aiInsight, setAiInsight] = useState<{ message: string } | null>(() => {
+        const cached = localStorage.getItem('portfolio_cache');
+        return cached ? JSON.parse(cached).aiInsight : null;
+    });
+
+    // Only show loading if we didn't find anything in cache
+    const [loading, setLoading] = useState(() => !localStorage.getItem('portfolio_cache'));
 
     React.useEffect(() => {
         const loadData = async () => {
-            setLoading(true);
+            // Background fetch - UI is already showing cached data if available
             const data = await fetchPortfolioData();
 
             if (data) {
-                // Map API data
+                // Update State
                 if (data.trades && Array.isArray(data.trades)) {
                     setTrades(data.trades);
                 }
@@ -189,6 +201,14 @@ const Portfolio: React.FC = () => {
                 if (data.aiInsight?.message) {
                     setAiInsight({ message: data.aiInsight.message });
                 }
+
+                // Update Cache
+                localStorage.setItem('portfolio_cache', JSON.stringify({
+                    trades: data.trades || trades,
+                    stats: data.stats || stats,
+                    aiInsight: data.aiInsight ? { message: data.aiInsight.message } : aiInsight,
+                    timestamp: Date.now()
+                }));
             }
             setLoading(false);
         };
