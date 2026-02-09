@@ -7,6 +7,7 @@ interface Trade {
     id: string;
     ticker: string;
     name: string;
+    optionSymbol: string;
     price: number;
     entryPrice: number;
     status: Status;
@@ -54,12 +55,14 @@ const TotalEquityCard: React.FC<{ stats: PortfolioStats }> = ({ stats }) => (
                     ${stats.totalEquity.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </h2>
             </div>
-            <div className="inline-flex items-center gap-2 bg-rh-green/10 px-4 py-2 rounded-lg">
-                <span className="material-symbols-outlined text-rh-green text-lg">trending_up</span>
-                <span className="text-sm font-black text-rh-green tracking-tight">
-                    +${stats.dailyGainAmount.toLocaleString()} ({stats.dailyGainPercent}%)
+            <div className={`inline-flex items-center gap-2 ${stats.dailyGainAmount >= 0 ? 'bg-rh-green/10' : 'bg-rh-red/10'} px-4 py-2 rounded-lg`}>
+                <span className={`material-symbols-outlined ${stats.dailyGainAmount >= 0 ? 'text-rh-green' : 'text-rh-red'} text-lg`}>
+                    {stats.dailyGainAmount >= 0 ? 'trending_up' : 'trending_down'}
                 </span>
-                <span className="text-[10px] text-rh-green/70 ml-1 font-bold tracking-widest uppercase">Today</span>
+                <span className={`text-sm font-black ${stats.dailyGainAmount >= 0 ? 'text-rh-green' : 'text-rh-red'} tracking-tight`}>
+                    {stats.dailyGainAmount >= 0 ? '+' : ''}${stats.dailyGainAmount.toLocaleString()} ({stats.dailyGainPercent}%)
+                </span>
+                <span className={`text-[10px] ${stats.dailyGainAmount >= 0 ? 'text-rh-green/70' : 'text-rh-red/70'} ml-1 font-bold tracking-widest uppercase`}>Today</span>
             </div>
         </div>
     </section>
@@ -84,7 +87,7 @@ const StatsColumn: React.FC<{ stats: PortfolioStats }> = ({ stats }) => (
     </div>
 );
 
-const TradeCard: React.FC<{ trade: Trade }> = ({ trade }) => {
+const TradeCard: React.FC<{ trade: Trade; onClosePosition: (trade: Trade) => void }> = ({ trade, onClosePosition }) => {
     const isProfit = trade.gainAmount >= 0;
     const isNeutral = trade.status === 'Neutral';
 
@@ -158,9 +161,12 @@ const TradeCard: React.FC<{ trade: Trade }> = ({ trade }) => {
                 </div>
             </div>
 
-            <button className={`w-full ${isProfit ? 'bg-rh-green text-white shadow-lg shadow-rh-green/20' : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400'} hover:brightness-110 active:scale-[0.98] font-black text-[10px] py-3 rounded-xl flex items-center justify-center gap-2 uppercase tracking-widest transition-all mt-2`}>
-                <span className="material-symbols-outlined text-base">bolt</span>
-                Execute
+            <button
+                onClick={() => onClosePosition(trade)}
+                className={`w-full ${isProfit ? 'bg-rh-green text-white shadow-lg shadow-rh-green/20' : 'bg-rh-red text-white shadow-lg shadow-rh-red/20'} hover:brightness-110 active:scale-[0.98] font-black text-[10px] py-3 rounded-xl flex items-center justify-center gap-2 uppercase tracking-widest transition-all mt-2`}
+            >
+                <span className="material-symbols-outlined text-base">close</span>
+                Close Position
             </button>
         </div>
     );
@@ -193,6 +199,57 @@ const Portfolio: React.FC = () => {
 
     // Only show loading if we didn't find anything in cache
     const [loading, setLoading] = useState(() => !localStorage.getItem('portfolio_cache'));
+
+    // Confirmation modal and toast state
+    const [confirmTrade, setConfirmTrade] = useState<Trade | null>(null);
+    const [isClosing, setIsClosing] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+    // Show toast with auto-dismiss
+    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 4000);
+    };
+
+    // Handle close position - call sell webhook
+    const handleClosePosition = async (trade: Trade) => {
+        // Show confirmation modal first
+        setConfirmTrade(trade);
+    };
+
+    // Actually execute the close after confirmation
+    const executeClose = async () => {
+        if (!confirmTrade) return;
+        setIsClosing(true);
+        try {
+            const payload = {
+                userName: 'prabhu',
+                stockName: confirmTrade.ticker,
+                optionSymbol: confirmTrade.optionSymbol
+            };
+            const response = await fetch('https://prabhupadala01.app.n8n.cloud/webhook/sell', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (response.ok) {
+                // Refresh portfolio data after successful sell
+                const data = await fetchPortfolioData();
+                if (data?.trades) setTrades(data.trades);
+                if (data?.stats) setStats(data.stats);
+                showToast(`Position ${confirmTrade.ticker} closed successfully!`, 'success');
+            } else {
+                showToast('Failed to close position. Please try again.', 'error');
+                console.error('Sell failed:', await response.text());
+            }
+        } catch (error) {
+            showToast('Network error. Please try again.', 'error');
+            console.error('Sell error:', error);
+        } finally {
+            setIsClosing(false);
+            setConfirmTrade(null);
+        }
+    };
 
     React.useEffect(() => {
         const loadData = async () => {
@@ -283,70 +340,129 @@ const Portfolio: React.FC = () => {
     }
 
     return (
-        <div className="flex-1 overflow-y-auto animate-in no-scrollbar rounded-2xl">
-            <div className="max-w-[1600px] mx-auto space-y-8">
+        <>
+            <div className="flex-1 overflow-y-auto animate-in no-scrollbar rounded-2xl">
+                <div className="max-w-[1600px] mx-auto space-y-8">
 
-                {/* Top Section: Equity & Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:h-[220px]">
-                    <div className="md:col-span-8 h-full">
-                        <TotalEquityCard stats={stats} />
-                    </div>
-                    <div className="md:col-span-4 h-full">
-                        <StatsColumn stats={stats} />
-                    </div>
-                </div>
-
-                {/* AI Suggestion Banner */}
-                {aiInsight && (
-                    <section className="bg-slate-50 dark:bg-white/5 rounded-xl p-6 border border-gray-200 dark:border-white/5 border-dashed flex flex-col md:flex-row items-center gap-6">
-                        <div className="w-12 h-12 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0">
-                            <span className="material-symbols-outlined text-2xl">psychology</span>
+                    {/* Header with Stats */}
+                    <header className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        <div className="lg:col-span-7">
+                            <TotalEquityCard stats={stats} />
                         </div>
-                        <div className="flex-1 text-center md:text-left">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">AI Insight</p>
-                            <p className="text-sm text-slate-700 dark:text-slate-300 font-medium italic">
-                                "{aiInsight.message}"
+                        <div className="lg:col-span-5">
+                            <StatsColumn stats={stats} />
+                        </div>
+                    </header>
+
+                    {/* AI Insight Banner */}
+                    {aiInsight && (
+                        <div className="bg-gradient-to-r from-white via-slate-50 to-white dark:from-[#111111] dark:via-[#0d0d0d] dark:to-[#111111] rounded-xl p-5 flex items-center gap-4 border border-gray-100 dark:border-white/10 shadow-sm animate-in slide-in-from-bottom-2">
+                            <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/20">
+                                <span className="material-symbols-outlined text-white font-bold">lightbulb</span>
+                            </div>
+                            <p className="text-sm text-slate-700 dark:text-slate-300 font-medium">
+                                <span className="font-black text-slate-900 dark:text-white mr-2">AI Insight:</span>
+                                {aiInsight.message}
                             </p>
                         </div>
-                        <button className="text-[10px] font-black text-indigo-500 bg-indigo-500/10 px-6 py-3 rounded-lg hover:bg-indigo-500/20 transition-colors uppercase tracking-widest">
-                            View Analysis
-                        </button>
-                    </section>
-                )}
+                    )}
 
-                {/* Active Trades Grid */}
-                <section className="space-y-6">
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                        <div className="flex items-center gap-2">
-                            <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">Active Positions</h3>
-                            <span className="bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-white text-[10px] font-bold px-2 py-0.5 rounded-md">{trades.length}</span>
+                    {/* Trades List */}
+                    <section className="space-y-4">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Active Positions</h2>
+                            <div className="flex gap-2">
+                                <button className="text-slate-500 dark:text-slate-400 text-[10px] font-bold flex items-center gap-1 bg-white dark:bg-[#1e2124] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/5 hover:border-rh-green hover:text-rh-green transition-all uppercase tracking-wider">
+                                    <span className="material-symbols-outlined text-base">filter_list</span>
+                                    Filter
+                                </button>
+                                <button className="text-slate-500 dark:text-slate-400 text-[10px] font-bold flex items-center gap-1 bg-white dark:bg-[#1e2124] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/5 hover:border-rh-green hover:text-rh-green transition-all uppercase tracking-wider">
+                                    <span className="material-symbols-outlined text-base">sort</span>
+                                    Sort
+                                </button>
+                            </div>
                         </div>
+                        {trades.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                {trades.map(trade => (
+                                    <TradeCard key={trade.id} trade={trade} onClosePosition={handleClosePosition} />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-20 text-slate-400 dark:text-slate-600 text-sm font-bold uppercase tracking-widest">
+                                No active trades found
+                            </div>
+                        )}
+                    </section>
+                </div>
+            </div>
 
-                        <div className="flex gap-2">
-                            <button className="text-slate-500 dark:text-slate-400 text-[10px] font-bold flex items-center gap-1 bg-white dark:bg-[#1e2124] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/5 hover:border-rh-green hover:text-rh-green transition-all uppercase tracking-wider">
-                                <span className="material-symbols-outlined text-base">filter_list</span>
-                                Filter
+            {/* Confirmation Modal */}
+            {confirmTrade && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="relative w-full max-w-md bg-black dark:bg-[#111111] rounded-2xl border border-white/10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="p-6 border-b border-white/5">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 bg-rh-red/10 rounded-full flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-rh-red">warning</span>
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black text-white">Close Position?</h3>
+                                    <p className="text-xs text-slate-400">This action cannot be undone</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="bg-white/5 rounded-xl p-4 space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-slate-400 text-xs font-bold uppercase">Symbol</span>
+                                    <span className="text-white font-black">{confirmTrade.ticker}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-slate-400 text-xs font-bold uppercase">Option</span>
+                                    <span className="text-slate-300 text-xs font-mono">{confirmTrade.optionSymbol}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-slate-400 text-xs font-bold uppercase">P/L</span>
+                                    <span className={`font-black ${confirmTrade.gainAmount >= 0 ? 'text-rh-green' : 'text-rh-red'}`}>
+                                        {confirmTrade.gainAmount >= 0 ? '+' : ''}${confirmTrade.gainAmount.toFixed(2)} ({confirmTrade.gainPercent.toFixed(2)}%)
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-6 pt-0 flex gap-3">
+                            <button
+                                onClick={() => setConfirmTrade(null)}
+                                disabled={isClosing}
+                                className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl transition-all uppercase tracking-wide text-xs disabled:opacity-50"
+                            >
+                                Cancel
                             </button>
-                            <button className="text-slate-500 dark:text-slate-400 text-[10px] font-bold flex items-center gap-1 bg-white dark:bg-[#1e2124] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/5 hover:border-rh-green hover:text-rh-green transition-all uppercase tracking-wider">
-                                <span className="material-symbols-outlined text-base">sort</span>
-                                Sort
+                            <button
+                                onClick={executeClose}
+                                disabled={isClosing}
+                                className="flex-1 py-3 bg-rh-red hover:bg-rh-red/90 text-white font-black rounded-xl shadow-lg shadow-rh-red/20 transition-all flex items-center justify-center gap-2 uppercase tracking-wide text-xs disabled:opacity-50"
+                            >
+                                <span className={`material-symbols-outlined text-sm ${isClosing ? 'animate-spin' : ''}`}>
+                                    {isClosing ? 'sync' : 'close'}
+                                </span>
+                                {isClosing ? 'Closing...' : 'Close Position'}
                             </button>
                         </div>
                     </div>
-                    {trades.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {trades.map(trade => (
-                                <TradeCard key={trade.id} trade={trade} />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-20 text-slate-400 dark:text-slate-600 text-sm font-bold uppercase tracking-widest">
-                            No active trades found
-                        </div>
-                    )}
-                </section>
-            </div>
-        </div>
+                </div>
+            )}
+
+            {/* Toast Notification */}
+            {toast && (
+                <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-4 duration-300 ${toast.type === 'success' ? 'bg-rh-green text-white' : 'bg-rh-red text-white'}`}>
+                    <span className="material-symbols-outlined text-lg">
+                        {toast.type === 'success' ? 'check_circle' : 'error'}
+                    </span>
+                    <span className="font-bold text-sm">{toast.message}</span>
+                </div>
+            )}
+        </>
     );
 };
 

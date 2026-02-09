@@ -107,6 +107,7 @@ export const fetchPortfolioData = async (): Promise<PortfolioData | null> => {
                 id: `pos-${index}`,
                 ticker: pos.underlyingTicker,
                 name: pos.symbol, // Use symbol as name for full detail
+                optionSymbol: pos.symbol, // Full option symbol for API calls
                 price: pos.currentPrice,
                 entryPrice: pos.avgEntryPrice,
                 status: pos.unrealizedPL >= 0 ? 'Strong Buy' : 'Neutral', // Simple mapping based on PL

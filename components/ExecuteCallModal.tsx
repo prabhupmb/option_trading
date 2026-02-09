@@ -64,9 +64,10 @@ const analyzeTrade = async (symbol: string, amount: number, risk: RiskLevel): Pr
 interface Props {
     signal: StockSignal;
     onClose: () => void;
+    onSuccess?: () => void; // Called on successful buy to navigate to Portfolio
 }
 
-const ExecuteCallModal: React.FC<Props> = ({ signal, onClose }) => {
+const ExecuteCallModal: React.FC<Props> = ({ signal, onClose, onSuccess }) => {
     const [budget, setBudget] = useState<string>("1,000.00");
     const [selectedContracts, setSelectedContracts] = useState<number>(0);
     const [risk, setRisk] = useState<RiskLevel>(RiskLevel.LOW);
@@ -74,6 +75,7 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose }) => {
     const [isExecuting, setIsExecuting] = useState(false);
     const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
     const [availableBalance, setAvailableBalance] = useState<number>(0);
+    const [buyError, setBuyError] = useState<string | null>(null);
 
     // Fetch available balance from portfolio
     useEffect(() => {
@@ -133,6 +135,7 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose }) => {
 
     const handleBuyNow = async () => {
         setIsExecuting(true);
+        setBuyError(null);
         try {
             const payload = {
                 userName: 'prabhu',
@@ -148,11 +151,19 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose }) => {
                 body: JSON.stringify(payload)
             });
             if (response.ok) {
-                onClose(); // Close modal on success
+                onClose();
+                if (onSuccess) onSuccess(); // Navigate to Portfolio
             } else {
-                console.error('Trade failed:', await response.text());
+                const errorText = await response.text();
+                try {
+                    const errorJson = JSON.parse(errorText);
+                    setBuyError(errorJson.message || errorJson.error || errorText);
+                } catch {
+                    setBuyError(errorText || 'Trade failed. Please try again.');
+                }
             }
         } catch (error) {
+            setBuyError('Network error. Please check your connection.');
             console.error('Trade error:', error);
         } finally {
             setIsExecuting(false);
@@ -259,6 +270,20 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose }) => {
                         )}
                     </div>
                 </div>
+
+                {/* Error Display */}
+                {buyError && (
+                    <div className="mx-6 mb-4 p-4 bg-rh-red/10 border border-rh-red/30 rounded-xl flex items-start gap-3">
+                        <span className="material-symbols-outlined text-rh-red text-lg shrink-0">error</span>
+                        <div>
+                            <p className="text-sm font-bold text-rh-red">Order Failed</p>
+                            <p className="text-xs text-rh-red/80 mt-1">{buyError}</p>
+                        </div>
+                        <button onClick={() => setBuyError(null)} className="ml-auto text-rh-red/60 hover:text-rh-red">
+                            <span className="material-symbols-outlined text-base">close</span>
+                        </button>
+                    </div>
+                )}
 
                 {/* Footer Actions */}
                 <div className="p-6 pt-0 flex gap-3 relative z-10 w-full">

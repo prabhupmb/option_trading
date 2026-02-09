@@ -306,6 +306,7 @@ const App: React.FC = () => {
         <ExecuteCallModal
           signal={executeSignal}
           onClose={() => setExecuteSignal(null)}
+          onSuccess={() => setCurrentView('portfolio')}
         />
       )}
     </div>
