@@ -71,6 +71,7 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose }) => {
     const [selectedContracts, setSelectedContracts] = useState<number>(0);
     const [risk, setRisk] = useState<RiskLevel>(RiskLevel.LOW);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [isExecuting, setIsExecuting] = useState(false);
     const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
     const [availableBalance, setAvailableBalance] = useState<number>(0);
 
@@ -128,6 +129,34 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose }) => {
         const result = await analyzeTrade(signal.symbol, totalCost, risk);
         setAnalysis(result);
         setIsAnalyzing(false);
+    };
+
+    const handleBuyNow = async () => {
+        setIsExecuting(true);
+        try {
+            const payload = {
+                userName: 'prabhu',
+                stockName: signal.symbol,
+                currentPrice: signal.price,
+                budget: numericBudget,
+                numberOfContracts: selectedContracts,
+                riskLevel: risk
+            };
+            const response = await fetch('https://prabhupadala01.app.n8n.cloud/webhook/trade', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (response.ok) {
+                onClose(); // Close modal on success
+            } else {
+                console.error('Trade failed:', await response.text());
+            }
+        } catch (error) {
+            console.error('Trade error:', error);
+        } finally {
+            setIsExecuting(false);
+        }
     };
 
     return (
@@ -191,15 +220,15 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose }) => {
                     {/* Analysis & Summary */}
                     <div className="space-y-4">
                         <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                            <div className="flex justify-between items-center mb-8">
-                                <span className="text-slate-500 text-xs font-medium">Number of Contracts</span>
-                                <div className="relative group">
+                            <div className="flex justify-between items-center mb-4">
+                                <span className="text-slate-400 text-sm font-bold uppercase tracking-wide">Number of Contracts</span>
+                                <div className="relative">
                                     <input
                                         type="number"
                                         min="1"
                                         value={selectedContracts}
                                         onChange={(e) => setSelectedContracts(Number(e.target.value))}
-                                        className="w-20 bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-sm font-bold text-white text-right focus:ring-1 focus:ring-rh-green outline-none"
+                                        className="w-28 bg-black/60 border-2 border-rh-green/30 rounded-xl px-4 py-3 text-lg font-black text-white text-center focus:ring-2 focus:ring-rh-green focus:border-rh-green outline-none transition-all hover:border-rh-green/50"
                                     />
                                 </div>
                             </div>
@@ -235,11 +264,12 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose }) => {
                 <div className="p-6 pt-0 flex gap-3 relative z-10 w-full">
                     <button onClick={onClose} className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-bold rounded-2xl transition-all uppercase tracking-wide text-xs">Cancel</button>
                     <button
-                        disabled={!isAffordable || selectedContracts <= 0}
+                        onClick={handleBuyNow}
+                        disabled={!isAffordable || selectedContracts <= 0 || isExecuting}
                         className="flex-[2] py-4 bg-rh-green hover:bg-rh-green/90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black rounded-2xl shadow-[0_0_20px_rgba(0,200,5,0.3)] hover:shadow-[0_0_25px_rgba(0,200,5,0.5)] transition-all flex items-center justify-center gap-2 group uppercase tracking-widest text-xs active:scale-[0.98]"
                     >
-                        <span className="material-symbols-outlined font-bold group-hover:scale-110 transition-transform">bolt</span>
-                        BUY NOW
+                        <span className={`material-symbols-outlined font-bold group-hover:scale-110 transition-transform ${isExecuting ? 'animate-spin' : ''}`}>{isExecuting ? 'sync' : 'bolt'}</span>
+                        {isExecuting ? 'PLACING ORDER...' : 'BUY NOW'}
                     </button>
                 </div>
             </div>
