@@ -100,14 +100,10 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute })
           className={`flex-1 text-white text-xs font-bold py-3 rounded-full flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-sm ${signalStr.includes('SELL') ? 'bg-slate-900 dark:bg-white/10' : 'bg-rh-green hover:bg-rh-green/90'
             }`}
         >
-          {signalStr.includes('SELL') ? 'VIEW ANALYSIS' : 'EXECUTE CALL'}
+          {signalStr.includes('SELL') ? 'EXECUTE PUT' : 'EXECUTE CALL'}
         </button>
 
-        {signalStr.includes('SELL') ? (
-          <button className="flex-1 bg-white dark:bg-transparent text-slate-500 border border-gray-200 dark:border-white/10 text-xs font-bold py-3 rounded-full flex items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-            <span className="material-symbols-outlined text-sm">rebase_edit</span> RE-SCAN
-          </button>
-        ) : (
+        {!signalStr.includes('SELL') && (
           <button className="px-4 bg-slate-50 dark:bg-white/5 text-slate-500 rounded-full flex items-center justify-center hover:bg-slate-100 dark:hover:bg-white/10 transition-colors">
             <span className="material-symbols-outlined text-lg">show_chart</span>
           </button>

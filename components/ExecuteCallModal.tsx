@@ -69,7 +69,7 @@ interface Props {
 
 const ExecuteCallModal: React.FC<Props> = ({ signal, onClose, onSuccess }) => {
     const [budget, setBudget] = useState<string>("1,000.00");
-    const [selectedContracts, setSelectedContracts] = useState<number>(0);
+    const [selectedContracts, setSelectedContracts] = useState<number>(1);
     const [risk, setRisk] = useState<RiskLevel>(RiskLevel.LOW);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isExecuting, setIsExecuting] = useState(false);
@@ -239,6 +239,7 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose, onSuccess }) => {
                                         min="1"
                                         value={selectedContracts}
                                         onChange={(e) => setSelectedContracts(Number(e.target.value))}
+                                        placeholder="1"
                                         className="w-28 bg-black/60 border-2 border-rh-green/30 rounded-xl px-4 py-3 text-lg font-black text-white text-center focus:ring-2 focus:ring-rh-green focus:border-rh-green outline-none transition-all hover:border-rh-green/50"
                                     />
                                 </div>
