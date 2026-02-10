@@ -145,7 +145,10 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose, onSuccess }) => {
                 numberOfContracts: selectedContracts,
                 riskLevel: risk
             };
-            const response = await fetch('https://prabhupadala01.app.n8n.cloud/webhook/trade', {
+            const webhookUrl = signal.optionType === 'PUT'
+                ? 'https://prabhupadala01.app.n8n.cloud/webhook/put-trade'
+                : 'https://prabhupadala01.app.n8n.cloud/webhook/trade';
+            const response = await fetch(webhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
