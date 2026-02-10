@@ -1,19 +1,25 @@
 import React from 'react';
+import type { User } from '@supabase/supabase-js';
 
 export type View = 'signals' | 'portfolio' | 'ai-hub' | 'watchlist' | 'history' | 'settings';
 
 interface NavigationProps {
   activeView: View;
   onNavigate: (view: View) => void;
+  user?: User | null;
+  onSignOut?: () => void;
 }
 
-const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate }) => {
+const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, onSignOut }) => {
   const tabs: { id: View; label: string; icon: string }[] = [
     { id: 'signals', label: 'Signal Feed', icon: 'dashboard' },
     { id: 'portfolio', label: 'Portfolio', icon: 'analytics' },
     { id: 'ai-hub', label: 'AI Hub', icon: 'auto_awesome' },
     { id: 'settings', label: 'Settings', icon: 'settings' }
   ];
+
+  const userAvatar = user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
+  const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
 
   return (
     <nav className="fixed left-0 top-0 bottom-0 w-64 bg-white dark:bg-black border-r border-gray-100 dark:border-white/10 flex flex-col z-50 transition-colors">
@@ -52,15 +58,25 @@ const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate }) => {
 
       {/* User Profile */}
       <div className="p-4 border-t border-gray-100 dark:border-white/5">
-        <div className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer transition-colors">
-          <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
-            <img src="https://picsum.photos/seed/finance/100/100" alt="User" className="w-full h-full object-cover" />
+        <div className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+          <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden flex-shrink-0">
+            {userAvatar ? (
+              <img src={userAvatar} alt={userName} className="w-full h-full object-cover" />
+            ) : (
+              <span className="material-symbols-outlined text-slate-400 text-lg flex items-center justify-center w-full h-full">person</span>
+            )}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">Prabhu Padala</p>
+            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{userName}</p>
             <p className="text-[10px] text-slate-500 truncate">Pro Plan</p>
           </div>
-          <span className="material-symbols-outlined text-slate-400 text-lg">more_vert</span>
+          <button
+            onClick={onSignOut}
+            className="text-slate-400 hover:text-red-500 transition-colors"
+            title="Sign Out"
+          >
+            <span className="material-symbols-outlined text-lg">logout</span>
+          </button>
         </div>
       </div>
     </nav>

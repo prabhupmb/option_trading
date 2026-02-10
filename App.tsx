@@ -6,6 +6,7 @@ import Navigation, { View } from './components/Navigation';
 import AnalysisModal from './components/AnalysisModal';
 import ExecuteCallModal from './components/ExecuteCallModal';
 import Portfolio from './components/Portfolio';
+import LoginPage from './components/LoginPage';
 import { StockSignal, SignalType, SummaryStat } from './types';
 import {
   useSheetData,
@@ -13,6 +14,7 @@ import {
   parseTrend,
   getConviction
 } from './services/googleSheets';
+import { useAuth } from './services/useAuth';
 import { GoogleGenAI } from '@google/genai';
 
 // Stock icon mapping
@@ -83,12 +85,61 @@ function calculateSummaryStats(signals: StockSignal[]): SummaryStat[] {
 }
 
 const App: React.FC = () => {
+  const { user, loading: authLoading, isAuthenticated, signInWithGoogle, signOut } = useAuth();
   const { data: sheetData, loading, error, warning, lastUpdated, refresh } = useSheetData(900000); // Refresh every 15 minutes
   const [selectedSignal, setSelectedSignal] = useState<StockSignal | null>(null);
   const [executeSignal, setExecuteSignal] = useState<StockSignal | null>(null);
   const [filter, setFilter] = useState<SignalType | 'ALL'>('ALL');
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
   const [currentView, setCurrentView] = useState<View>('signals');
+  const [isScanning, setIsScanning] = useState(false);
+
+  // Show loading spinner while checking auth state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="text-center">
+          <div className="bg-rh-green p-4 rounded-2xl shadow-2xl shadow-rh-green/30 inline-block mb-4">
+            <span className="material-symbols-outlined text-white text-4xl animate-spin">insights</span>
+          </div>
+          <p className="text-slate-400 font-medium animate-pulse">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login page if not authenticated
+  if (!isAuthenticated) {
+    return <LoginPage onGoogleLogin={signInWithGoogle} />;
+  }
+
+  const handleManualRefresh = async () => {
+    console.log('🔄 Manual refresh clicked - calling scan webhook...');
+    setIsScanning(true);
+    try {
+      const webhookUrl = 'https://prabhupadala01.app.n8n.cloud/webhook/scan-stock';
+      console.log('🚀 Calling webhook:', webhookUrl);
+
+      // Trigger n8n webhook to scan stocks (no-cors to avoid CORS blocking)
+      await fetch(webhookUrl, {
+        method: 'GET',
+        mode: 'no-cors',
+      });
+
+      console.log('✅ Webhook triggered successfully (scan-stock)');
+
+      // Refresh the sheet data to get latest results
+      console.log('📊 Refreshing sheet data...');
+      await refresh();
+    } catch (error) {
+      console.error('❌ Webhook call failed:', error);
+      // Still try to refresh data even if webhook fails
+      await refresh();
+    } finally {
+      setIsScanning(false);
+      console.log('🏁 Refresh complete');
+    }
+  };
 
   // Convert sheet data to app format
   const signals: StockSignal[] = sheetData.map(convertToStockSignal);
@@ -146,10 +197,10 @@ const App: React.FC = () => {
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-[#0a0712] transition-colors font-sans text-slate-900 dark:text-white">
       {/* Sidebar */}
-      <Navigation activeView={currentView} onNavigate={setCurrentView} />
+      <Navigation activeView={currentView} onNavigate={setCurrentView} user={user} onSignOut={signOut} />
 
       <div className="flex-1 ml-64 flex flex-col min-w-0">
-        <Header lastUpdated={lastUpdated} onRefresh={refresh} loading={loading} />
+        <Header lastUpdated={lastUpdated} onRefresh={refresh} loading={loading} user={user} onSignOut={signOut} />
 
         {currentView === 'signals' ? (
           <main className="flex-1 p-8 overflow-y-auto">
@@ -256,11 +307,11 @@ const App: React.FC = () => {
                   </button>
                 </div>
                 <button
-                  onClick={refresh}
+                  onClick={handleManualRefresh}
                   className="bg-white dark:bg-[#1e2124] hover:bg-slate-50 dark:hover:bg-white/5 text-slate-400 hover:text-slate-900 dark:hover:text-white p-2 rounded-lg border border-gray-200 dark:border-white/5 transition-all active:scale-95"
-                  title="Refresh Data"
+                  title="Scan & Refresh"
                 >
-                  <span className={`material-symbols-outlined text-xl ${loading ? 'animate-spin' : ''}`}>refresh</span>
+                  <span className={`material-symbols-outlined text-xl ${loading || isScanning ? 'animate-spin' : ''}`}>refresh</span>
                 </button>
               </div>
             </div>
