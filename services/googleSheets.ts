@@ -128,8 +128,12 @@ export function getConviction(gatesPassed: string): number {
 // Fetch data from Google Sheets
 export async function fetchSheetData(): Promise<SheetSignal[]> {
     try {
-        const response = await fetch(CSV_URL, {
+        const response = await fetch(`${CSV_URL}&t=${Date.now()}`, {
             cache: 'no-store', // Always get fresh data
+            headers: {
+                'Pragma': 'no-cache',
+                'Cache-Control': 'no-cache'
+            }
         });
 
         if (!response.ok) {

@@ -105,8 +105,9 @@ const App: React.FC = () => {
     const signalStr = s.signal || '';
     if (filter === SignalType.STRONG_BUY) return signalStr.includes('STRONG BUY');
     if (filter === SignalType.STRONG_SELL) return signalStr.includes('STRONG SELL');
-    if (filter === SignalType.BUY) return signalStr.includes('✅ BUY') || signalStr.includes('WEAK BUY');
-    if (filter === SignalType.SELL) return signalStr.includes('✅ SELL') || signalStr.includes('WEAK SELL');
+    // Explicitly exclude STRONG signals to prevent overlap
+    if (filter === SignalType.BUY) return (signalStr.includes('✅ BUY') || signalStr.includes('WEAK BUY')) && !signalStr.includes('STRONG BUY');
+    if (filter === SignalType.SELL) return (signalStr.includes('✅ SELL') || signalStr.includes('WEAK SELL')) && !signalStr.includes('STRONG SELL');
 
     return true;
   });
@@ -266,8 +267,8 @@ const App: React.FC = () => {
 
             {/* Signals Grid - Desktop Optimized */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {actionableSignals.map((signal) => (
-                <div key={signal.symbol} className="hover:z-10 relative">
+              {actionableSignals.map((signal, index) => (
+                <div key={`${signal.symbol}-${index}`} className="hover:z-10 relative">
                   <StockSignalCard
                     signal={signal}
                     onViewAnalysis={handleViewAnalysis}
