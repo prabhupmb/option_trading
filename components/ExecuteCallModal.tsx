@@ -181,7 +181,9 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose, onSuccess }) => {
                 <div className="p-6 border-b border-white/5 flex justify-between items-start relative z-10">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
-                            <span className="px-2 py-0.5 bg-rh-green/10 text-rh-green text-[10px] font-bold rounded tracking-wider uppercase">Execute Call</span>
+                            <span className={`px-2 py-0.5 ${signal.optionType === 'PUT' ? 'bg-rh-red/10 text-rh-red' : 'bg-rh-green/10 text-rh-green'} text-[10px] font-bold rounded tracking-wider uppercase`}>
+                                {signal.optionType === 'PUT' ? 'Execute Put' : 'Execute Call'}
+                            </span>
                             <span className="text-slate-500 text-sm">{signal.symbol}</span>
                         </div>
                         <h2 className="text-2xl font-black text-white flex items-baseline gap-2 tracking-tight">
@@ -292,7 +294,7 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose, onSuccess }) => {
                     <button
                         onClick={handleBuyNow}
                         disabled={!isAffordable || selectedContracts <= 0 || isExecuting}
-                        className="flex-[2] py-4 bg-rh-green hover:bg-rh-green/90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black rounded-2xl shadow-[0_0_20px_rgba(0,200,5,0.3)] hover:shadow-[0_0_25px_rgba(0,200,5,0.5)] transition-all flex items-center justify-center gap-2 group uppercase tracking-widest text-xs active:scale-[0.98]"
+                        className={`flex-[2] py-4 ${signal.optionType === 'PUT' ? 'bg-rh-red hover:bg-rh-red/90 shadow-[0_0_20px_rgba(220,38,38,0.3)] hover:shadow-[0_0_25px_rgba(220,38,38,0.5)]' : 'bg-rh-green hover:bg-rh-green/90 shadow-[0_0_20px_rgba(0,200,5,0.3)] hover:shadow-[0_0_25px_rgba(0,200,5,0.5)]'} disabled:opacity-50 disabled:cursor-not-allowed text-white font-black rounded-2xl transition-all flex items-center justify-center gap-2 group uppercase tracking-widest text-xs active:scale-[0.98]`}
                     >
                         <span className={`material-symbols-outlined font-bold group-hover:scale-110 transition-transform ${isExecuting ? 'animate-spin' : ''}`}>{isExecuting ? 'sync' : 'bolt'}</span>
                         {isExecuting ? 'PLACING ORDER...' : 'BUY NOW'}

@@ -96,7 +96,7 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute })
 
       <div className="flex gap-2">
         <button
-          onClick={() => signalStr.includes('SELL') ? onViewAnalysis(signal) : onExecute(signal)}
+          onClick={() => onExecute(signal)}
           className={`flex-1 text-white text-xs font-bold py-3 rounded-full flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-sm ${signalStr.includes('SELL') ? 'bg-slate-900 dark:bg-white/10' : 'bg-rh-green hover:bg-rh-green/90'
             }`}
         >
