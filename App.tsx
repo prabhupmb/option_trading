@@ -62,11 +62,13 @@ function calculateSummaryStats(signals: StockSignal[]): SummaryStat[] {
   let strongBuyCount = 0;
   let buyCount = 0;
   let sellCount = 0;
+  let strongSellCount = 0;
   let weakCount = 0;
 
   signals.forEach(signal => {
     const signalStr = signal.signal || '';
     if (signalStr.includes('STRONG BUY')) strongBuyCount++;
+    else if (signalStr.includes('STRONG SELL')) strongSellCount++;
     else if (signalStr.includes('✅ BUY')) buyCount++;
     else if (signalStr.includes('✅ SELL') || signalStr.includes('WEAK SELL')) sellCount++;
     else if (signalStr.includes('WEAK BUY')) weakCount++;
@@ -75,6 +77,7 @@ function calculateSummaryStats(signals: StockSignal[]): SummaryStat[] {
   return [
     { type: SignalType.STRONG_BUY, count: strongBuyCount, change: 15 },
     { type: SignalType.BUY, count: buyCount + weakCount, change: 8 },
+    { type: SignalType.STRONG_SELL, count: strongSellCount, change: -12 },
     { type: SignalType.SELL, count: sellCount, change: -2 },
   ];
 }
@@ -101,6 +104,7 @@ const App: React.FC = () => {
 
     const signalStr = s.signal || '';
     if (filter === SignalType.STRONG_BUY) return signalStr.includes('STRONG BUY');
+    if (filter === SignalType.STRONG_SELL) return signalStr.includes('STRONG SELL');
     if (filter === SignalType.BUY) return signalStr.includes('✅ BUY') || signalStr.includes('WEAK BUY');
     if (filter === SignalType.SELL) return signalStr.includes('✅ SELL') || signalStr.includes('WEAK SELL');
 
@@ -236,6 +240,12 @@ const App: React.FC = () => {
                     className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${filter === SignalType.STRONG_BUY ? 'bg-rh-green text-white shadow-lg shadow-rh-green/20' : 'text-slate-400 hover:text-rh-green'}`}
                   >
                     Strong Buy
+                  </button>
+                  <button
+                    onClick={() => setFilter(SignalType.STRONG_SELL)}
+                    className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${filter === SignalType.STRONG_SELL ? 'bg-rh-red text-white shadow-lg shadow-rh-red/20' : 'text-slate-400 hover:text-rh-red'}`}
+                  >
+                    Strong Sell
                   </button>
                   <button
                     onClick={() => setFilter(SignalType.SELL)}

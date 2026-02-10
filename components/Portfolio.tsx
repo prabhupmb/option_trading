@@ -125,12 +125,20 @@ const TradeCard: React.FC<{ trade: Trade; onClosePosition: (trade: Trade) => voi
                 </div>
             </div>
 
-            <div className="flex justify-between items-end border-t border-gray-50 dark:border-white/5 pt-3 mt-1">
+            <div className="grid grid-cols-3 gap-3 border-t border-gray-50 dark:border-white/5 pt-3 mt-1">
                 <div>
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                        Price
+                        Filled
                     </p>
-                    <p className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
+                        ${trade.entryPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </p>
+                </div>
+                <div>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                        Current
+                    </p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
                         ${trade.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </p>
                 </div>
@@ -138,7 +146,7 @@ const TradeCard: React.FC<{ trade: Trade; onClosePosition: (trade: Trade) => voi
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
                         P&L
                     </p>
-                    <p className={`text-base font-bold tracking-tight ${isProfit ? 'text-rh-green' : 'text-rh-red'}`}>
+                    <p className={`text-sm font-bold tracking-tight ${isProfit ? 'text-rh-green' : 'text-rh-red'}`}>
                         {isProfit ? '+' : ''}${Math.abs(trade.gainAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </p>
                 </div>
