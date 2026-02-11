@@ -105,6 +105,18 @@ export function useAuth() {
                     },
                 }));
 
+            } else if (result.message && (result.message.toLowerCase().includes('disabled') || result.message.toLowerCase().includes('pending'))) {
+                // ⏳ Account exists but is disabled/pending → show "Access Pending" screen
+                console.log('⏳ User pending — access disabled (allowed: false, reason: disabled/pending)');
+                setAuthState(prev => ({
+                    ...prev,
+                    verificationStatus: 'denied', // This maps to AccessDeniedPage which now handles "pending" state gracefully
+                    verificationData: {
+                        message: result.message,
+                        email: result.email,
+                    },
+                }));
+
             } else {
                 // 🚫 allowed === false (or missing) for any other reason → denied
                 const denyMessage = result.message || 'Access denied. You are not authorized to use this application.';

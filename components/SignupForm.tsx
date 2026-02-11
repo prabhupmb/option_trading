@@ -58,7 +58,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ verificationData, session, onSi
 
             console.log('📝 Register result:', result);
 
-            if (resp.status === 201) {
+            if (resp.status === 201 || resp.status === 200) {
                 // ✅ Registration successful
                 console.log('✅ Registration successful — pending approval');
                 setSubmitStatus('success');
@@ -78,10 +78,17 @@ const SignupForm: React.FC<SignupFormProps> = ({ verificationData, session, onSi
                 setSubmitStatus('error');
 
             } else {
-                // Unknown error
+                // Check if message indicates success despite non-standard status code
                 const msg = result.message || `Registration failed (${resp.status}). Please try again.`;
-                setError(msg);
-                setSubmitStatus('error');
+
+                if (msg.toLowerCase().includes('successful') || msg.toLowerCase().includes('success')) {
+                    console.log('✅ Registration successful (detected via message) — pending approval');
+                    setSubmitStatus('success');
+                } else {
+                    // Genuine error
+                    setError(msg);
+                    setSubmitStatus('error');
+                }
             }
         } catch (error) {
             console.error('❌ Registration request failed:', error);
