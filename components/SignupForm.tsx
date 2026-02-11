@@ -108,7 +108,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ verificationData, session, onSi
                         </div>
                     </div>
                     <h1 className="text-3xl font-black text-rh-green tracking-tight mb-3">Registration Successful!</h1>
-                    <p className="text-slate-300 text-sm mb-8">
+                    <p className="text-rh-green font-bold text-sm mb-8">
                         Your account is pending admin approval.
                     </p>
                     <p className="text-slate-500 text-xs animate-pulse">

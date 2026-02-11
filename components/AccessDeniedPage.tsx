@@ -19,27 +19,33 @@ const AccessDeniedPage: React.FC<AccessDeniedPageProps> = ({ onSignOut, userEmai
         <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex items-center justify-center p-6 relative overflow-hidden">
             {/* Animated background */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute -top-40 -right-40 w-96 h-96 bg-red-500/10 rounded-full blur-3xl animate-pulse" />
-                <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-red-600/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+                <div className={`absolute -top-40 -right-40 w-96 h-96 ${message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval') ? 'bg-rh-green/10' : 'bg-red-500/10'} rounded-full blur-3xl animate-pulse`} />
+                <div className={`absolute -bottom-40 -left-40 w-96 h-96 ${message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval') ? 'bg-emerald-600/5' : 'bg-red-600/5'} rounded-full blur-3xl animate-pulse`} style={{ animationDelay: '1s' }} />
             </div>
 
             <div className="relative w-full max-w-md text-center">
                 {/* Icon */}
                 <div className="inline-flex items-center justify-center mb-6">
-                    <div className="bg-red-500/20 p-5 rounded-2xl border border-red-500/30">
-                        <span className="material-symbols-outlined text-red-400 text-5xl">shield_lock</span>
+                    <div className={`${message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval') ? 'bg-rh-green/10 border-rh-green/20' : 'bg-red-500/20 border-red-500/30'} p-5 rounded-2xl border`}>
+                        <span className={`material-symbols-outlined ${message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval') ? 'text-rh-green' : 'text-red-400'} text-5xl`}>
+                            {message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval') ? 'check_circle' : 'shield_lock'}
+                        </span>
                     </div>
                 </div>
 
                 {/* Title */}
-                <h1 className="text-3xl font-black text-white tracking-tight mb-3">Access Denied</h1>
+                <h1 className={`text-3xl font-black tracking-tight mb-3 ${message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval') ? 'text-rh-green' : 'text-white'}`}>
+                    {message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval') ? 'Registration Successful' : 'Access Denied'}
+                </h1>
 
                 {/* Webhook message */}
                 {message ? (
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6 text-left">
+                    <div className={`${message.toLowerCase().includes('pending') || message.toLowerCase().includes('approval') ? 'bg-rh-green/10 border-rh-green/20' : 'bg-red-500/10 border-red-500/20'} border rounded-xl p-4 mb-6 text-left`}>
                         <div className="flex items-start gap-3">
-                            <span className="material-symbols-outlined text-red-400 text-lg mt-0.5">error</span>
-                            <p className="text-sm text-red-300 leading-relaxed">{message}</p>
+                            <span className={`material-symbols-outlined ${message.toLowerCase().includes('pending') || message.toLowerCase().includes('approval') ? 'text-rh-green' : 'text-red-400'} text-lg mt-0.5`}>
+                                {message.toLowerCase().includes('pending') || message.toLowerCase().includes('approval') ? 'hourglass_top' : 'error'}
+                            </span>
+                            <p className={`text-sm ${message.toLowerCase().includes('pending') || message.toLowerCase().includes('approval') ? 'text-rh-green font-bold' : 'text-red-300'} leading-relaxed`}>{message}</p>
                         </div>
                     </div>
                 ) : (
@@ -50,7 +56,7 @@ const AccessDeniedPage: React.FC<AccessDeniedPageProps> = ({ onSignOut, userEmai
 
                 {userEmail && (
                     <p className="text-slate-500 text-xs mb-6">
-                        Signed in as <span className="text-slate-300 font-medium">{userEmail}</span>
+                        <span className="text-slate-300 font-medium">{userEmail}</span>
                     </p>
                 )}
 
@@ -59,10 +65,11 @@ const AccessDeniedPage: React.FC<AccessDeniedPageProps> = ({ onSignOut, userEmai
                     <div className="flex items-start gap-3 text-left">
                         <span className="material-symbols-outlined text-amber-400 text-xl mt-0.5">info</span>
                         <div>
-                            <p className="text-sm text-slate-300 font-medium mb-1">Need Access?</p>
+                            <p className="text-sm text-slate-300 font-medium mb-1">Status Update</p>
                             <p className="text-xs text-slate-500 leading-relaxed">
-                                Contact the administrator to request access to the Signal Feed trading terminal.
-                                You will be signed out automatically in 15 seconds.
+                                {message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval')
+                                    ? "Your request is currently being reviewed by an administrator. Please check back later."
+                                    : "Contact the administrator to request access to the Signal Feed trading terminal."}
                             </p>
                         </div>
                     </div>

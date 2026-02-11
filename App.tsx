@@ -95,6 +95,7 @@ const App: React.FC = () => {
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
   const [currentView, setCurrentView] = useState<View>('signals');
   const [isScanning, setIsScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
 
   // Show loading spinner while checking auth state
   if (authLoading) {
@@ -143,31 +144,76 @@ const App: React.FC = () => {
     // Temporary alert to prove execution
     // alert('Manual refresh clicked!'); 
 
-    console.error('🔄 Manual refresh clicked - calling scan webhook...');
+    console.log('🔄 Manual refresh clicked - calling scan webhook...');
+    refresh(); // Immediate data refresh for better UX
     setIsScanning(true);
+    setScanProgress(5); // Start progress
+
     try {
       const webhookUrl = 'https://prabhupadala01.app.n8n.cloud/webhook/scan-stock';
-      console.error('🚀 Calling webhook:', webhookUrl);
+      console.log('🚀 Calling webhook:', webhookUrl);
 
       const response = await fetch(webhookUrl, {
-        method: 'GET',
+        method: 'POST',
         headers: {
           'Accept': 'application/json',
-        }
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({})
       });
 
-      console.error('📡 Webhook response status:', response.status);
-      console.error('📡 Webhook response statusText:', response.statusText);
+      console.log('📡 Webhook response status:', response.status);
 
-      try {
-        const text = await response.text();
-        console.error('📡 Webhook response body:', text);
-      } catch (e) {
-        console.error('📡 Could not read response body:', e);
+      // If 202, start polling
+      if (response.status === 202) {
+        setScanProgress(10);
+        console.log('⏳ Scan started, polling for results...');
+
+        // Polling loop
+        const pollInterval = 2000; // 2 seconds
+        const maxAttempts = 1800; // 1 hour max (3600s / 2s)
+        let attempts = 0;
+
+        while (attempts < maxAttempts) {
+          attempts++;
+          await new Promise(r => setTimeout(r, pollInterval));
+
+          try {
+            const pollUrl = 'https://prabhupadala01.app.n8n.cloud/webhook/scan-results';
+            const pollResponse = await fetch(pollUrl);
+            const result = await pollResponse.json();
+
+            console.log('📊 Poll result:', result);
+
+            // Update progress if available
+            if (result.percentage) {
+              setScanProgress(result.percentage);
+            }
+
+            // Should also refresh sheet data periodically to show partial results
+            // Refresh every 2 polls (4 seconds) to balance load
+            if (attempts % 2 === 0) {
+              console.log('🔄 Reloading sheet data...');
+              await refresh();
+            }
+
+            if (result.status === 'completed' || result.success === true) {
+              setScanProgress(100);
+              console.log('✅ Scan completed!');
+              break;
+            }
+          } catch (e) {
+            console.error('⚠️ Polling error:', e);
+            // Continue polling even if one request fails
+          }
+        }
+      } else {
+        // Fallback for non-202 responses (e.g. if it finished immediately)
+        setScanProgress(100);
       }
 
-      // Refresh the sheet data to get latest results
-      console.error('📊 Refreshing sheet data...');
+      // Final refresh
+      console.log('📊 Refreshing sheet data...');
       await refresh();
     } catch (error) {
       console.error('❌ Webhook/Refresh failed:', error);
@@ -175,7 +221,8 @@ const App: React.FC = () => {
       await refresh();
     } finally {
       setIsScanning(false);
-      console.error('🏁 Refresh complete');
+      setScanProgress(0);
+      console.log('🏁 Refresh complete');
     }
   };
 
@@ -238,7 +285,7 @@ const App: React.FC = () => {
       <Navigation activeView={currentView} onNavigate={setCurrentView} user={user} onSignOut={signOut} />
 
       <div className="flex-1 ml-64 flex flex-col min-w-0">
-        <Header lastUpdated={lastUpdated} onRefresh={refresh} loading={loading} user={user} onSignOut={signOut} />
+        <Header lastUpdated={lastUpdated} onRefresh={handleManualRefresh} loading={loading || isScanning} user={user} onSignOut={signOut} />
 
         {currentView === 'signals' ? (
           <main className="flex-1 p-8 overflow-y-auto">
@@ -317,40 +364,59 @@ const App: React.FC = () => {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <div className="flex items-center bg-white dark:bg-[#1e2124] rounded-lg border border-gray-200 dark:border-white/5 p-1">
+
+
+              <div className="flex items-center gap-4">
+                {isScanning && (
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-rh-green animate-pulse">SCANNING</span>
+                      <span className="text-[10px] font-bold text-slate-400">{scanProgress}%</span>
+                    </div>
+                    <div className="w-24 h-1 bg-slate-100 dark:bg-white/10 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-rh-green transition-all duration-300 ease-out"
+                        style={{ width: `${scanProgress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center bg-white dark:bg-[#1e2124] rounded-lg border border-gray-200 dark:border-white/5 p-1">
+                    <button
+                      onClick={() => setFilter('ALL')}
+                      className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${filter === 'ALL' ? 'bg-slate-100 dark:bg-white/10 text-slate-900 dark:text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                      All
+                    </button>
+                    <button
+                      onClick={() => setFilter(SignalType.STRONG_BUY)}
+                      className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${filter === SignalType.STRONG_BUY ? 'bg-rh-green text-white shadow-lg shadow-rh-green/20' : 'text-slate-400 hover:text-rh-green'}`}
+                    >
+                      Strong Buy
+                    </button>
+                    <button
+                      onClick={() => setFilter(SignalType.STRONG_SELL)}
+                      className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${filter === SignalType.STRONG_SELL ? 'bg-rh-red text-white shadow-lg shadow-rh-red/20' : 'text-slate-400 hover:text-rh-red'}`}
+                    >
+                      Strong Sell
+                    </button>
+                    <button
+                      onClick={() => setFilter(SignalType.SELL)}
+                      className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${filter === SignalType.SELL ? 'bg-rh-red text-white shadow-lg shadow-rh-red/20' : 'text-slate-400 hover:text-rh-red'}`}
+                    >
+                      Sell
+                    </button>
+                  </div>
                   <button
-                    onClick={() => setFilter('ALL')}
-                    className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${filter === 'ALL' ? 'bg-slate-100 dark:bg-white/10 text-slate-900 dark:text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                    onClick={handleManualRefresh}
+                    className="bg-white dark:bg-[#1e2124] hover:bg-slate-50 dark:hover:bg-white/5 text-slate-400 hover:text-slate-900 dark:hover:text-white p-2 rounded-lg border border-gray-200 dark:border-white/5 transition-all active:scale-95"
+                    title="Scan & Refresh"
                   >
-                    All
-                  </button>
-                  <button
-                    onClick={() => setFilter(SignalType.STRONG_BUY)}
-                    className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${filter === SignalType.STRONG_BUY ? 'bg-rh-green text-white shadow-lg shadow-rh-green/20' : 'text-slate-400 hover:text-rh-green'}`}
-                  >
-                    Strong Buy
-                  </button>
-                  <button
-                    onClick={() => setFilter(SignalType.STRONG_SELL)}
-                    className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${filter === SignalType.STRONG_SELL ? 'bg-rh-red text-white shadow-lg shadow-rh-red/20' : 'text-slate-400 hover:text-rh-red'}`}
-                  >
-                    Strong Sell
-                  </button>
-                  <button
-                    onClick={() => setFilter(SignalType.SELL)}
-                    className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${filter === SignalType.SELL ? 'bg-rh-red text-white shadow-lg shadow-rh-red/20' : 'text-slate-400 hover:text-rh-red'}`}
-                  >
-                    Sell
+                    <span className={`material-symbols-outlined text-xl ${loading || isScanning ? 'animate-spin' : ''}`}>refresh</span>
                   </button>
                 </div>
-                <button
-                  onClick={handleManualRefresh}
-                  className="bg-white dark:bg-[#1e2124] hover:bg-slate-50 dark:hover:bg-white/5 text-slate-400 hover:text-slate-900 dark:hover:text-white p-2 rounded-lg border border-gray-200 dark:border-white/5 transition-all active:scale-95"
-                  title="Scan & Refresh"
-                >
-                  <span className={`material-symbols-outlined text-xl ${loading || isScanning ? 'animate-spin' : ''}`}>refresh</span>
-                </button>
               </div>
             </div>
 

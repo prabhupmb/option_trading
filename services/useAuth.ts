@@ -31,7 +31,12 @@ export function useAuth() {
 
     const verifyUser = useCallback(async (session: Session) => {
         console.log('🔐 Verifying user access...');
-        setAuthState(prev => ({ ...prev, verificationStatus: 'verifying', verificationData: {} }));
+        setAuthState(prev => ({
+            ...prev,
+            // If already allowed, keep 'allowed' to avoid UI flicker, otherwise 'verifying'
+            verificationStatus: prev.verificationStatus === 'allowed' ? 'allowed' : 'verifying',
+            verificationData: prev.verificationStatus === 'allowed' ? prev.verificationData : {}
+        }));
 
         try {
             const resp = await fetch('https://prabhupadala01.app.n8n.cloud/webhook/verify-user', {
