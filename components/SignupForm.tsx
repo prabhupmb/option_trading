@@ -1,69 +1,125 @@
 import React, { useState } from 'react';
 import type { VerificationData } from '../services/useAuth';
+import type { Session } from '@supabase/supabase-js';
 
 interface SignupFormProps {
     verificationData: VerificationData;
+    session: Session | null;
     onSignOut: () => void;
 }
 
-const SignupForm: React.FC<SignupFormProps> = ({ verificationData, onSignOut }) => {
+type SubmitStatus = 'idle' | 'submitting' | 'success' | 'error';
+
+const SignupForm: React.FC<SignupFormProps> = ({ verificationData, session, onSignOut }) => {
     const [formData, setFormData] = useState({
+        userName: '',
         fullName: verificationData.fullName || '',
         phone: '',
-        tradingExperience: '',
-        referralCode: '',
     });
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [submitted, setSubmitted] = useState(false);
+    const [submitStatus, setSubmitStatus] = useState<SubmitStatus>('idle');
+    const [errorMessage, setError] = useState('');
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsSubmitting(true);
+        setSubmitStatus('submitting');
+        setError('');
 
         try {
-            console.log('📝 Submitting signup form:', {
-                ...formData,
+            console.log('📝 Registering user:', {
+                userName: formData.userName,
+                fullName: formData.fullName,
                 email: verificationData.email,
+                phone: formData.phone || undefined,
             });
-            // You can add a webhook call here to register the user
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            setSubmitted(true);
+
+            const resp = await fetch('https://prabhupadala01.app.n8n.cloud/webhook/register-user', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session?.access_token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    userName: formData.userName,
+                    fullName: formData.fullName,
+                    email: verificationData.email,
+                    phone: formData.phone || undefined,
+                }),
+            });
+
+            console.log('📝 Register response status:', resp.status);
+
+            let result: any = {};
+            try {
+                const body = await resp.json();
+                result = Array.isArray(body) ? body[0] : body;
+            } catch (e) {
+                // JSON parse failed
+            }
+
+            console.log('📝 Register result:', result);
+
+            if (resp.status === 201) {
+                // ✅ Registration successful
+                console.log('✅ Registration successful — pending approval');
+                setSubmitStatus('success');
+
+            } else if (resp.status === 409) {
+                // ⚠️ Conflict — username or email taken
+                const msg = result.message || 'Username or email already registered.';
+                console.log('⚠️ Conflict (409):', msg);
+                setError(msg);
+                setSubmitStatus('error');
+
+            } else if (resp.status === 400) {
+                // ❌ Validation error
+                const msg = result.message || 'Please check your input and try again.';
+                console.log('❌ Validation error (400):', msg);
+                setError(msg);
+                setSubmitStatus('error');
+
+            } else {
+                // Unknown error
+                const msg = result.message || `Registration failed (${resp.status}). Please try again.`;
+                setError(msg);
+                setSubmitStatus('error');
+            }
         } catch (error) {
-            console.error('❌ Signup failed:', error);
-        } finally {
-            setIsSubmitting(false);
+            console.error('❌ Registration request failed:', error);
+            setError('Unable to connect. Please check your internet and try again.');
+            setSubmitStatus('error');
         }
     };
 
-    if (submitted) {
+    // ═══════════════ SUCCESS SCREEN ═══════════════
+    if (submitStatus === 'success') {
+        // Auto sign-out after 5 seconds → back to login
+        setTimeout(() => onSignOut(), 5000);
+
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex items-center justify-center p-6 relative overflow-hidden">
                 <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                    <div className="absolute -top-40 -right-40 w-96 h-96 bg-rh-green/10 rounded-full blur-3xl animate-pulse" />
-                    <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+                    <div className="absolute -top-40 -right-40 w-96 h-96 bg-rh-green/15 rounded-full blur-3xl animate-pulse" />
+                    <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
                 </div>
                 <div className="relative w-full max-w-md text-center">
                     <div className="inline-flex items-center justify-center mb-6">
-                        <div className="bg-rh-green/20 p-5 rounded-2xl border border-rh-green/30">
-                            <span className="material-symbols-outlined text-rh-green text-5xl">check_circle</span>
+                        <div className="bg-rh-green p-5 rounded-2xl shadow-2xl shadow-rh-green/30">
+                            <span className="material-symbols-outlined text-white text-5xl">check_circle</span>
                         </div>
                     </div>
-                    <h1 className="text-3xl font-black text-white tracking-tight mb-3">Request Submitted!</h1>
-                    <p className="text-slate-400 text-sm mb-8">
-                        Your registration request has been submitted. You'll receive access once approved by the administrator.
+                    <h1 className="text-3xl font-black text-rh-green tracking-tight mb-3">Registration Successful!</h1>
+                    <p className="text-slate-300 text-sm mb-8">
+                        Your account is pending admin approval.
                     </p>
-                    <button
-                        onClick={onSignOut}
-                        className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white font-medium py-3 px-6 rounded-xl border border-white/10 transition-all duration-200 active:scale-[0.98]"
-                    >
-                        <span className="material-symbols-outlined text-lg">logout</span>
-                        <span className="text-sm">Return to Login</span>
-                    </button>
+                    <p className="text-slate-500 text-xs animate-pulse">
+                        Redirecting to login in 5 seconds...
+                    </p>
                 </div>
             </div>
         );
     }
 
+    // ═══════════════ SIGNUP FORM ═══════════════
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex items-center justify-center p-6 relative overflow-hidden">
             {/* Background */}
@@ -107,8 +163,35 @@ const SignupForm: React.FC<SignupFormProps> = ({ verificationData, onSignOut }) 
                     <span className="material-symbols-outlined text-rh-green text-lg">verified</span>
                 </div>
 
+                {/* Error banner */}
+                {submitStatus === 'error' && errorMessage && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-4 flex items-start gap-2.5">
+                        <span className="material-symbols-outlined text-red-400 text-lg mt-0.5 flex-shrink-0">error</span>
+                        <p className="text-sm text-red-300 leading-relaxed">{errorMessage}</p>
+                    </div>
+                )}
+
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="bg-white/[0.03] backdrop-blur-2xl rounded-2xl border border-white/[0.08] p-6 space-y-4">
+
+                    {/* Username */}
+                    <div>
+                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Username</label>
+                        <input
+                            type="text"
+                            value={formData.userName}
+                            onChange={(e) => setFormData({ ...formData, userName: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-rh-green/50 focus:border-rh-green/50 transition-all"
+                            placeholder="Choose a username"
+                            required
+                            minLength={3}
+                            maxLength={30}
+                            pattern="[a-z0-9_]+"
+                        />
+                        <p className="text-[10px] text-slate-600 mt-1">Lowercase letters, numbers, and underscores only</p>
+                    </div>
+
+                    {/* Full Name — pre-filled */}
                     <div>
                         <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Full Name</label>
                         <input
@@ -121,6 +204,19 @@ const SignupForm: React.FC<SignupFormProps> = ({ verificationData, onSignOut }) 
                         />
                     </div>
 
+                    {/* Email — pre-filled, read-only */}
+                    <div>
+                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Email</label>
+                        <input
+                            type="email"
+                            value={verificationData.email || ''}
+                            readOnly
+                            className="w-full bg-white/[0.02] border border-white/5 rounded-xl px-4 py-3 text-sm text-slate-400 cursor-not-allowed"
+                        />
+                        <p className="text-[10px] text-slate-600 mt-1">From your Google account — cannot be changed</p>
+                    </div>
+
+                    {/* Phone — optional */}
                     <div>
                         <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Phone Number <span className="text-slate-600">(optional)</span></label>
                         <input
@@ -132,44 +228,18 @@ const SignupForm: React.FC<SignupFormProps> = ({ verificationData, onSignOut }) 
                         />
                     </div>
 
-                    <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Trading Experience</label>
-                        <select
-                            value={formData.tradingExperience}
-                            onChange={(e) => setFormData({ ...formData, tradingExperience: e.target.value })}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-rh-green/50 focus:border-rh-green/50 transition-all appearance-none cursor-pointer"
-                            required
-                        >
-                            <option value="" className="bg-slate-900">Select experience level</option>
-                            <option value="beginner" className="bg-slate-900">Beginner (0-1 years)</option>
-                            <option value="intermediate" className="bg-slate-900">Intermediate (1-3 years)</option>
-                            <option value="advanced" className="bg-slate-900">Advanced (3-5 years)</option>
-                            <option value="expert" className="bg-slate-900">Expert (5+ years)</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Referral Code <span className="text-slate-600">(optional)</span></label>
-                        <input
-                            type="text"
-                            value={formData.referralCode}
-                            onChange={(e) => setFormData({ ...formData, referralCode: e.target.value })}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-rh-green/50 focus:border-rh-green/50 transition-all"
-                            placeholder="Enter referral code"
-                        />
-                    </div>
-
+                    {/* Submit */}
                     <button
                         type="submit"
-                        disabled={isSubmitting}
+                        disabled={submitStatus === 'submitting'}
                         className="w-full flex items-center justify-center gap-2 bg-rh-green hover:bg-rh-green/90 text-white font-bold py-3.5 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-rh-green/20 hover:shadow-rh-green/30 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed mt-2"
                     >
-                        {isSubmitting ? (
+                        {submitStatus === 'submitting' ? (
                             <span className="material-symbols-outlined animate-spin text-xl">progress_activity</span>
                         ) : (
                             <span className="material-symbols-outlined text-xl">how_to_reg</span>
                         )}
-                        <span className="text-sm">{isSubmitting ? 'Submitting...' : 'Complete Registration'}</span>
+                        <span className="text-sm">{submitStatus === 'submitting' ? 'Registering...' : 'Complete Registration'}</span>
                     </button>
 
                     <button

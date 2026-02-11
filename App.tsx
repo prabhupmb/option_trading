@@ -87,7 +87,7 @@ function calculateSummaryStats(signals: StockSignal[]): SummaryStat[] {
 }
 
 const App: React.FC = () => {
-  const { user, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut } = useAuth();
+  const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut } = useAuth();
   const { data: sheetData, loading, error, warning, lastUpdated, refresh } = useSheetData(900000); // Refresh every 15 minutes
   const [selectedSignal, setSelectedSignal] = useState<StockSignal | null>(null);
   const [executeSignal, setExecuteSignal] = useState<StockSignal | null>(null);
@@ -131,7 +131,7 @@ const App: React.FC = () => {
 
   // 202 — Show signup form for new users
   if (verificationStatus === 'signup') {
-    return <SignupForm verificationData={verificationData} onSignOut={signOut} />;
+    return <SignupForm verificationData={verificationData} session={session} onSignOut={signOut} />;
   }
 
   // 403 — Show access denied with webhook message
