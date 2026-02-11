@@ -7,6 +7,8 @@ import AnalysisModal from './components/AnalysisModal';
 import ExecuteCallModal from './components/ExecuteCallModal';
 import Portfolio from './components/Portfolio';
 import LoginPage from './components/LoginPage';
+import AccessDeniedPage from './components/AccessDeniedPage';
+import SignupForm from './components/SignupForm';
 import { StockSignal, SignalType, SummaryStat } from './types';
 import {
   useSheetData,
@@ -85,7 +87,7 @@ function calculateSummaryStats(signals: StockSignal[]): SummaryStat[] {
 }
 
 const App: React.FC = () => {
-  const { user, loading: authLoading, isAuthenticated, signInWithGoogle, signOut } = useAuth();
+  const { user, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut } = useAuth();
   const { data: sheetData, loading, error, warning, lastUpdated, refresh } = useSheetData(900000); // Refresh every 15 minutes
   const [selectedSignal, setSelectedSignal] = useState<StockSignal | null>(null);
   const [executeSignal, setExecuteSignal] = useState<StockSignal | null>(null);
@@ -108,9 +110,33 @@ const App: React.FC = () => {
     );
   }
 
-  // Show login page if not authenticated
-  if (!isAuthenticated) {
+  // Show login page if not authenticated (or unauthorized 401)
+  if (!isAuthenticated || verificationStatus === 'unauthorized') {
     return <LoginPage onGoogleLogin={signInWithGoogle} />;
+  }
+
+  // Show loading while verifying user access
+  if (verificationStatus === 'verifying' || verificationStatus === 'idle') {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="text-center">
+          <div className="bg-rh-green p-4 rounded-2xl shadow-2xl shadow-rh-green/30 inline-block mb-4">
+            <span className="material-symbols-outlined text-white text-4xl animate-spin">verified_user</span>
+          </div>
+          <p className="text-slate-400 font-medium animate-pulse">Verifying access...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 202 — Show signup form for new users
+  if (verificationStatus === 'signup') {
+    return <SignupForm verificationData={verificationData} onSignOut={signOut} />;
+  }
+
+  // 403 — Show access denied with webhook message
+  if (verificationStatus === 'denied') {
+    return <AccessDeniedPage onSignOut={signOut} userEmail={verificationData.email || user?.email || undefined} message={verificationData.message} />;
   }
 
   const handleManualRefresh = async () => {
