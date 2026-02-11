@@ -56,8 +56,8 @@ export function useAuth() {
             console.log('🔐 Verification result:', result);
 
             // ═══════════════════════════════════════════════════════
-            // PRIMARY CHECK: result.allowed must be explicitly true
-            // If allowed is false/missing, user NEVER reaches dashboard
+            // DECISION LOGIC — based on response body fields
+            // result.allowed is the PRIMARY gate for dashboard access
             // ═══════════════════════════════════════════════════════
 
             if (resp.status === 401) {
@@ -72,9 +72,9 @@ export function useAuth() {
                     verificationData: {},
                 }));
 
-            } else if (result.allowed === true && resp.status === 200) {
-                // ✅ ONLY allow dashboard when allowed === true AND status === 200
-                console.log('✅ User verified — access granted (allowed: true, status: 200)');
+            } else if (result.allowed === true) {
+                // ✅ allowed === true → show dashboard
+                console.log('✅ User verified — access granted (allowed: true, reason:', result.reason, ')');
                 setAuthState(prev => ({
                     ...prev,
                     verificationStatus: 'allowed',
@@ -85,8 +85,8 @@ export function useAuth() {
                     },
                 }));
 
-            } else if (result.reason === 'not_registered' || resp.status === 202) {
-                // 📝 Not registered — show signup form (allowed is false)
+            } else if (result.reason === 'not_registered') {
+                // 📝 allowed === false, reason: not_registered → signup form
                 console.log('📝 New user — signup required (allowed: false, reason: not_registered)');
                 setAuthState(prev => ({
                     ...prev,
@@ -101,9 +101,9 @@ export function useAuth() {
                 }));
 
             } else {
-                // 🚫 All other cases: denied (403, unknown, or allowed !== true)
+                // 🚫 allowed === false (or missing) for any other reason → denied
                 const denyMessage = result.message || 'Access denied. You are not authorized to use this application.';
-                console.log('🚫 Access denied:', denyMessage, '(status:', resp.status, ', allowed:', result.allowed, ')');
+                console.log('🚫 Access denied:', denyMessage, '(allowed:', result.allowed, ', reason:', result.reason, ')');
                 setAuthState(prev => ({
                     ...prev,
                     verificationStatus: 'denied',
