@@ -140,30 +140,42 @@ const App: React.FC = () => {
   }
 
   const handleManualRefresh = async () => {
-    console.log('🔄 Manual refresh clicked - calling scan webhook...');
+    // Temporary alert to prove execution
+    // alert('Manual refresh clicked!'); 
+
+    console.error('🔄 Manual refresh clicked - calling scan webhook...');
     setIsScanning(true);
     try {
       const webhookUrl = 'https://prabhupadala01.app.n8n.cloud/webhook/scan-stock';
-      console.log('🚀 Calling webhook:', webhookUrl);
+      console.error('🚀 Calling webhook:', webhookUrl);
 
-      // Trigger n8n webhook to scan stocks (no-cors to avoid CORS blocking)
-      await fetch(webhookUrl, {
+      const response = await fetch(webhookUrl, {
         method: 'GET',
-        mode: 'no-cors',
+        headers: {
+          'Accept': 'application/json',
+        }
       });
 
-      console.log('✅ Webhook triggered successfully (scan-stock)');
+      console.error('📡 Webhook response status:', response.status);
+      console.error('📡 Webhook response statusText:', response.statusText);
+
+      try {
+        const text = await response.text();
+        console.error('📡 Webhook response body:', text);
+      } catch (e) {
+        console.error('📡 Could not read response body:', e);
+      }
 
       // Refresh the sheet data to get latest results
-      console.log('📊 Refreshing sheet data...');
+      console.error('📊 Refreshing sheet data...');
       await refresh();
     } catch (error) {
-      console.error('❌ Webhook call failed:', error);
+      console.error('❌ Webhook/Refresh failed:', error);
       // Still try to refresh data even if webhook fails
       await refresh();
     } finally {
       setIsScanning(false);
-      console.log('🏁 Refresh complete');
+      console.error('🏁 Refresh complete');
     }
   };
 
