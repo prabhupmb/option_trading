@@ -9,6 +9,7 @@ import Portfolio from './components/Portfolio';
 import LoginPage from './components/LoginPage';
 import AccessDeniedPage from './components/AccessDeniedPage';
 import SignupForm from './components/SignupForm';
+import AIHub from './components/AIHub';
 import { StockSignal, SignalType, SummaryStat } from './types';
 import {
   useSheetData,
@@ -450,6 +451,10 @@ const App: React.FC = () => {
         ) : currentView === 'portfolio' ? (
           <div className="flex-1 overflow-y-auto">
             <Portfolio />
+          </div>
+        ) : currentView === 'ai-hub' ? (
+          <div className="flex-1 overflow-hidden relative flex flex-col">
+            <AIHub />
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
