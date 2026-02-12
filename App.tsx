@@ -323,33 +323,13 @@ const App: React.FC = () => {
             )}
 
             {(!loading || signals.length > 0) && (
-              <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="mb-8 grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {summaryStats.map((stat) => (
                   <div key={stat.type} onClick={() => setFilter(filter === stat.type ? 'ALL' : stat.type)} className="cursor-pointer active:scale-[0.98] transition-transform">
                     <SummaryCard stat={stat} isPrimary={filter === stat.type} />
                   </div>
                 ))}
-                {/* Total Signals Card */}
-                <div
-                  onClick={() => setFilter('ALL')}
-                  className={`bg-white dark:bg-[#1e2124] border border-gray-100 dark:border-white/5 shadow-sm rounded-xl p-4 flex flex-col justify-between hover:border-rh-green/30 transition-all cursor-pointer group ${filter === 'ALL' ? 'ring-1 ring-rh-green border-rh-green bg-rh-green/5' : ''}`}
-                >
-                  <div className="flex justify-between items-start">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 group-hover:text-rh-green transition-colors">
-                      Total Signals
-                    </span>
-                    <div className="flex items-center gap-1 text-rh-green bg-rh-green/10 px-1.5 py-0.5 rounded text-[10px] font-bold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-rh-green animate-pulse"></span>
-                      LIVE
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter block">
-                      {signals.length}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-medium">Active Opportunities</span>
-                  </div>
-                </div>
+
               </div>
             )}
 
