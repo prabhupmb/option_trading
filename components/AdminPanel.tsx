@@ -103,6 +103,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                             <thead>
                                 <tr className="bg-slate-50 dark:bg-white/5 border-b border-gray-200 dark:border-white/10 text-xs uppercase tracking-widest font-bold text-slate-500">
                                     <th className="p-6">User</th>
+                                    <th className="p-6">Email</th>
                                     <th className="p-6">Role</th>
                                     <th className="p-6">Access Level</th>
                                     <th className="p-6 text-center">Status</th>
@@ -110,46 +111,58 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 dark:divide-white/5">
-                                {users.map(user => (
-                                    <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                                        <td className="p-6">
-                                            <div className="flex flex-col">
-                                                <span className="font-bold text-sm">{user.name || 'Unnamed'}</span>
-                                                <span className="text-xs text-slate-500">{user.email}</span>
-                                            </div>
-                                        </td>
-                                        <td className="p-6">
-                                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wide ${user.role === 'admin' ? 'bg-purple-500/10 text-purple-500' : 'bg-slate-100 dark:bg-white/10 text-slate-500'
-                                                }`}>
-                                                {user.role}
-                                            </span>
-                                        </td>
-                                        <td className="p-6">
-                                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wide ${user.access_level === 'trade' ? 'bg-rh-green/10 text-rh-green' :
-                                                user.access_level === 'paper' ? 'bg-blue-500/10 text-blue-500' :
-                                                    'bg-orange-500/10 text-orange-500'
-                                                }`}>
-                                                {user.access_level}
-                                            </span>
-                                        </td>
-                                        <td className="p-6 text-center">
-                                            <button
-                                                onClick={() => confirmChange('is_active', !user.is_active)}
-                                                className={`w-10 h-6 rounded-full relative transition-colors duration-300 ${user.is_active ? 'bg-rh-green' : 'bg-slate-300 dark:bg-white/20'}`}
-                                            >
-                                                <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${user.is_active ? 'translate-x-4' : ''}`}></div>
-                                            </button>
-                                        </td>
-                                        <td className="p-6 text-right">
-                                            <button
-                                                onClick={() => handleEditClick(user)}
-                                                className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
-                                            >
-                                                <span className="material-symbols-outlined">edit</span>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {users.map(user => {
+                                    // Robust name resolution
+                                    // Try full_name (DB convention), then name, then username, then email part
+                                    const displayName = user.full_name || user.name || user.username || user.user_name || 'Unnamed';
+                                    const username = user.username || user.user_name;
+
+                                    return (
+                                        <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                                            <td className="p-6">
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold text-sm text-slate-900 dark:text-white">{displayName}</span>
+                                                    {username && username !== displayName && (
+                                                        <span className="text-[10px] font-mono text-slate-400">@{username}</span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="p-6">
+                                                <span className="text-xs text-slate-500 font-medium">{user.email}</span>
+                                            </td>
+                                            <td className="p-6">
+                                                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wide ${user.role === 'admin' ? 'bg-purple-500/10 text-purple-500' : 'bg-slate-100 dark:bg-white/10 text-slate-500'
+                                                    }`}>
+                                                    {user.role}
+                                                </span>
+                                            </td>
+                                            <td className="p-6">
+                                                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wide ${user.access_level === 'trade' ? 'bg-rh-green/10 text-rh-green' :
+                                                    user.access_level === 'paper' ? 'bg-blue-500/10 text-blue-500' :
+                                                        'bg-orange-500/10 text-orange-500'
+                                                    }`}>
+                                                    {user.access_level}
+                                                </span>
+                                            </td>
+                                            <td className="p-6 text-center">
+                                                <button
+                                                    onClick={() => confirmChange('is_active', !user.is_active)}
+                                                    className={`w-10 h-6 rounded-full relative transition-colors duration-300 ${user.is_active ? 'bg-rh-green' : 'bg-slate-300 dark:bg-white/20'}`}
+                                                >
+                                                    <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${user.is_active ? 'translate-x-4' : ''}`}></div>
+                                                </button>
+                                            </td>
+                                            <td className="p-6 text-right">
+                                                <button
+                                                    onClick={() => handleEditClick(user)}
+                                                    className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
+                                                >
+                                                    <span className="material-symbols-outlined">edit</span>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

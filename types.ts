@@ -49,6 +49,9 @@ export interface UserProfile {
   id: string;
   email: string;
   name?: string;
+  full_name?: string;
+  user_name?: string; // OR username, depending on DB, but I'll add both to be safe or just use flexible indexing in component
+  username?: string;
   role: UserRole;
   access_level: AccessLevel;
   is_active: boolean;

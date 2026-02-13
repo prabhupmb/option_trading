@@ -124,25 +124,21 @@ const StockHeader: React.FC<{ data: StockData }> = ({ data }) => {
     );
 };
 
-const DEFAULT_STOCK: StockData = {
-    ticker: 'AAPL',
-    name: 'Apple Inc.',
-    price: 235.42,
-    change: 2.61,
-    changePercent: 1.12,
-    logo: 'https://logo.clearbit.com/apple.com',
-};
+// Remove DEFAULT_STOCK and update component logic
 
 const AIHub: React.FC = () => {
-    const [tickerInput, setTickerInput] = useState('AAPL');
-    const [currentStock, setCurrentStock] = useState<StockData>(DEFAULT_STOCK);
+    const [tickerInput, setTickerInput] = useState('');
+    const [currentStock, setCurrentStock] = useState<StockData | null>(null);
     const [strategy, setStrategy] = useState<StrategyPlan | null>(null);
     const [news, setNews] = useState<NewsItem[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('Strategic Plan');
 
     const fetchData = useCallback(async (ticker: string) => {
         setLoading(true);
+        // Reset previous data while loading new
+        setStrategy(null);
+
         try {
             // Call webhook
             const data = await fetchAIInsights(ticker);
@@ -177,7 +173,7 @@ const AIHub: React.FC = () => {
                         `MACD: ${data.indicatorAnalysis?.macdInterpretation || 'Neutral'}`,
                         `Trend: ${data.indicatorAnalysis?.trendStrength || 'Neutral'}`
                     ],
-                    analystRating: 4.2, // Default or fetch if available
+                    analystRating: data.analystRating || 4.2,
                     movingAverages: {
                         ema20: data.technicalData?.indicators?.sma20?.toFixed(2) || "N/A", // Using SMA20 as proxy if EMA20 missing
                         sma50: data.technicalData?.indicators?.sma50?.toFixed(2) || "N/A",
@@ -195,15 +191,14 @@ const AIHub: React.FC = () => {
                     setNews(mappedNews);
                 }
 
-                setCurrentStock(prev => ({
-                    ...prev,
+                setCurrentStock({
                     ticker: data.ticker || ticker.toUpperCase(),
-                    name: data.companyName || prev.name,
-                    price: data.price?.current || prev.price,
+                    name: data.companyName || ticker.toUpperCase(),
+                    price: data.price?.current || 0,
                     change: (data.price?.current - data.price?.previousClose) || 0,
                     changePercent: data.price?.changePercent || 0,
-                    logo: `https://logo.clearbit.com/${data.ticker?.toLowerCase()}.com`
-                }));
+                    logo: `https://logo.clearbit.com/${(data.ticker || ticker).toLowerCase()}.com`
+                });
             }
         } catch (err) {
             console.error("Failed to fetch AI data", err);
@@ -211,10 +206,6 @@ const AIHub: React.FC = () => {
             setLoading(false);
         }
     }, []);
-
-    useEffect(() => {
-        fetchData('AAPL');
-    }, [fetchData]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -234,7 +225,7 @@ const AIHub: React.FC = () => {
                     <input
                         className="w-full bg-zinc-900 border-none rounded-full py-2 pl-10 pr-4 focus:ring-1 focus:ring-rh-green text-sm transition-all outline-none text-white placeholder-slate-500"
                         placeholder="Search tickers (e.g. NVDA, MSFT)..."
-                        type="text"
+                        type="search"
                         value={tickerInput}
                         onChange={(e) => setTickerInput(e.target.value)}
                     />
@@ -248,29 +239,45 @@ const AIHub: React.FC = () => {
             </header>
 
             <div className="flex-1 overflow-y-auto p-8 scrollbar-hide">
-                <div className="space-y-8 max-w-7xl mx-auto">
-                    <StockHeader data={currentStock} />
+                <div className="space-y-8 max-w-7xl mx-auto min-h-[500px]">
 
-                    <div className="flex border-b border-white/10 overflow-x-auto scrollbar-hide">
-                        {tabs.map(tab => (
-                            <button
-                                key={tab}
-                                onClick={() => setActiveTab(tab)}
-                                className={`px-6 py-4 text-sm font-bold transition-colors whitespace-nowrap border-b-2 ${activeTab === tab ? 'text-rh-green border-rh-green' : 'text-slate-500 hover:text-slate-200 border-transparent'
-                                    }`}
-                            >
-                                {tab}
-                            </button>
-                        ))}
-                    </div>
+                    {/* Empty State */}
+                    {!currentStock && !loading && (
+                        <div className="flex flex-col items-center justify-center py-32 opacity-50">
+                            <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-6">
+                                <span className="material-symbols-outlined text-5xl text-slate-400">query_stats</span>
+                            </div>
+                            <h2 className="text-2xl font-black text-white mb-2">AI Market Analysis</h2>
+                            <p className="text-slate-400 max-w-sm text-center">Enter a stock ticker above to generate a real-time strategic trading plan and technical breakdown.</p>
+                        </div>
+                    )}
+
+                    {/* Stock Content */}
+                    {currentStock && <StockHeader data={currentStock} />}
+
+                    {currentStock && (
+                        <div className="flex border-b border-white/10 overflow-x-auto scrollbar-hide">
+                            {tabs.map(tab => (
+                                <button
+                                    key={tab}
+                                    onClick={() => setActiveTab(tab)}
+                                    className={`px-6 py-4 text-sm font-bold transition-colors whitespace-nowrap border-b-2 ${activeTab === tab ? 'text-rh-green border-rh-green' : 'text-slate-500 hover:text-slate-200 border-transparent'
+                                        }`}
+                                >
+                                    {tab}
+                                </button>
+                            ))}
+                        </div>
+                    )}
 
                     {loading ? (
-                        <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                        <div className="flex flex-col items-center justify-center py-32 space-y-4">
                             <div className="w-12 h-12 border-4 border-rh-green border-t-transparent rounded-full animate-spin"></div>
-                            <p className="text-slate-500 font-medium animate-pulse">AI is analyzing {currentStock.ticker} market dynamics...</p>
+                            <p className="text-slate-500 font-medium animate-pulse">AI is analyzing {tickerInput.toUpperCase()} market dynamics...</p>
                         </div>
-                    ) : strategy && (
+                    ) : (strategy && currentStock) && (
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                            {/* ... Strategy Content ... */}
                             <div className="lg:col-span-8 space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {/* Stock Strategy Card */}
@@ -419,31 +426,20 @@ const AIHub: React.FC = () => {
                                             <span className="text-xl font-bold text-white">{strategy.analystRating || 4.2}</span>
                                         </div>
                                         <div>
-                                            <h4 className="text-lg font-bold text-white">Strong Buy</h4>
-                                            <p className="text-xs text-slate-500">Based on 32 analysts</p>
+                                            {/* Logic to determine text rating */}
+                                            <h4 className="text-lg font-bold text-white">
+                                                {strategy.analystRating >= 4.5 ? 'Strong Buy' : strategy.analystRating >= 3.5 ? 'Buy' : 'Hold'}
+                                            </h4>
+                                            <p className="text-xs text-slate-500">Based on recent data</p>
                                         </div>
                                     </div>
+                                    {/* Bars - Using static visual for now as exact distribution isn't in data sample fully */}
                                     <div className="space-y-3">
                                         <div className="flex items-center gap-3">
                                             <span className="text-xs font-medium text-slate-400 w-8">Buy</span>
                                             <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
                                                 <div className="h-full bg-rh-green w-[75%]"></div>
                                             </div>
-                                            <span className="text-xs font-mono text-slate-500 w-4 text-right">24</span>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-xs font-medium text-slate-400 w-8">Hold</span>
-                                            <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                                                <div className="h-full bg-slate-600 w-[20%]"></div>
-                                            </div>
-                                            <span className="text-xs font-mono text-slate-500 w-4 text-right">6</span>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-xs font-medium text-slate-400 w-8">Sell</span>
-                                            <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                                                <div className="h-full bg-red-500 w-[5%]"></div>
-                                            </div>
-                                            <span className="text-xs font-mono text-slate-500 w-4 text-right">2</span>
                                         </div>
                                     </div>
                                 </div>
@@ -452,7 +448,6 @@ const AIHub: React.FC = () => {
                                 <div className="bg-[#1e2124] rounded-2xl border border-white/10 p-6">
                                     <div className="flex items-center justify-between mb-6">
                                         <h3 className="font-bold text-white">Recent News</h3>
-                                        <button className="text-[10px] font-bold text-rh-green uppercase hover:underline">View All</button>
                                     </div>
                                     <div className="space-y-5">
                                         {news.map((item, idx) => (
@@ -471,16 +466,19 @@ const AIHub: React.FC = () => {
                 </div>
             </div>
 
-            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 lg:left-auto lg:translate-x-0 lg:right-8 flex items-center gap-4 z-[100]">
-                <button className="bg-red-600 hover:bg-red-700 text-white px-8 py-4 rounded-2xl font-bold shadow-2xl transition-all active:scale-95 flex items-center gap-2">
-                    <span className="material-symbols-outlined">trending_down</span> EXECUTE PUT
-                </button>
-                <button className="bg-rh-green hover:bg-green-600 text-black px-8 py-4 rounded-2xl font-black shadow-2xl transition-all active:scale-95 flex items-center gap-2">
-                    <span className="material-symbols-outlined">trending_up</span> EXECUTE CALL
-                </button>
-            </div>
+            {currentStock && (
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 lg:left-auto lg:translate-x-0 lg:right-8 flex items-center gap-4 z-[100]">
+                    <button className="bg-red-600 hover:bg-red-700 text-white px-8 py-4 rounded-2xl font-bold shadow-2xl transition-all active:scale-95 flex items-center gap-2">
+                        <span className="material-symbols-outlined">trending_down</span> EXECUTE PUT
+                    </button>
+                    <button className="bg-rh-green hover:bg-green-600 text-black px-8 py-4 rounded-2xl font-black shadow-2xl transition-all active:scale-95 flex items-center gap-2">
+                        <span className="material-symbols-outlined">trending_up</span> EXECUTE CALL
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
+
 
 export default AIHub;
