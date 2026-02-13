@@ -7,9 +7,11 @@ interface HeaderProps {
   loading?: boolean;
   user?: User | null;
   onSignOut?: () => void;
+  selectedBrokerage?: string;
+  onBrokerageChange?: (brokerage: string) => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading, user, onSignOut }) => {
+const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading, user, onSignOut, selectedBrokerage, onBrokerageChange }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const userAvatar = user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
@@ -30,7 +32,8 @@ const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading, user, 
         <div className="relative">
           <select
             className="appearance-none bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-rh-green/50 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors cursor-pointer"
-            defaultValue="Alpaca"
+            value={selectedBrokerage}
+            onChange={(e) => onBrokerageChange?.(e.target.value)}
           >
             <option value="Alpaca">Alpaca</option>
             <option value="Schwab">Schwab</option>

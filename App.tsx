@@ -89,7 +89,7 @@ function calculateSummaryStats(signals: StockSignal[]): SummaryStat[] {
 
 const App: React.FC = () => {
   const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut } = useAuth();
-  const { data: sheetData, loading, error, warning, lastUpdated, refresh } = useSheetData(900000); // Refresh every 15 minutes
+  const { data: sheetData, loading, error, warning, lastUpdated, refresh, clearData } = useSheetData(900000); // Refresh every 15 minutes
   const [selectedSignal, setSelectedSignal] = useState<StockSignal | null>(null);
   const [executeSignal, setExecuteSignal] = useState<StockSignal | null>(null);
   const [filter, setFilter] = useState<SignalType | 'ALL'>('ALL');
@@ -97,6 +97,8 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('signals');
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
+
+  const [selectedBrokerage, setSelectedBrokerage] = useState<string>('Alpaca');
 
   // Show loading spinner while checking auth state
   if (authLoading) {
@@ -145,12 +147,13 @@ const App: React.FC = () => {
     // Temporary alert to prove execution
     // alert('Manual refresh clicked!'); 
 
-    console.log('🔄 Manual refresh clicked - calling scan webhook...');
-    refresh(); // Immediate data refresh for better UX
+    console.log('🔄 Manual refresh clicked - Clearing existing data & calling scan webhook...');
+    clearData(); // Clear existing data to start fresh ("remove everything")
     setIsScanning(true);
     setScanProgress(5); // Start progress
 
     try {
+      // Intentionally verify webhook URL before fetch
       const webhookUrl = 'https://prabhupadala01.app.n8n.cloud/webhook/scan-stock';
       console.log('🚀 Calling webhook:', webhookUrl);
 
@@ -165,49 +168,29 @@ const App: React.FC = () => {
 
       console.log('📡 Webhook response status:', response.status);
 
-      // If 202, start polling
-      if (response.status === 202) {
+      // If 202 or 200, start polling (Scanning started)
+      if (response.status === 202 || response.status === 200) {
         setScanProgress(10);
         console.log('⏳ Scan started, polling for results...');
 
-        // Polling loop
+        // Polling loop (Blind polling since status webhook was removed)
         const pollInterval = 2000; // 2 seconds
-        const maxAttempts = 1800; // 1 hour max (3600s / 2s)
+        const maxAttempts = 30; // ~60 seconds timeout
         let attempts = 0;
 
         while (attempts < maxAttempts) {
           attempts++;
           await new Promise(r => setTimeout(r, pollInterval));
 
-          try {
-            const pollUrl = 'https://prabhupadala01.app.n8n.cloud/webhook/scan-results';
-            const pollResponse = await fetch(pollUrl);
-            const result = await pollResponse.json();
+          // Simulate progress
+          setScanProgress(prev => Math.min(prev + 3, 90));
 
-            console.log('📊 Poll result:', result);
-
-            // Update progress if available
-            if (result.percentage) {
-              setScanProgress(result.percentage);
-            }
-
-            // Should also refresh sheet data periodically to show partial results
-            // Refresh every 2 polls (4 seconds) to balance load
-            if (attempts % 2 === 0) {
-              console.log('🔄 Reloading sheet data...');
-              await refresh();
-            }
-
-            if (result.status === 'completed' || result.success === true) {
-              setScanProgress(100);
-              console.log('✅ Scan completed!');
-              break;
-            }
-          } catch (e) {
-            console.error('⚠️ Polling error:', e);
-            // Continue polling even if one request fails
-          }
+          // Refresh sheet data to show rows appearing "one by one"
+          console.log('🔄 Reloading sheet data...');
+          await refresh();
         }
+
+        setScanProgress(100);
       } else {
         // Fallback for non-202 responses (e.g. if it finished immediately)
         setScanProgress(100);
@@ -286,12 +269,20 @@ const App: React.FC = () => {
       <Navigation activeView={currentView} onNavigate={setCurrentView} user={user} onSignOut={signOut} />
 
       <div className="flex-1 ml-64 flex flex-col min-w-0">
-        <Header lastUpdated={lastUpdated} onRefresh={handleManualRefresh} loading={loading || isScanning} user={user} onSignOut={signOut} />
+        <Header
+          lastUpdated={lastUpdated}
+          onRefresh={handleManualRefresh}
+          loading={loading || isScanning}
+          user={user}
+          onSignOut={signOut}
+          selectedBrokerage={selectedBrokerage}
+          onBrokerageChange={setSelectedBrokerage}
+        />
 
         {currentView === 'signals' ? (
           <main className="flex-1 p-8 overflow-y-auto">
             {/* Loading State */}
-            {loading && signals.length === 0 && (
+            {(loading || isScanning) && signals.length === 0 && (
               <div className="flex items-center justify-center h-64">
                 <div className="text-center">
                   <span className="material-symbols-outlined text-4xl text-rh-green animate-spin-slow">refresh</span>
@@ -458,6 +449,7 @@ const App: React.FC = () => {
           signal={executeSignal}
           onClose={() => setExecuteSignal(null)}
           onSuccess={() => setCurrentView('portfolio')}
+          brokerage={selectedBrokerage}
         />
       )}
     </div>

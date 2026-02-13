@@ -214,5 +214,11 @@ export function useSheetData(refreshIntervalMs: number = 30000) {
         return () => clearInterval(interval);
     }, [refresh, refreshIntervalMs]);
 
-    return { data, loading, error, warning, lastUpdated, refresh };
+    const clearData = React.useCallback(() => {
+        setData([]);
+        setError(null);
+        setWarning(null);
+    }, []);
+
+    return { data, loading, error, warning, lastUpdated, refresh, clearData };
 }

@@ -65,9 +65,10 @@ interface Props {
     signal: StockSignal;
     onClose: () => void;
     onSuccess?: () => void; // Called on successful buy to navigate to Portfolio
+    brokerage?: string;
 }
 
-const ExecuteCallModal: React.FC<Props> = ({ signal, onClose, onSuccess }) => {
+const ExecuteCallModal: React.FC<Props> = ({ signal, onClose, onSuccess, brokerage }) => {
     const [budget, setBudget] = useState<string>("1,000.00");
     const [selectedContracts, setSelectedContracts] = useState<number>(1);
     const [risk, setRisk] = useState<RiskLevel>(RiskLevel.LOW);
@@ -137,17 +138,35 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose, onSuccess }) => {
         setIsExecuting(true);
         setBuyError(null);
         try {
-            const payload = {
-                userName: 'prabhu',
-                stockName: signal.symbol,
-                currentPrice: signal.price,
-                budget: numericBudget,
-                numberOfContracts: selectedContracts,
-                riskLevel: risk
-            };
-            const webhookUrl = signal.optionType === 'PUT'
-                ? 'https://prabhupadala01.app.n8n.cloud/webhook/put-trade'
-                : 'https://prabhupadala01.app.n8n.cloud/webhook/trade';
+            let webhookUrl = '';
+            let payload: any = {};
+
+            if (brokerage === 'Schwab') {
+                webhookUrl = 'https://prabhupadala01.app.n8n.cloud/webhook/manual-trade';
+                payload = {
+                    brokerage: "SCHWAB",
+                    ticker: signal.symbol,
+                    currentPrice: signal.price,
+                    optionType: signal.optionType || (signal.signal?.includes('SELL') ? 'PUT' : 'CALL'),
+                    riskLevel: risk.toLowerCase(),
+                    maxBudget: numericBudget,
+                    quantity: selectedContracts,
+                    userName: 'prabhu'
+                };
+            } else {
+                payload = {
+                    userName: 'prabhu',
+                    stockName: signal.symbol,
+                    currentPrice: signal.price,
+                    budget: numericBudget,
+                    numberOfContracts: selectedContracts,
+                    riskLevel: risk,
+                    brokerage: brokerage || 'Alpaca'
+                };
+                webhookUrl = signal.optionType === 'PUT'
+                    ? 'https://prabhupadala01.app.n8n.cloud/webhook/put-trade'
+                    : 'https://prabhupadala01.app.n8n.cloud/webhook/trade';
+            }
             const response = await fetch(webhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -187,7 +206,7 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose, onSuccess }) => {
                             <span className={`px-2 py-0.5 ${signal.optionType === 'PUT' ? 'bg-rh-red/10 text-rh-red' : 'bg-rh-green/10 text-rh-green'} text-[10px] font-bold rounded tracking-wider uppercase`}>
                                 {signal.optionType === 'PUT' ? 'Execute Put' : 'Execute Call'}
                             </span>
-                            <span className="text-slate-500 text-sm">{signal.symbol}</span>
+                            <span className="text-slate-500 text-sm font-medium">{signal.symbol} <span className="opacity-50 mx-1">•</span> <span className="text-slate-400">via {brokerage || 'Alpaca'}</span></span>
                         </div>
                         <h2 className="text-2xl font-black text-white flex items-baseline gap-2 tracking-tight">
                             {signal.name || signal.symbol}
