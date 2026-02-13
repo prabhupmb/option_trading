@@ -41,3 +41,16 @@ export interface SummaryStat {
   count: number;
   change: number;
 }
+
+export type UserRole = 'admin' | 'customer';
+export type AccessLevel = 'signal' | 'paper' | 'trade';
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  name?: string;
+  role: UserRole;
+  access_level: AccessLevel;
+  is_active: boolean;
+  created_at?: string;
+}

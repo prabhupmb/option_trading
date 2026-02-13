@@ -10,6 +10,8 @@ import LoginPage from './components/LoginPage';
 import AccessDeniedPage from './components/AccessDeniedPage';
 import SignupForm from './components/SignupForm';
 import AIHub from './components/AIHub';
+import AdminPanel from './components/AdminPanel';
+import UserProfilePage from './components/UserProfilePage';
 import { StockSignal, SignalType, SummaryStat } from './types';
 import {
   useSheetData,
@@ -88,7 +90,7 @@ function calculateSummaryStats(signals: StockSignal[]): SummaryStat[] {
 }
 
 const App: React.FC = () => {
-  const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut } = useAuth();
+  const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut, role, accessLevel } = useAuth();
   const { data: sheetData, loading, error, warning, lastUpdated, refresh, clearData } = useSheetData(900000); // Refresh every 15 minutes
   const [selectedSignal, setSelectedSignal] = useState<StockSignal | null>(null);
   const [executeSignal, setExecuteSignal] = useState<StockSignal | null>(null);
@@ -266,7 +268,7 @@ const App: React.FC = () => {
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-[#0a0712] transition-colors font-sans text-slate-900 dark:text-white">
       {/* Sidebar */}
-      <Navigation activeView={currentView} onNavigate={setCurrentView} user={user} onSignOut={signOut} />
+      <Navigation activeView={currentView} onNavigate={setCurrentView} user={user} onSignOut={signOut} role={role} accessLevel={accessLevel} />
 
       <div className="flex-1 ml-64 flex flex-col min-w-0">
         <Header
@@ -400,6 +402,7 @@ const App: React.FC = () => {
                     signal={signal}
                     onViewAnalysis={handleViewAnalysis}
                     onExecute={handleExecute}
+                    accessLevel={accessLevel}
                   />
                 </div>
               ))}
@@ -427,6 +430,14 @@ const App: React.FC = () => {
           <div className="flex-1 overflow-hidden relative flex flex-col">
             <AIHub />
           </div>
+        ) : currentView === 'settings' ? (
+          <div className="flex-1 overflow-y-auto">
+            <UserProfilePage />
+          </div>
+        ) : currentView === 'admin' && role === 'admin' ? (
+          <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#0a0712]">
+            <AdminPanel currentUser={user} />
+          </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
             <div className="w-24 h-24 bg-slate-100 dark:bg-white/5 rounded-full flex items-center justify-center mb-6">
@@ -450,6 +461,7 @@ const App: React.FC = () => {
           onClose={() => setExecuteSignal(null)}
           onSuccess={() => setCurrentView('portfolio')}
           brokerage={selectedBrokerage}
+          accessLevel={accessLevel}
         />
       )}
     </div>

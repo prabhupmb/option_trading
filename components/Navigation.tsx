@@ -1,22 +1,35 @@
 import React from 'react';
 import type { User } from '@supabase/supabase-js';
+import { UserRole, AccessLevel } from '../types';
 
-export type View = 'signals' | 'portfolio' | 'ai-hub' | 'watchlist' | 'history' | 'settings';
+export type View = 'signals' | 'portfolio' | 'ai-hub' | 'watchlist' | 'history' | 'settings' | 'admin';
 
 interface NavigationProps {
   activeView: View;
   onNavigate: (view: View) => void;
   user?: User | null;
   onSignOut?: () => void;
+  role?: UserRole;
+  accessLevel?: AccessLevel;
 }
 
-const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, onSignOut }) => {
-  const tabs: { id: View; label: string; icon: string }[] = [
+const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, onSignOut, role, accessLevel }) => {
+  let tabs: { id: View; label: string; icon: string }[] = [
     { id: 'signals', label: 'Signal Feed', icon: 'dashboard' },
     { id: 'portfolio', label: 'Portfolio', icon: 'analytics' },
     { id: 'ai-hub', label: 'AI Hub', icon: 'auto_awesome' },
     { id: 'settings', label: 'Settings', icon: 'settings' }
   ];
+
+  // Hide Portfolio for Signal-only users
+  if (accessLevel === 'signal') {
+    tabs = tabs.filter(tab => tab.id !== 'portfolio');
+  }
+
+  // Add Admin Panel for Admins
+  if (role === 'admin') {
+    tabs.push({ id: 'admin', label: 'Admin Panel', icon: 'admin_panel_settings' });
+  }
 
   const userAvatar = user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
   const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';

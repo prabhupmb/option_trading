@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabase';
 import type { Session, User } from '@supabase/supabase-js';
+import { UserRole, AccessLevel } from '../types';
 
 export type VerificationStatus = 'idle' | 'verifying' | 'allowed' | 'signup' | 'denied' | 'unauthorized';
 
@@ -18,6 +19,8 @@ export interface AuthState {
     loading: boolean;
     verificationStatus: VerificationStatus;
     verificationData: VerificationData;
+    role?: UserRole;
+    accessLevel?: AccessLevel;
 }
 
 export function useAuth() {
@@ -31,14 +34,58 @@ export function useAuth() {
 
     const verifyUser = useCallback(async (session: Session) => {
         console.log('🔐 Verifying user access...');
+        // Optimistic update
         setAuthState(prev => ({
             ...prev,
-            // If already allowed, keep 'allowed' to avoid UI flicker, otherwise 'verifying'
             verificationStatus: prev.verificationStatus === 'allowed' ? 'allowed' : 'verifying',
             verificationData: prev.verificationStatus === 'allowed' ? prev.verificationData : {}
         }));
 
         try {
+            const email = session.user.email;
+            if (!email) throw new Error('No email in session');
+
+            // 1. Check Supabase 'users' table directly
+            const { data: userProfile, error: dbError } = await supabase
+                .from('users')
+                .select('*')
+                .eq('email', email)
+                .single();
+
+            if (userProfile && !dbError) {
+                console.log('✅ User found in DB:', userProfile);
+
+                if (!userProfile.is_active) {
+                    // Account disabled
+                    setAuthState(prev => ({
+                        ...prev,
+                        verificationStatus: 'denied',
+                        verificationData: {
+                            email: email,
+                            message: 'Your account has been disabled by an administrator.',
+                        }
+                    }));
+                    return;
+                }
+
+                // Access Granted
+                setAuthState(prev => ({
+                    ...prev,
+                    verificationStatus: 'allowed',
+                    role: userProfile.role as UserRole,
+                    accessLevel: userProfile.access_level as AccessLevel,
+                    verificationData: {
+                        email: userProfile.email,
+                        fullName: userProfile.name || session.user.user_metadata.full_name,
+                        avatarUrl: session.user.user_metadata.avatar_url,
+                    },
+                }));
+                return;
+            }
+
+            // 2. Fallback to Webhook if user not in DB (likely new user needing signup)
+            console.log('⚠️ User not in DB, falling back to webhook verification...');
+
             const resp = await fetch('https://prabhupadala01.app.n8n.cloud/webhook/verify-user', {
                 method: 'POST',
                 headers: {
@@ -52,7 +99,6 @@ export function useAuth() {
             let result: any = {};
             try {
                 const body = await resp.json();
-                // Handle array response (n8n sometimes returns arrays)
                 result = Array.isArray(body) ? body[0] : body;
             } catch (e) {
                 console.warn('⚠️ Could not parse response body');
@@ -60,13 +106,7 @@ export function useAuth() {
 
             console.log('🔐 Verification result:', result);
 
-            // ═══════════════════════════════════════════════════════
-            // DECISION LOGIC — based on response body fields
-            // result.allowed is the PRIMARY gate for dashboard access
-            // ═══════════════════════════════════════════════════════
-
             if (resp.status === 401) {
-                // 🔒 Unauthorized — sign out immediately
                 console.log('🔒 Unauthorized (401) — signing out');
                 await supabase.auth.signOut();
                 setAuthState(prev => ({
@@ -76,23 +116,23 @@ export function useAuth() {
                     verificationStatus: 'unauthorized',
                     verificationData: {},
                 }));
-
             } else if (result.allowed === true) {
-                // ✅ allowed === true → show dashboard
-                console.log('✅ User verified — access granted (allowed: true, reason:', result.reason, ')');
+                // If webhook allows but DB check failed, we might use default roles or strictly require DB
+                // Assuming default for now
+                console.log('✅ User verified via Webhook');
                 setAuthState(prev => ({
                     ...prev,
                     verificationStatus: 'allowed',
+                    role: 'customer', // Default
+                    accessLevel: 'signal', // Default
                     verificationData: {
                         email: result.email,
                         fullName: result.fullName,
                         avatarUrl: result.avatarUrl,
                     },
                 }));
-
             } else if (result.reason === 'not_registered') {
-                // 📝 allowed === false, reason: not_registered → signup form
-                console.log('📝 New user — signup required (allowed: false, reason: not_registered)');
+                console.log('📝 New user — signup required');
                 setAuthState(prev => ({
                     ...prev,
                     verificationStatus: 'signup',
@@ -104,23 +144,8 @@ export function useAuth() {
                         reason: result.reason,
                     },
                 }));
-
-            } else if (result.message && (result.message.toLowerCase().includes('disabled') || result.message.toLowerCase().includes('pending'))) {
-                // ⏳ Account exists but is disabled/pending → show "Access Pending" screen
-                console.log('⏳ User pending — access disabled (allowed: false, reason: disabled/pending)');
-                setAuthState(prev => ({
-                    ...prev,
-                    verificationStatus: 'denied', // This maps to AccessDeniedPage which now handles "pending" state gracefully
-                    verificationData: {
-                        message: result.message,
-                        email: result.email,
-                    },
-                }));
-
             } else {
-                // 🚫 allowed === false (or missing) for any other reason → denied
-                const denyMessage = result.message || 'Access denied. You are not authorized to use this application.';
-                console.log('🚫 Access denied:', denyMessage, '(allowed:', result.allowed, ', reason:', result.reason, ')');
+                const denyMessage = result.message || 'Access denied.';
                 setAuthState(prev => ({
                     ...prev,
                     verificationStatus: 'denied',
@@ -130,13 +155,14 @@ export function useAuth() {
                     },
                 }));
             }
+
         } catch (error) {
-            console.error('❌ Verification webhook failed:', error);
+            console.error('❌ Verification failed:', error);
             setAuthState(prev => ({
                 ...prev,
                 verificationStatus: 'denied',
                 verificationData: {
-                    message: 'Unable to verify access. Please check your connection and try again.',
+                    message: 'Unable to verify access. Please check your connection.',
                 },
             }));
         }
@@ -212,7 +238,10 @@ export function useAuth() {
         isAuthenticated: !!authState.session,
         verificationStatus: authState.verificationStatus,
         verificationData: authState.verificationData,
+        role: authState.role,
+        accessLevel: authState.accessLevel,
         signInWithGoogle,
         signOut,
     };
 }
+

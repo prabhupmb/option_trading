@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
-import { StockSignal } from '../types';
+import { StockSignal, AccessLevel } from '../types';
 
 // --- Types & Constants ---
 export enum RiskLevel {
@@ -66,9 +66,10 @@ interface Props {
     onClose: () => void;
     onSuccess?: () => void; // Called on successful buy to navigate to Portfolio
     brokerage?: string;
+    accessLevel?: AccessLevel;
 }
 
-const ExecuteCallModal: React.FC<Props> = ({ signal, onClose, onSuccess, brokerage }) => {
+const ExecuteCallModal: React.FC<Props> = ({ signal, onClose, onSuccess, brokerage, accessLevel }) => {
     const [budget, setBudget] = useState<string>("1,000.00");
     const [selectedContracts, setSelectedContracts] = useState<number>(1);
     const [risk, setRisk] = useState<RiskLevel>(RiskLevel.LOW);
@@ -137,6 +138,7 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose, onSuccess, brokera
     const handleBuyNow = async () => {
         setIsExecuting(true);
         setBuyError(null);
+        const isPaperTrading = accessLevel === 'paper';
         try {
             let webhookUrl = '';
             let payload: any = {};
@@ -151,7 +153,8 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose, onSuccess, brokera
                     riskLevel: risk.toLowerCase(),
                     maxBudget: numericBudget,
                     quantity: selectedContracts,
-                    userName: 'prabhu'
+                    userName: 'prabhu',
+                    broker_mode: isPaperTrading ? 'paper' : 'live'
                 };
             } else {
                 payload = {
@@ -161,7 +164,8 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose, onSuccess, brokera
                     budget: numericBudget,
                     numberOfContracts: selectedContracts,
                     riskLevel: risk,
-                    brokerage: brokerage || 'Alpaca'
+                    brokerage: brokerage || 'Alpaca',
+                    broker_mode: isPaperTrading ? 'paper' : 'live'
                 };
                 webhookUrl = signal.optionType === 'PUT'
                     ? 'https://prabhupadala01.app.n8n.cloud/webhook/put-trade'
@@ -206,7 +210,14 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose, onSuccess, brokera
                             <span className={`px-2 py-0.5 ${signal.optionType === 'PUT' ? 'bg-rh-red/10 text-rh-red' : 'bg-rh-green/10 text-rh-green'} text-[10px] font-bold rounded tracking-wider uppercase`}>
                                 {signal.optionType === 'PUT' ? 'Execute Put' : 'Execute Call'}
                             </span>
-                            <span className="text-slate-500 text-sm font-medium">{signal.symbol} <span className="opacity-50 mx-1">•</span> <span className="text-slate-400">via {brokerage || 'Alpaca'}</span></span>
+                            <span className="text-slate-500 text-sm font-medium">
+                                {signal.symbol} <span className="opacity-50 mx-1">•</span>
+                                {accessLevel === 'paper' ? (
+                                    <span className="text-rh-green">Paper Trading Mode</span>
+                                ) : (
+                                    <span className="text-slate-400">via {brokerage || 'Alpaca'}</span>
+                                )}
+                            </span>
                         </div>
                         <h2 className="text-2xl font-black text-white flex items-baseline gap-2 tracking-tight">
                             {signal.name || signal.symbol}
