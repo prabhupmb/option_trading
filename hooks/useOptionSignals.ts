@@ -50,7 +50,7 @@ export const useOptionSignals = () => {
 
     useEffect(() => {
         fetchSignals();
-        const interval = setInterval(fetchSignals, 60000); // Poll every 60s
+        const interval = setInterval(fetchSignals, 900000); // Poll every 15 minutes
         return () => clearInterval(interval);
     }, []);
 

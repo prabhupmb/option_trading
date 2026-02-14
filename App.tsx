@@ -39,14 +39,14 @@ const App: React.FC = () => {
         // Must contain STRONG and BUY
         result = result.filter(s => signal(s).includes('STRONG') && signal(s).includes('BUY'));
       } else if (activeFilter === 'BUY') {
-        // Must contain BUY but NOT STRONG (covers 'BUY', 'WEAK BUY', '✅ BUY')
-        result = result.filter(s => signal(s).includes('BUY') && !signal(s).includes('STRONG'));
+        // Must contain BUY but NOT STRONG and NOT WEAK
+        result = result.filter(s => signal(s).includes('BUY') && !signal(s).includes('STRONG') && !signal(s).includes('WEAK'));
       } else if (activeFilter === 'STRONG_SELL') {
         // Must contain STRONG and SELL
         result = result.filter(s => signal(s).includes('STRONG') && signal(s).includes('SELL'));
       } else if (activeFilter === 'SELL') {
-        // Must contain SELL but NOT STRONG (covers 'SELL', 'WEAK SELL', '✅ SELL')
-        result = result.filter(s => signal(s).includes('SELL') && !signal(s).includes('STRONG'));
+        // Must contain SELL but NOT STRONG and NOT WEAK
+        result = result.filter(s => signal(s).includes('SELL') && !signal(s).includes('STRONG') && !signal(s).includes('WEAK'));
       }
     }
 

@@ -5,10 +5,10 @@ const OptionSignalStats: React.FC<{ signals: OptionSignal[] }> = ({ signals }) =
     const stats = useMemo(() => {
         const normalize = (s: string) => s?.toUpperCase() || '';
         return {
-            StrongBuy: signals.filter(s => normalize(s.trading_recommendation).includes('STRONG BUY')).length,
-            Buy: signals.filter(s => normalize(s.trading_recommendation) === 'BUY' || normalize(s.trading_recommendation).includes('WEAK BUY')).length,
-            StrongSell: signals.filter(s => normalize(s.trading_recommendation).includes('STRONG SELL')).length,
-            Sell: signals.filter(s => normalize(s.trading_recommendation) === 'SELL' || normalize(s.trading_recommendation).includes('WEAK SELL')).length,
+            StrongBuy: signals.filter(s => normalize(s.trading_recommendation).includes('STRONG') && normalize(s.trading_recommendation).includes('BUY')).length,
+            Buy: signals.filter(s => normalize(s.trading_recommendation).includes('BUY') && !normalize(s.trading_recommendation).includes('STRONG') && !normalize(s.trading_recommendation).includes('WEAK')).length,
+            StrongSell: signals.filter(s => normalize(s.trading_recommendation).includes('STRONG') && normalize(s.trading_recommendation).includes('SELL')).length,
+            Sell: signals.filter(s => normalize(s.trading_recommendation).includes('SELL') && !normalize(s.trading_recommendation).includes('STRONG') && !normalize(s.trading_recommendation).includes('WEAK')).length,
         };
     }, [signals]);
 
