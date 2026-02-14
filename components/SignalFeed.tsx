@@ -5,6 +5,8 @@ import SignalCard from './signals/SignalCard';
 import SignalFilters from './signals/SignalFilters';
 import SignalStats from './signals/SignalStats';
 import SignalSkeleton from './signals/SignalSkeleton';
+import UploadWatchlistModal from './signals/UploadWatchlistModal';
+import WatchlistManager from './signals/WatchlistManager';
 
 const SignalFeed: React.FC = () => {
     const { signals, loading, error, lastUpdated, refresh } = useSignals();
@@ -12,6 +14,8 @@ const SignalFeed: React.FC = () => {
 
     const [activeFilter, setActiveFilter] = useState('ALL');
     const [sortBy, setSortBy] = useState('Confidence');
+    const [showUploadModal, setShowUploadModal] = useState(false);
+    const [showWatchlists, setShowWatchlists] = useState(false);
 
     // Filter and Sort Logic
     const processedSignals = useMemo(() => {
@@ -57,6 +61,22 @@ const SignalFeed: React.FC = () => {
 
                     <div className="flex items-center gap-3">
                         <button
+                            onClick={() => setShowUploadModal(true)}
+                            className="bg-[#1a1f2e] hover:bg-blue-600/10 text-blue-400 hover:text-blue-300 px-4 py-2 rounded-lg border border-blue-500/30 hover:border-blue-500/50 transition-all flex items-center gap-2 text-xs font-bold uppercase tracking-wider"
+                        >
+                            <span className="material-symbols-outlined text-sm">upload_file</span>
+                            Upload Watchlist
+                        </button>
+
+                        <button
+                            onClick={() => setShowWatchlists(!showWatchlists)}
+                            className={`bg-[#1a1f2e] hover:bg-gray-800 text-gray-400 hover:text-white px-4 py-2 rounded-lg border border-gray-800 transition-all flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${showWatchlists ? 'text-white border-gray-700 bg-gray-800' : ''}`}
+                        >
+                            <span className="material-symbols-outlined text-sm">list</span>
+                            Watchlists
+                        </button>
+
+                        <button
                             onClick={refresh}
                             className="bg-[#1a1f2e] hover:bg-gray-800 text-gray-400 hover:text-white px-4 py-2 rounded-lg border border-gray-800 transition-all flex items-center gap-2 text-xs font-bold uppercase tracking-wider"
                         >
@@ -73,6 +93,19 @@ const SignalFeed: React.FC = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Collapsible Watchlist Manager */}
+                {showWatchlists && (
+                    <div className="mb-8 animate-in slide-in-from-top-2 fade-in duration-300">
+                        <WatchlistManager onUpdate={refresh} />
+                    </div>
+                )}
+
+                <UploadWatchlistModal
+                    isOpen={showUploadModal}
+                    onClose={() => setShowUploadModal(false)}
+                    onUploadSuccess={refresh}
+                />
 
                 {/* Loading State or Content */}
                 {loading && signals.length === 0 ? (
