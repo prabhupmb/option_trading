@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Header from './components/Header';
-import SummaryCard from './components/SummaryCard';
 import StockSignalCard from './components/StockSignalCard';
+import OptionSignalStats from './components/signals/OptionSignalStats';
+import OptionSignalFilters from './components/signals/OptionSignalFilters';
 import Navigation, { View } from './components/Navigation';
-import AnalysisModal from './components/AnalysisModal';
-import ExecuteCallModal from './components/ExecuteCallModal';
 import Portfolio from './components/Portfolio';
 import LoginPage from './components/LoginPage';
 import AccessDeniedPage from './components/AccessDeniedPage';
@@ -13,97 +12,69 @@ import AIHub from './components/AIHub';
 import AdminPanel from './components/AdminPanel';
 import SignalFeed from './components/SignalFeed';
 import UserProfilePage from './components/UserProfilePage';
-import { StockSignal, SignalType, SummaryStat } from './types';
-import {
-  useSheetData,
-  SheetSignal,
-  parseTrend,
-  getConviction
-} from './services/googleSheets';
 import { useAuth } from './services/useAuth';
-import { GoogleGenAI } from '@google/genai';
-
-// Stock icon mapping
-const STOCK_ICONS: Record<string, string> = {
-  TSLA: 'electric_car',
-  NVDA: 'memory',
-  AAPL: 'phone_iphone',
-  AMD: 'developer_board',
-  GOOGL: 'search',
-  META: 'groups',
-  MSFT: 'window',
-  AMZN: 'shopping_cart',
-  SPY: 'trending_up',
-  QQQ: 'analytics',
-  DEFAULT: 'show_chart'
-};
-
-// Convert sheet data to StockSignal format
-function convertToStockSignal(sheetSignal: SheetSignal): StockSignal {
-  return {
-    symbol: sheetSignal.ticker,
-    name: sheetSignal.ticker, // Using ticker as name since full name not in sheet
-    price: sheetSignal.currentPrice,
-    changePercent: 0, // No change percent in sheet, will be calculated
-    conviction: getConviction(sheetSignal.gatesPassed),
-    status: 'READY',
-    matrix: {
-      '4H': parseTrend(sheetSignal.g1_4H),
-      '1H': parseTrend(sheetSignal.g2_1H),
-      '15M': parseTrend(sheetSignal.g3_15m),
-    },
-    icon: STOCK_ICONS[sheetSignal.ticker] || STOCK_ICONS.DEFAULT,
-    signal: sheetSignal.signal,
-    optionType: sheetSignal.optionType,
-    tier: sheetSignal.tier,
-    gatesPassed: sheetSignal.gatesPassed,
-    tradingRecommendation: sheetSignal.tradingRecommendation,
-    tradeReason: sheetSignal.tradeReason,
-    adxValue: sheetSignal.adxValue,
-    adxTrend: sheetSignal.adxTrend,
-    timestamp: sheetSignal.timestamp,
-  };
-}
-
-// Calculate summary stats from signals
-function calculateSummaryStats(signals: StockSignal[]): SummaryStat[] {
-  let strongBuyCount = 0;
-  let buyCount = 0;
-  let sellCount = 0;
-  let strongSellCount = 0;
-  let weakCount = 0;
-
-  signals.forEach(signal => {
-    const signalStr = signal.signal || '';
-    if (signalStr.includes('STRONG BUY')) strongBuyCount++;
-    else if (signalStr.includes('STRONG SELL')) strongSellCount++;
-    else if (signalStr.includes('✅ BUY')) buyCount++;
-    else if (signalStr.includes('✅ SELL') || signalStr.includes('WEAK SELL')) sellCount++;
-    else if (signalStr.includes('WEAK BUY')) weakCount++;
-  });
-
-  return [
-    { type: SignalType.STRONG_BUY, count: strongBuyCount, change: 15 },
-    { type: SignalType.BUY, count: buyCount + weakCount, change: 8 },
-    { type: SignalType.STRONG_SELL, count: strongSellCount, change: -12 },
-    { type: SignalType.SELL, count: sellCount, change: -2 },
-  ];
-}
+import { useOptionSignals, OptionSignal } from './hooks/useOptionSignals';
 
 const App: React.FC = () => {
   const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut, role, accessLevel } = useAuth();
-  const { data: sheetData, loading, error, warning, lastUpdated, refresh, clearData } = useSheetData(900000); // Refresh every 15 minutes
-  const [selectedSignal, setSelectedSignal] = useState<StockSignal | null>(null);
-  const [executeSignal, setExecuteSignal] = useState<StockSignal | null>(null);
-  const [filter, setFilter] = useState<SignalType | 'ALL'>('ALL');
-  const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
-  const [currentView, setCurrentView] = useState<View>('signals');
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanProgress, setScanProgress] = useState(0);
 
+  // New Hook
+  const { signals, loading, error, refresh, lastUpdated } = useOptionSignals();
+
+  const [currentView, setCurrentView] = useState<View>('signals');
+  const [activeFilter, setActiveFilter] = useState('ALL');
+  const [sortBy, setSortBy] = useState('Tier');
   const [selectedBrokerage, setSelectedBrokerage] = useState<string>('Alpaca');
 
-  // Show loading spinner while checking auth state
+  // Filter & Sort Logic
+  const processedSignals = useMemo(() => {
+    let result = [...signals];
+
+    // Filter Logic
+    if (activeFilter !== 'ALL') {
+      if (activeFilter === 'A+') {
+        result = result.filter(s => s.tier === 'A+');
+      } else if (activeFilter === 'CALL') {
+        result = result.filter(s => s.option_type === 'CALL' && s.tier !== 'NO_TRADE');
+      } else if (activeFilter === 'PUT') {
+        result = result.filter(s => s.option_type === 'PUT' && s.tier !== 'NO_TRADE');
+      } else if (activeFilter === 'NO_TRADE') {
+        result = result.filter(s => s.tier === 'NO_TRADE');
+      }
+    }
+
+    // Sort Logic
+    result.sort((a, b) => {
+      if (sortBy === 'Symbol') {
+        return a.symbol.localeCompare(b.symbol);
+      }
+      if (sortBy === 'Tier') {
+        const rank = { 'A+': 4, 'A': 3, 'B+': 2, 'NO_TRADE': 1 };
+        // @ts-ignore
+        return (rank[b.tier] || 0) - (rank[a.tier] || 0);
+      }
+      if (sortBy === 'Analysis Time') {
+        return new Date(b.analyzed_at).getTime() - new Date(a.analyzed_at).getTime();
+      }
+      return 0;
+    });
+    return result;
+  }, [signals, activeFilter, sortBy]);
+
+  const handleManualRefresh = async () => {
+    await refresh();
+  };
+
+  const handleExecute = (signal: OptionSignal) => {
+    console.log('Execute signal:', signal);
+    // Implementation for execution modal would go here
+  };
+
+  const handleViewAnalysis = (signal: OptionSignal) => {
+    console.log('View analysis:', signal);
+  };
+
+  // Auth Loading
   if (authLoading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -117,12 +88,12 @@ const App: React.FC = () => {
     );
   }
 
-  // Show login page if not authenticated (or unauthorized 401)
+  // Not Authenticated
   if (!isAuthenticated || verificationStatus === 'unauthorized') {
     return <LoginPage onGoogleLogin={signInWithGoogle} />;
   }
 
-  // Show loading while verifying user access
+  // Verifying
   if (verificationStatus === 'verifying' || verificationStatus === 'idle') {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -136,146 +107,25 @@ const App: React.FC = () => {
     );
   }
 
-  // 202 — Show signup form for new users
+  // Signup
   if (verificationStatus === 'signup') {
     return <SignupForm verificationData={verificationData} session={session} onSignOut={signOut} />;
   }
 
-  // 403 — Show access denied with webhook message
+  // Access Denied
   if (verificationStatus === 'denied') {
     return <AccessDeniedPage onSignOut={signOut} userEmail={verificationData.email || user?.email || undefined} message={verificationData.message} />;
   }
 
-  const handleManualRefresh = async () => {
-    // Temporary alert to prove execution
-    // alert('Manual refresh clicked!'); 
-
-    console.log('🔄 Manual refresh clicked - Clearing existing data & calling scan webhook...');
-    clearData(); // Clear existing data to start fresh ("remove everything")
-    setIsScanning(true);
-    setScanProgress(5); // Start progress
-
-    try {
-      // Intentionally verify webhook URL before fetch
-      const webhookUrl = 'https://prabhupadala01.app.n8n.cloud/webhook/scan-stock';
-      console.log('🚀 Calling webhook:', webhookUrl);
-
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({})
-      });
-
-      console.log('📡 Webhook response status:', response.status);
-
-      // If 202 or 200, start polling (Scanning started)
-      if (response.status === 202 || response.status === 200) {
-        setScanProgress(10);
-        console.log('⏳ Scan started, polling for results...');
-
-        // Polling loop (Blind polling since status webhook was removed)
-        const pollInterval = 2000; // 2 seconds
-        const maxAttempts = 30; // ~60 seconds timeout
-        let attempts = 0;
-
-        while (attempts < maxAttempts) {
-          attempts++;
-          await new Promise(r => setTimeout(r, pollInterval));
-
-          // Simulate progress
-          setScanProgress(prev => Math.min(prev + 3, 90));
-
-          // Refresh sheet data to show rows appearing "one by one"
-          console.log('🔄 Reloading sheet data...');
-          await refresh();
-        }
-
-        setScanProgress(100);
-      } else {
-        // Fallback for non-202 responses (e.g. if it finished immediately)
-        setScanProgress(100);
-      }
-
-      // Final refresh
-      console.log('📊 Refreshing sheet data...');
-      await refresh();
-    } catch (error) {
-      console.error('❌ Webhook/Refresh failed:', error);
-      // Still try to refresh data even if webhook fails
-      await refresh();
-    } finally {
-      setIsScanning(false);
-      setScanProgress(0);
-      console.log('🏁 Refresh complete');
-    }
-  };
-
-  // Convert sheet data to app format
-  const signals: StockSignal[] = sheetData.map(convertToStockSignal);
-  const summaryStats = calculateSummaryStats(signals);
-
-  // Filter signals that have actionable recommendations AND match the selected filter
-  const actionableSignals = signals.filter(s => {
-    // First check if it's actionable
-    if (!s.tradingRecommendation || s.tradingRecommendation.includes('NO TRADE')) return false;
-
-    // Then check if it matches filter
-    if (filter === 'ALL') return true;
-
-    const signalStr = s.signal || '';
-    if (filter === SignalType.STRONG_BUY) return signalStr.includes('STRONG BUY');
-    if (filter === SignalType.STRONG_SELL) return signalStr.includes('STRONG SELL');
-    // Explicitly exclude STRONG signals to prevent overlap
-    if (filter === SignalType.BUY) return (signalStr.includes('✅ BUY') || signalStr.includes('WEAK BUY')) && !signalStr.includes('STRONG BUY');
-    if (filter === SignalType.SELL) return (signalStr.includes('✅ SELL') || signalStr.includes('WEAK SELL')) && !signalStr.includes('STRONG SELL');
-
-    return true;
-  });
-
-  const handleViewAnalysis = async (signal: StockSignal) => {
-    setSelectedSignal(signal);
-    if (signal.analysis) return;
-
-    setIsAnalysisLoading(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: (import.meta as any).env.VITE_API_KEY || '' });
-      const prompt = `Analyze the stock ${signal.symbol} which is currently at $${signal.price.toFixed(2)}. 
-      Technical trends: 4H: ${signal.matrix['4H']}, 1H: ${signal.matrix['1H']}, 15M: ${signal.matrix['15M']}. 
-      ADX: ${signal.adxValue} (${signal.adxTrend}).
-      Signal: ${signal.signal}, Tier: ${signal.tier}, Gates Passed: ${signal.gatesPassed}.
-      Provide a concise 3-sentence technical summary and a conviction rating.`;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents: prompt,
-      });
-
-      const analysisText = response.text || "Unable to retrieve technical analysis at this time.";
-      setSelectedSignal(prev => prev ? { ...prev, analysis: analysisText } : null);
-    } catch (error) {
-      console.error("AI Analysis failed:", error);
-    } finally {
-      setIsAnalysisLoading(false);
-    }
-  };
-
-  const handleExecute = (signal: StockSignal) => {
-    setExecuteSignal(signal);
-  };
-
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-[#0a0712] transition-colors font-sans text-slate-900 dark:text-white">
-      {/* Sidebar */}
       <Navigation activeView={currentView} onNavigate={setCurrentView} user={user} onSignOut={signOut} role={role} accessLevel={accessLevel} />
 
       <div className="flex-1 ml-64 flex flex-col min-w-0">
         <Header
           lastUpdated={lastUpdated}
           onRefresh={handleManualRefresh}
-          loading={loading || isScanning}
+          loading={loading}
           user={user}
           onSignOut={signOut}
           selectedBrokerage={selectedBrokerage}
@@ -284,27 +134,33 @@ const App: React.FC = () => {
 
         {currentView === 'signals' ? (
           <main className="flex-1 p-8 overflow-y-auto">
-            {/* Loading State */}
-            {(loading || isScanning) && signals.length === 0 && (
-              <div className="flex items-center justify-center h-64">
-                <div className="text-center">
-                  <span className="material-symbols-outlined text-4xl text-rh-green animate-spin-slow">refresh</span>
-                  <p className="text-slate-400 mt-4 font-medium animate-pulse">Syncing Market Data...</p>
-                </div>
-              </div>
-            )}
+            {/* Stats Bar */}
+            <OptionSignalStats signals={signals} />
 
-            {warning && (
-              <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4 mb-6 flex items-center gap-3">
-                <span className="material-symbols-outlined text-orange-500 text-xl">warning</span>
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-orange-600 dark:text-orange-400">Using Cached Data</p>
-                  <p className="text-xs text-orange-600/70 dark:text-orange-400/70">{warning}</p>
-                </div>
-                <button onClick={refresh} className="text-xs font-bold text-orange-500 hover:text-orange-600 uppercase tracking-wide">Retry</button>
+            {/* Header / Filter Section */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6">
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                  Option Feed
+                  <span className="text-xs font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-1 rounded-md align-middle">{processedSignals.length} Active</span>
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+                  {lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString()}` : 'Real-time data stream'} • Connected to Supabase
+                </p>
               </div>
-            )}
 
+              {/* Filters */}
+              <div className="flex-1 md:flex-none">
+                <OptionSignalFilters
+                  activeFilter={activeFilter}
+                  onFilterChange={setActiveFilter}
+                  sortBy={sortBy}
+                  onSortChange={setSortBy}
+                />
+              </div>
+            </div>
+
+            {/* Error State */}
             {error && (
               <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 mb-6 flex items-center gap-3">
                 <span className="material-symbols-outlined text-red-500 text-xl">error</span>
@@ -316,110 +172,41 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {(!loading || signals.length > 0) && (
-              <div className="mb-8 grid grid-cols-2 lg:grid-cols-4 gap-3">
-                {summaryStats.map((stat) => (
-                  <div key={stat.type} onClick={() => setFilter(filter === stat.type ? 'ALL' : stat.type)} className="cursor-pointer active:scale-[0.98] transition-transform">
-                    <SummaryCard stat={stat} isPrimary={filter === stat.type} />
-                  </div>
-                ))}
-
+            {/* Loading State */}
+            {loading && signals.length === 0 && (
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center">
+                  <span className="material-symbols-outlined text-4xl text-rh-green animate-spin-slow">refresh</span>
+                  <p className="text-slate-400 mt-4 font-medium animate-pulse">Syncing OptionChain Data...</p>
+                </div>
               </div>
             )}
 
-            {/* Section Header */}
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                  Option Feed
-                  <span className="text-xs font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-1 rounded-md align-middle">{actionableSignals.length} Active</span>
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
-                  {lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString()}` : 'Real-time data stream'}
-                </p>
-              </div>
-
-
-
-              <div className="flex items-center gap-4">
-                {isScanning && (
-                  <div className="flex flex-col items-end gap-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-rh-green animate-pulse">SCANNING</span>
-                      <span className="text-[10px] font-bold text-slate-400">{scanProgress}%</span>
-                    </div>
-                    <div className="w-24 h-1 bg-slate-100 dark:bg-white/10 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-rh-green transition-all duration-300 ease-out"
-                        style={{ width: `${scanProgress}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center bg-white dark:bg-[#1e2124] rounded-lg border border-gray-200 dark:border-white/5 p-1">
-                    <button
-                      onClick={() => setFilter('ALL')}
-                      className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${filter === 'ALL' ? 'bg-slate-100 dark:bg-white/10 text-slate-900 dark:text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                    >
-                      All
-                    </button>
-                    <button
-                      onClick={() => setFilter(SignalType.STRONG_BUY)}
-                      className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${filter === SignalType.STRONG_BUY ? 'bg-rh-green text-white shadow-lg shadow-rh-green/20' : 'text-slate-400 hover:text-rh-green'}`}
-                    >
-                      Strong Buy
-                    </button>
-                    <button
-                      onClick={() => setFilter(SignalType.STRONG_SELL)}
-                      className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${filter === SignalType.STRONG_SELL ? 'bg-rh-red text-white shadow-lg shadow-rh-red/20' : 'text-slate-400 hover:text-rh-red'}`}
-                    >
-                      Strong Sell
-                    </button>
-                    <button
-                      onClick={() => setFilter(SignalType.SELL)}
-                      className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${filter === SignalType.SELL ? 'bg-rh-red text-white shadow-lg shadow-rh-red/20' : 'text-slate-400 hover:text-rh-red'}`}
-                    >
-                      Sell
-                    </button>
-                  </div>
-                  <button
-                    onClick={handleManualRefresh}
-                    className="bg-white dark:bg-[#1e2124] hover:bg-slate-50 dark:hover:bg-white/5 text-slate-400 hover:text-slate-900 dark:hover:text-white p-2 rounded-lg border border-gray-200 dark:border-white/5 transition-all active:scale-95"
-                    title="Scan & Refresh"
-                  >
-                    <span className={`material-symbols-outlined text-xl ${loading || isScanning ? 'animate-spin' : ''}`}>refresh</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Signals Grid - Desktop Optimized */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {actionableSignals.map((signal, index) => (
-                <div key={`${signal.symbol}-${index}`} className="hover:z-10 relative">
+            {/* Signals Grid */}
+            {!loading && (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {processedSignals.map((signal) => (
                   <StockSignalCard
+                    key={signal.id || signal.symbol}
                     signal={signal}
                     onViewAnalysis={handleViewAnalysis}
                     onExecute={handleExecute}
                     accessLevel={accessLevel}
                   />
-                </div>
-              ))}
-            </div>
-
-            {actionableSignals.length === 0 && !loading && (
-              <div className="flex flex-col items-center justify-center py-20 opacity-50">
-                <span className="material-symbols-outlined text-6xl text-slate-300 dark:text-white/10 mb-4">filter_list_off</span>
-                <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">No signals match your filter</p>
-                <button onClick={() => setFilter('ALL')} className="mt-4 text-rh-green font-bold text-xs uppercase hover:underline">Clear Filters</button>
+                ))}
+                {processedSignals.length === 0 && (
+                  <div className="col-span-full py-20 text-center opacity-50">
+                    <span className="material-symbols-outlined text-6xl text-slate-300 dark:text-white/10 mb-4">filter_list_off</span>
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">No signals match your filter</p>
+                    <button onClick={() => setActiveFilter('ALL')} className="mt-4 text-rh-green font-bold text-xs uppercase hover:underline">Clear Filters</button>
+                  </div>
+                )}
               </div>
             )}
 
             <div className="mt-12 text-center border-t border-gray-100 dark:border-white/5 pt-8">
               <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest opacity-60">
-                Signal Feed AI • v2.0.4 • Connected to Google Sheets
+                Option Feed AI • v2.1.0 • Connected to Supabase
               </p>
             </div>
           </main>
@@ -447,26 +234,9 @@ const App: React.FC = () => {
               <span className="material-symbols-outlined text-5xl opacity-40">construction</span>
             </div>
             <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2 uppercase tracking-tight">Coming Soon</h3>
-            <p className="max-w-xs text-center text-sm font-medium opacity-70">This module is currently under development.</p>
           </div>
         )}
       </div>
-
-      <AnalysisModal
-        signal={selectedSignal}
-        onClose={() => setSelectedSignal(null)}
-        loading={isAnalysisLoading}
-      />
-
-      {executeSignal && (
-        <ExecuteCallModal
-          signal={executeSignal}
-          onClose={() => setExecuteSignal(null)}
-          onSuccess={() => setCurrentView('portfolio')}
-          brokerage={selectedBrokerage}
-          accessLevel={accessLevel}
-        />
-      )}
     </div>
   );
 };
