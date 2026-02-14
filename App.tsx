@@ -33,14 +33,20 @@ const App: React.FC = () => {
     // Filter Logic
     if (activeFilter !== 'ALL') {
       const normalize = (s: string) => s?.toUpperCase() || '';
+      const signal = (s: any) => normalize(s.trading_recommendation);
+
       if (activeFilter === 'STRONG_BUY') {
-        result = result.filter(s => normalize(s.trading_recommendation).includes('STRONG BUY'));
+        // Must contain STRONG and BUY
+        result = result.filter(s => signal(s).includes('STRONG') && signal(s).includes('BUY'));
       } else if (activeFilter === 'BUY') {
-        result = result.filter(s => normalize(s.trading_recommendation) === 'BUY' || normalize(s.trading_recommendation).includes('WEAK BUY'));
+        // Must contain BUY but NOT STRONG (covers 'BUY', 'WEAK BUY', '✅ BUY')
+        result = result.filter(s => signal(s).includes('BUY') && !signal(s).includes('STRONG'));
       } else if (activeFilter === 'STRONG_SELL') {
-        result = result.filter(s => normalize(s.trading_recommendation).includes('STRONG SELL'));
+        // Must contain STRONG and SELL
+        result = result.filter(s => signal(s).includes('STRONG') && signal(s).includes('SELL'));
       } else if (activeFilter === 'SELL') {
-        result = result.filter(s => normalize(s.trading_recommendation) === 'SELL' || normalize(s.trading_recommendation).includes('WEAK SELL'));
+        // Must contain SELL but NOT STRONG (covers 'SELL', 'WEAK SELL', '✅ SELL')
+        result = result.filter(s => signal(s).includes('SELL') && !signal(s).includes('STRONG'));
       }
     }
 
