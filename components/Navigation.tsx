@@ -2,7 +2,7 @@ import React from 'react';
 import type { User } from '@supabase/supabase-js';
 import { UserRole, AccessLevel } from '../types';
 
-export type View = 'signals' | 'portfolio' | 'ai-hub' | 'watchlist' | 'history' | 'settings' | 'admin';
+export type View = 'signals' | 'smart-feed' | 'portfolio' | 'ai-hub' | 'watchlist' | 'history' | 'settings' | 'admin';
 
 interface NavigationProps {
   activeView: View;
@@ -16,6 +16,7 @@ interface NavigationProps {
 const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, onSignOut, role, accessLevel }) => {
   let tabs: { id: View; label: string; icon: string }[] = [
     { id: 'signals', label: 'Signal Feed', icon: 'dashboard' },
+    { id: 'smart-feed', label: 'Smart Feed', icon: 'query_stats' },
     { id: 'portfolio', label: 'Portfolio', icon: 'analytics' },
     { id: 'ai-hub', label: 'AI Hub', icon: 'auto_awesome' },
     { id: 'settings', label: 'Settings', icon: 'settings' }

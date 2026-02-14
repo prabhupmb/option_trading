@@ -11,6 +11,7 @@ import AccessDeniedPage from './components/AccessDeniedPage';
 import SignupForm from './components/SignupForm';
 import AIHub from './components/AIHub';
 import AdminPanel from './components/AdminPanel';
+import SignalFeed from './components/SignalFeed';
 import UserProfilePage from './components/UserProfilePage';
 import { StockSignal, SignalType, SummaryStat } from './types';
 import {
@@ -430,6 +431,8 @@ const App: React.FC = () => {
           <div className="flex-1 overflow-hidden relative flex flex-col">
             <AIHub />
           </div>
+        ) : currentView === 'smart-feed' ? (
+          <SignalFeed />
         ) : currentView === 'settings' ? (
           <div className="flex-1 overflow-y-auto">
             <UserProfilePage />
