@@ -49,7 +49,7 @@ const SignalFeed: React.FC = () => {
                     <div>
                         <h1 className="text-3xl font-black tracking-tighter uppercase flex items-center gap-3">
                             <span className="material-symbols-outlined text-4xl text-blue-500">smart_toy</span>
-                            Smart Feed
+                            Stock Feed
                         </h1>
                         <p className="text-gray-500 text-sm font-medium mt-1 flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
