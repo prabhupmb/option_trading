@@ -32,14 +32,15 @@ const App: React.FC = () => {
 
     // Filter Logic
     if (activeFilter !== 'ALL') {
-      if (activeFilter === 'A+') {
-        result = result.filter(s => s.tier === 'A+');
-      } else if (activeFilter === 'CALL') {
-        result = result.filter(s => s.option_type === 'CALL' && s.tier !== 'NO_TRADE');
-      } else if (activeFilter === 'PUT') {
-        result = result.filter(s => s.option_type === 'PUT' && s.tier !== 'NO_TRADE');
-      } else if (activeFilter === 'NO_TRADE') {
-        result = result.filter(s => s.tier === 'NO_TRADE');
+      const normalize = (s: string) => s?.toUpperCase() || '';
+      if (activeFilter === 'STRONG_BUY') {
+        result = result.filter(s => normalize(s.trading_recommendation).includes('STRONG BUY'));
+      } else if (activeFilter === 'BUY') {
+        result = result.filter(s => normalize(s.trading_recommendation) === 'BUY' || normalize(s.trading_recommendation).includes('WEAK BUY'));
+      } else if (activeFilter === 'STRONG_SELL') {
+        result = result.filter(s => normalize(s.trading_recommendation).includes('STRONG SELL'));
+      } else if (activeFilter === 'SELL') {
+        result = result.filter(s => normalize(s.trading_recommendation) === 'SELL' || normalize(s.trading_recommendation).includes('WEAK SELL'));
       }
     }
 
@@ -47,6 +48,22 @@ const App: React.FC = () => {
     result.sort((a, b) => {
       if (sortBy === 'Symbol') {
         return a.symbol.localeCompare(b.symbol);
+      }
+      if (sortBy === 'Signal') {
+        // Sort by signal strength order usually? Or just string?
+        // Let's do simple string for now or custom rank
+        const rank = { 'STRONG BUY': 5, 'BUY': 4, 'WEAK BUY': 3, 'WEAK SELL': 2, 'SELL': 1, 'STRONG SELL': 0 };
+        const getRank = (s: string) => {
+          const u = s?.toUpperCase() || '';
+          if (u.includes('STRONG BUY')) return 5;
+          if (u === 'BUY') return 4;
+          if (u.includes('WEAK BUY')) return 3;
+          if (u.includes('WEAK SELL')) return 2;
+          if (u === 'SELL') return 1;
+          if (u.includes('STRONG SELL')) return 0;
+          return -1;
+        };
+        return getRank(b.trading_recommendation) - getRank(a.trading_recommendation);
       }
       if (sortBy === 'Tier') {
         const rank = { 'A+': 4, 'A': 3, 'B+': 2, 'NO_TRADE': 1 };

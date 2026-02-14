@@ -14,11 +14,11 @@ const OptionSignalFilters: React.FC<Props> = ({
     onSortChange
 }) => {
     const tabs = [
-        { id: 'ALL', label: 'All Signals', color: 'text-gray-400' },
-        { id: 'A+', label: 'A+ Signals', color: 'text-yellow-500' },
-        { id: 'CALL', label: 'Calls', color: 'text-green-500' },
-        { id: 'PUT', label: 'Puts', color: 'text-red-500' },
-        { id: 'NO_TRADE', label: 'No Trade', color: 'text-gray-500' },
+        { id: 'ALL', label: 'All', color: 'text-gray-400' },
+        { id: 'STRONG_BUY', label: 'Strong Buy', color: 'text-green-500' },
+        { id: 'BUY', label: 'Buy', color: 'text-green-400' },
+        { id: 'STRONG_SELL', label: 'Strong Sell', color: 'text-red-500' },
+        { id: 'SELL', label: 'Sell', color: 'text-red-400' },
     ];
 
     return (
@@ -42,7 +42,7 @@ const OptionSignalFilters: React.FC<Props> = ({
             <div className="flex items-center gap-3 px-2 border-t md:border-t-0 border-gray-800 pt-3 md:pt-0">
                 <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Sort By:</span>
                 <div className="flex gap-2">
-                    {['Tier', 'Symbol', 'Analysis Time'].map((option) => (
+                    {['Signal', 'Tier', 'Symbol', 'Time'].map((option) => (
                         <button
                             key={option}
                             onClick={() => onSortChange(option)}

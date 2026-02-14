@@ -11,14 +11,14 @@ interface Props {
 
 const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, accessLevel = 'signal' }) => {
   const isNoTrade = signal.tier === 'NO_TRADE';
+  const signalText = signal.trading_recommendation?.toUpperCase() || '';
 
-  const getTierColor = (tier: string) => {
-    switch (tier) {
-      case 'A+': return 'bg-[#eab308] text-black border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.3)]';
-      case 'A': return 'bg-[#94a3b8] text-black border-gray-400/50';
-      case 'B+': return 'bg-[#d97706] text-white border-orange-600/50';
-      default: return 'bg-gray-700 text-gray-400 border-gray-600';
-    }
+  const getSignalBadgeStyle = (text: string) => {
+    if (text.includes('STRONG BUY')) return 'bg-green-600 text-white border-green-400 shadow-[0_0_15px_rgba(34,197,94,0.4)]';
+    if (text.includes('STRONG SELL')) return 'bg-red-600 text-white border-red-400 shadow-[0_0_15px_rgba(239,68,68,0.4)]';
+    if (text === 'BUY' || text.includes('WEAK BUY')) return 'bg-green-500/10 text-green-400 border-green-500/30';
+    if (text === 'SELL' || text.includes('WEAK SELL')) return 'bg-red-500/10 text-red-400 border-red-500/30';
+    return 'bg-gray-700 text-gray-400 border-gray-600';
   };
 
   const adxColor = (trend: string) => {
@@ -58,44 +58,43 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, a
         <div className="flex justify-between items-start mb-2">
           <div className="flex items-center gap-3">
             <h3 className="text-3xl font-black text-white tracking-tighter">{signal.symbol}</h3>
-            <span className={`px-2 py-0.5 text-[10px] font-black uppercase rounded border ${getTierColor(signal.tier)}`}>
-              {signal.tier}
+            {/* Replaced Call/Put/Tier with OptionType Tag for Context */}
+            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded border ${signal.option_type === 'CALL' ? 'bg-green-900/20 text-green-400 border-green-800' : 'bg-red-900/20 text-red-400 border-red-800'}`}>
+              {signal.option_type}
             </span>
           </div>
-          <div className="text-right">
-            <div className="text-xl font-mono font-bold text-white tracking-tight">{formatCurrency(signal.current_price)}</div>
+          {/* Replaced Tier Badge with Signal Badge */}
+          <div className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest border ${getSignalBadgeStyle(signalText)}`}>
+            {signalText}
           </div>
         </div>
 
-        <div className="flex justify-between items-center">
-          {!isNoTrade ? (
-            <span className={`px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full border ${signal.option_type === 'CALL' ? 'bg-green-500/10 text-green-400 border-green-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30'}`}>
-              {signal.option_type}
-            </span>
-          ) : (
-            <span className="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full bg-gray-700/30 text-gray-500 border border-gray-700">
-              No Trade
-            </span>
-          )}
+        <div className="flex justify-between items-center mt-3">
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-mono font-bold text-white tracking-tight">{formatCurrency(signal.current_price)}</span>
+            <span className="text-[10px] font-bold text-gray-500">Tier {signal.tier}</span>
+          </div>
           <span className="text-[9px] font-bold text-gray-600 uppercase tracking-wider">{new Date(signal.analyzed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
       </div>
 
-      {/* Body: Signal & Gates */}
+      {/* Body: Gates & Strength */}
       <div className="p-5 space-y-5">
 
-        {/* Signal & Gates Row */}
+        {/* Gates Row (Signal text moved to header badge) */}
         <div className="flex items-center justify-between">
           <div>
-            <span className="text-[9px] text-gray-500 uppercase font-black tracking-widest block mb-1">Signal</span>
-            <span className="text-xs font-bold text-white uppercase tracking-wide">{signal.trading_recommendation}</span>
+            <span className="text-[9px] text-gray-500 uppercase font-black tracking-widest block mb-0.5">ADX {signal.adx_value?.toFixed(1)}</span>
+            <span className={`text-[10px] uppercase tracking-wide ${adxColor(signal.adx_trend)}`}>
+              {signal.adx_trend?.replace('_', ' ')}
+            </span>
           </div>
-          <div className="flex-1 max-w-[120px] text-right">
+          <div className="flex-1 max-w-[140px] text-right">
             <div className="flex justify-between items-end mb-1">
-              <span className="text-[9px] text-gray-500 uppercase font-black tracking-widest">Gates</span>
+              <span className="text-[9px] text-gray-500 uppercase font-black tracking-widest">Confirmation Gates</span>
               <span className="text-[10px] text-white font-mono font-bold">{signal.gates_passed}</span>
             </div>
-            <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden">
+            <div className="h-2 w-full bg-gray-800 rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${getGatesProgress(signal.gates_passed).color}`}
                 style={{ width: getGatesProgress(signal.gates_passed).width }}
@@ -104,24 +103,10 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, a
           </div>
         </div>
 
-        {/* ADX & RR */}
-        <div className="grid grid-cols-2 gap-4 bg-[#0f1219] p-3 rounded-lg border border-gray-800">
-          <div>
-            <span className="text-[9px] text-gray-500 uppercase font-black tracking-widest block mb-0.5">ADX {signal.adx_value?.toFixed(1)}</span>
-            <span className={`text-[10px] uppercase tracking-wide ${adxColor(signal.adx_trend)}`}>
-              {signal.adx_trend?.replace('_', ' ')}
-            </span>
-          </div>
-          <div className="text-right border-l border-gray-800 pl-4">
-            <span className="text-[9px] text-gray-500 uppercase font-black tracking-widest block mb-0.5">R/R Ratio</span>
-            <span className="text-sm font-mono font-bold text-blue-400">{signal.risk_reward_ratio || '-'}</span>
-          </div>
-        </div>
-
         {/* Targets Section */}
         {!isNoTrade && (
           <div className="space-y-2 pt-2 border-t border-gray-800/50 border-dashed">
-            <div className="flex justify-between items-center bg-green-900/5 px-2 py-1 rounded">
+            <div className="flex justify-between items-center bg-green-900/5 px-2 py-1.5 rounded border border-green-500/10">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[14px] text-green-500">my_location</span>
                 <span className="text-[10px] font-bold text-green-500/70 uppercase">Target 1</span>
@@ -137,12 +122,15 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, a
               <span className="font-mono text-xs font-bold text-green-600/70">{formatCurrency(signal.fib_target2)}</span>
             </div>
 
-            <div className="flex justify-between items-center bg-red-900/5 px-2 py-1 rounded mt-1">
+            <div className="flex justify-between items-center bg-red-900/5 px-2 py-1.5 rounded mt-1 border border-red-500/10">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[14px] text-red-500">do_not_disturb_on</span>
                 <span className="text-[10px] font-bold text-red-500/70 uppercase">Stop Loss</span>
               </div>
-              <span className="font-mono text-xs font-bold text-red-500">{formatCurrency(signal.fib_stop_loss)}</span>
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-[10px] text-gray-500">R/R {signal.risk_reward_ratio}</span>
+                <span className="font-mono text-xs font-bold text-red-500">{formatCurrency(signal.fib_stop_loss)}</span>
+              </div>
             </div>
           </div>
         )}
