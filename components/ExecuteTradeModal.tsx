@@ -50,7 +50,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
             setOptionType(signal.option_type as 'CALL' | 'PUT');
 
             // Strikes
-            const suggestion = getStrikeSuggestions(signal.current_price);
+            const suggestion = getStrikeSuggestions(signal.current_price, signal.option_type as 'CALL' | 'PUT');
             setStrikes(suggestion);
             setStrike(suggestion.atm[0].toString()); // Default ATM
 

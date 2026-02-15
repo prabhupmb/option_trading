@@ -70,22 +70,37 @@ export const getExpiryOptions = () => {
     return options;
 };
 
-export const getStrikeSuggestions = (currentPrice: number) => {
+export const getStrikeSuggestions = (currentPrice: number, optionType: 'CALL' | 'PUT' | string = 'CALL') => {
     const rounded = Math.round(currentPrice);
     let step = 1;
     if (currentPrice > 200) step = 5;
-    else if (currentPrice > 100) step = 2.5; // Or 5? SPY moves in 0.5? Logic varies. 
-    // Simplified logic as requested.
-    else if (currentPrice > 50) step = 1; // Or 2.5?
+    else if (currentPrice > 100) step = 2.5;
+    else if (currentPrice > 50) step = 1;
     else step = 0.5;
 
     // Normalize to nearest step
     const atm = Math.round(currentPrice / step) * step;
 
-    // Generate
+    const lowerStrikes = [atm - step * 3, atm - step * 2, atm - step];
+    const higherStrikes = [atm + step, atm + step * 2, atm + step * 3];
+
+    // For CALL: ITM is lower (strik < price), OTM is higher (strike > price)
+    // For PUT: ITM is higher (strike > price), OTM is lower (strike < price)
+
+    // Note: Technically for CALL, ITM is Strike < Price. 
+    // If price is 100. Strike 90 is ITM. (Lower) -> Correct.
+
+    if (optionType === 'PUT') {
+        return {
+            itm: higherStrikes, // Higher strikes are ITM for Puts
+            atm: [atm],
+            otm: lowerStrikes   // Lower strikes are OTM for Puts
+        };
+    }
+
     return {
-        itm: [atm - step * 3, atm - step * 2, atm - step],
+        itm: lowerStrikes,
         atm: [atm],
-        otm: [atm + step, atm + step * 2, atm + step * 3]
+        otm: higherStrikes
     };
 };
