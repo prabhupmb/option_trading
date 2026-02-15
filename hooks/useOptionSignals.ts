@@ -11,6 +11,7 @@ export interface OptionSignal {
     gates_passed: string; // "6/6"
     adx_value: number;
     adx_trend: 'VERY_STRONG' | 'STRONG' | 'MODERATE' | 'WEAK' | 'NO_TREND';
+    sma_direction?: 'UP' | 'DOWN' | 'Neutral';
     fib_target1: number;
     fib_target2: number;
     fib_stop_loss: number;

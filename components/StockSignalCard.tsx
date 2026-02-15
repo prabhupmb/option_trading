@@ -83,11 +83,26 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, a
 
         {/* Gates Row (Signal text moved to header badge) */}
         <div className="flex items-center justify-between">
-          <div>
-            <span className="text-[9px] text-gray-500 uppercase font-black tracking-widest block mb-0.5">ADX {signal.adx_value?.toFixed(1)}</span>
-            <span className={`text-[10px] uppercase tracking-wide ${adxColor(signal.adx_trend)}`}>
-              {signal.adx_trend?.replace('_', ' ')}
-            </span>
+          <div className="flex gap-4">
+            <div>
+              <span className="text-[9px] text-gray-500 uppercase font-black tracking-widest block mb-0.5">ADX {signal.adx_value?.toFixed(1)}</span>
+              <span className={`text-[10px] uppercase tracking-wide ${adxColor(signal.adx_trend)}`}>
+                {signal.adx_trend?.replace('_', ' ')}
+              </span>
+            </div>
+            {signal.sma_direction && (
+              <div className="pl-3 border-l border-gray-800">
+                <span className="text-[9px] text-gray-500 uppercase font-black tracking-widest block mb-0.5">SMA Trend</span>
+                <div className="flex items-center gap-1">
+                  <span className={`material-symbols-outlined text-[14px] ${signal.sma_direction === 'UP' ? 'text-green-500' : signal.sma_direction === 'DOWN' ? 'text-red-500' : 'text-gray-500'}`}>
+                    {signal.sma_direction === 'UP' ? 'north_east' : signal.sma_direction === 'DOWN' ? 'south_east' : 'remove'}
+                  </span>
+                  <span className={`text-[10px] font-bold uppercase ${signal.sma_direction === 'UP' ? 'text-green-500' : signal.sma_direction === 'DOWN' ? 'text-red-500' : 'text-gray-500'}`}>
+                    {signal.sma_direction}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
           <div className="flex-1 max-w-[140px] text-right">
             <div className="flex justify-between items-end mb-1">
