@@ -57,3 +57,26 @@ export interface UserProfile {
   is_active: boolean;
   created_at?: string;
 }
+
+export type BrokerName = 'alpaca' | 'schwab' | 'ibkr';
+export type BrokerMode = 'paper' | 'live';
+
+export interface BrokerCredential {
+  id: string;
+  user_id: string;
+  broker_name: BrokerName;
+  display_name: string;
+  broker_mode: BrokerMode;
+  is_active: boolean;
+  is_default: boolean;
+  api_key?: string;
+  api_secret?: string;
+  access_token?: string;
+  refresh_token?: string;
+  token_expires_at?: string;
+  account_id?: string;
+  base_url?: string;
+  settings?: any;
+  created_at?: string;
+  updated_at?: string;
+}

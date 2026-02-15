@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { UserProfile, UserRole, AccessLevel } from '../types';
 import { useAuth } from '../services/useAuth';
+import BrokerSettings from './settings/BrokerSettings';
 
 const UserProfilePage: React.FC = () => {
     const { user, role, accessLevel, verificationData } = useAuth();
@@ -65,8 +66,8 @@ const UserProfilePage: React.FC = () => {
                             <div className="flex justify-between items-center bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-gray-100 dark:border-white/5">
                                 <span className="font-bold text-sm">Access Level</span>
                                 <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wide ${accessLevel === 'trade' ? 'bg-rh-green/10 text-rh-green' :
-                                        accessLevel === 'paper' ? 'bg-blue-500/10 text-blue-500' :
-                                            'bg-orange-500/10 text-orange-500'
+                                    accessLevel === 'paper' ? 'bg-blue-500/10 text-blue-500' :
+                                        'bg-orange-500/10 text-orange-500'
                                     }`}>
                                     {accessLevel || 'Signal Only'}
                                 </span>
@@ -113,6 +114,9 @@ const UserProfilePage: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Broker Settings Section */}
+            <BrokerSettings />
         </div>
     );
 };

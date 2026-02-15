@@ -174,9 +174,12 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, a
               Execute {signal.option_type}
             </button>
           ) : accessLevel === 'paper' ? (
-            <button className="flex-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-black uppercase tracking-wide flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20">
+            <button
+              onClick={() => onExecute && onExecute(signal)}
+              className="flex-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-black uppercase tracking-wide flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
+            >
               <span className="material-symbols-outlined text-sm">description</span>
-              Paper Trade
+              Paper Trade {signal.option_type}
             </button>
           ) : (
             <button className="flex-1 bg-[#1a1f2e] border border-gray-700 text-gray-400 rounded-lg text-[10px] font-bold uppercase tracking-wide cursor-not-allowed flex items-center justify-center gap-2">

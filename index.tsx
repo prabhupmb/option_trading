@@ -8,9 +8,13 @@ if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
 
+import { BrokerProvider } from './context/BrokerContext';
+
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <BrokerProvider>
+      <App />
+    </BrokerProvider>
   </React.StrictMode>
 );
