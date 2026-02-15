@@ -1,7 +1,12 @@
 import React, { useMemo } from 'react';
 import { OptionSignal } from '../../hooks/useOptionSignals';
 
-const OptionSignalStats: React.FC<{ signals: OptionSignal[] }> = ({ signals }) => {
+interface OptionSignalStatsProps {
+    signals: OptionSignal[];
+    onFilterClick?: (filter: string) => void;
+}
+
+const OptionSignalStats: React.FC<OptionSignalStatsProps> = ({ signals, onFilterClick }) => {
     const stats = useMemo(() => {
         const normalize = (s: string) => s?.toUpperCase() || '';
         return {
@@ -12,10 +17,19 @@ const OptionSignalStats: React.FC<{ signals: OptionSignal[] }> = ({ signals }) =
         };
     }, [signals]);
 
+    const handleCardClick = (filter: string) => {
+        if (onFilterClick) {
+            onFilterClick(filter);
+        }
+    };
+
     return (
         <div className="mb-8 grid grid-cols-2 lg:grid-cols-4 gap-3 text-white">
             {/* STRONG BUY */}
-            <div className="bg-[#1a1f2e] border border-gray-800 p-4 rounded-xl flex items-center justify-between shadow-lg shadow-black/20">
+            <div
+                onClick={() => handleCardClick('STRONG_BUY')}
+                className="bg-[#1a1f2e] border border-gray-800 p-4 rounded-xl flex items-center justify-between shadow-lg shadow-black/20 cursor-pointer hover:border-green-500/50 hover:bg-[#1a1f2e]/80 transition-all active:scale-[0.98]"
+            >
                 <div>
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-green-500 mb-1">STRONG BUY</h4>
                     <span className="text-3xl font-black">{stats.StrongBuy}</span>
@@ -26,7 +40,10 @@ const OptionSignalStats: React.FC<{ signals: OptionSignal[] }> = ({ signals }) =
             </div>
 
             {/* BUY */}
-            <div className="bg-[#1a1f2e] border border-gray-800 p-4 rounded-xl flex items-center justify-between shadow-lg shadow-black/20">
+            <div
+                onClick={() => handleCardClick('BUY')}
+                className="bg-[#1a1f2e] border border-gray-800 p-4 rounded-xl flex items-center justify-between shadow-lg shadow-black/20 cursor-pointer hover:border-green-400/50 hover:bg-[#1a1f2e]/80 transition-all active:scale-[0.98]"
+            >
                 <div>
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-green-400 mb-1">BUY</h4>
                     <span className="text-3xl font-black">{stats.Buy}</span>
@@ -37,7 +54,10 @@ const OptionSignalStats: React.FC<{ signals: OptionSignal[] }> = ({ signals }) =
             </div>
 
             {/* STRONG SELL */}
-            <div className="bg-[#1a1f2e] border border-gray-800 p-4 rounded-xl flex items-center justify-between shadow-lg shadow-black/20">
+            <div
+                onClick={() => handleCardClick('STRONG_SELL')}
+                className="bg-[#1a1f2e] border border-gray-800 p-4 rounded-xl flex items-center justify-between shadow-lg shadow-black/20 cursor-pointer hover:border-red-500/50 hover:bg-[#1a1f2e]/80 transition-all active:scale-[0.98]"
+            >
                 <div>
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-1">STRONG SELL</h4>
                     <span className="text-3xl font-black">{stats.StrongSell}</span>
@@ -48,7 +68,10 @@ const OptionSignalStats: React.FC<{ signals: OptionSignal[] }> = ({ signals }) =
             </div>
 
             {/* SELL */}
-            <div className="bg-[#1a1f2e] border border-gray-800 p-4 rounded-xl flex items-center justify-between shadow-lg shadow-black/20">
+            <div
+                onClick={() => handleCardClick('SELL')}
+                className="bg-[#1a1f2e] border border-gray-800 p-4 rounded-xl flex items-center justify-between shadow-lg shadow-black/20 cursor-pointer hover:border-red-400/50 hover:bg-[#1a1f2e]/80 transition-all active:scale-[0.98]"
+            >
                 <div>
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-red-400 mb-1">SELL</h4>
                     <span className="text-3xl font-black">{stats.Sell}</span>

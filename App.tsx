@@ -158,7 +158,7 @@ const App: React.FC = () => {
         {currentView === 'signals' ? (
           <main className="flex-1 p-8 overflow-y-auto">
             {/* Stats Bar */}
-            <OptionSignalStats signals={signals} />
+            <OptionSignalStats signals={signals} onFilterClick={setActiveFilter} />
 
             {/* Header / Filter Section */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6">
