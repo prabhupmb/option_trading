@@ -153,6 +153,7 @@ const App: React.FC = () => {
           onSignOut={signOut}
           selectedBrokerage={selectedBrokerage}
           onBrokerageChange={setSelectedBrokerage}
+          onNavigate={setCurrentView}
         />
 
         {currentView === 'signals' ? (

@@ -2,7 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../services/useAuth';
 import { useBrokerContext } from '../../context/BrokerContext';
 
-const BrokerSelector: React.FC = () => {
+interface BrokerSelectorProps {
+    onNavigate?: (view: string) => void;
+}
+
+const BrokerSelector: React.FC<BrokerSelectorProps> = ({ onNavigate }) => {
     const { user, accessLevel } = useAuth();
     const { brokers, selectedBroker, selectBroker } = useBrokerContext();
     const [isOpen, setIsOpen] = useState(false);
@@ -27,7 +31,6 @@ const BrokerSelector: React.FC = () => {
     const availableBrokers = brokers.filter(b => b.is_active);
 
     // If no brokers, show placeholder or setup button?
-    // We'll show "No Broker" or similar if critical.
     if (availableBrokers.length === 0) {
         return (
             <div className="relative">
@@ -93,10 +96,16 @@ const BrokerSelector: React.FC = () => {
                     </div>
 
                     <div className="border-t border-gray-800 mt-1 pt-1">
-                        <a href="#settings" className="block px-4 py-3 text-xs font-bold text-gray-400 hover:text-white hover:bg-[#252b3b] transition-colors flex items-center gap-2">
+                        <button
+                            onClick={() => {
+                                setIsOpen(false);
+                                if (onNavigate) onNavigate('settings');
+                            }}
+                            className="w-full px-4 py-3 text-xs font-bold text-gray-400 hover:text-white hover:bg-[#252b3b] transition-colors flex items-center gap-2 text-left"
+                        >
                             <span className="material-symbols-outlined text-sm">settings</span>
                             Manage Brokers
-                        </a>
+                        </button>
                     </div>
                 </div>
             )}

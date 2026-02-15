@@ -10,9 +10,10 @@ interface HeaderProps {
   onSignOut?: () => void;
   selectedBrokerage?: string;
   onBrokerageChange?: (brokerage: string) => void;
+  onNavigate?: (view: string) => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading, user, onSignOut, selectedBrokerage, onBrokerageChange }) => {
+const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading, user, onSignOut, selectedBrokerage, onBrokerageChange, onNavigate }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const userAvatar = user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
@@ -31,7 +32,7 @@ const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading, user, 
       <div className="flex items-center gap-3">
         {/* Brokerage Selector */}
         <div className="relative z-50">
-          <BrokerSelector />
+          <BrokerSelector onNavigate={onNavigate} />
         </div>
         <button
           onClick={() => {
