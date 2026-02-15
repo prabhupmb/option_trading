@@ -1,6 +1,5 @@
 import React from 'react';
-import { OptionSignal } from '../hooks/useOptionSignals'; // Updated import
-import { AccessLevel } from '../types';
+import { OptionSignal, AccessLevel } from '../types';
 
 interface Props {
   signal: OptionSignal;

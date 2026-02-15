@@ -1,23 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-
-export interface OptionSignal {
-    id: string; // assumed
-    symbol: string;
-    current_price: number;
-    option_type: 'CALL' | 'PUT' | 'NO_TRADE';
-    tier: 'A+' | 'A' | 'B+' | 'NO_TRADE';
-    trading_recommendation: string; // "STRONG BUY"
-    gates_passed: string; // "6/6"
-    adx_value: number;
-    adx_trend: 'VERY_STRONG' | 'STRONG' | 'MODERATE' | 'WEAK' | 'NO_TREND';
-    sma_direction?: 'UP' | 'DOWN' | 'Neutral';
-    fib_target1: number;
-    fib_target2: number;
-    fib_stop_loss: number;
-    risk_reward_ratio: string;
-    analyzed_at: string;
-}
+import { OptionSignal } from '../types';
 
 export const useOptionSignals = () => {
     // Using OptionSignal type strictly

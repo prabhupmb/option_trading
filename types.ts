@@ -50,7 +50,7 @@ export interface UserProfile {
   email: string;
   name?: string;
   full_name?: string;
-  user_name?: string; // OR username, depending on DB, but I'll add both to be safe or just use flexible indexing in component
+  user_name?: string;
   username?: string;
   role: UserRole;
   access_level: AccessLevel;
@@ -79,4 +79,22 @@ export interface BrokerCredential {
   settings?: any;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface OptionSignal {
+  id: string;
+  symbol: string;
+  current_price: number;
+  option_type: 'CALL' | 'PUT' | 'NO_TRADE';
+  tier: 'A+' | 'A' | 'B+' | 'NO_TRADE';
+  trading_recommendation: string;
+  gates_passed: string;
+  adx_value: number;
+  adx_trend: 'VERY_STRONG' | 'STRONG' | 'MODERATE' | 'WEAK' | 'NO_TREND';
+  sma_direction?: 'UP' | 'DOWN' | 'Neutral';
+  fib_target1: number;
+  fib_target2: number;
+  fib_stop_loss: number;
+  risk_reward_ratio: string;
+  analyzed_at: string;
 }

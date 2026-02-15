@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import ExecuteTradeModal from './components/ExecuteTradeModal';
 import Header from './components/Header';
 import StockSignalCard from './components/StockSignalCard';
 import OptionSignalStats from './components/signals/OptionSignalStats';
@@ -13,13 +14,17 @@ import AdminPanel from './components/AdminPanel';
 import SignalFeed from './components/SignalFeed';
 import UserProfilePage from './components/UserProfilePage';
 import { useAuth } from './services/useAuth';
-import { useOptionSignals, OptionSignal } from './hooks/useOptionSignals';
+import { OptionSignal } from './types';
+import { useOptionSignals } from './hooks/useOptionSignals';
 
 const App: React.FC = () => {
   const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut, role, accessLevel } = useAuth();
 
   // New Hook
   const { signals, loading, error, refresh, lastUpdated } = useOptionSignals();
+
+  // Execution Modal State
+  const [executingSignal, setExecutingSignal] = useState<OptionSignal | null>(null);
 
   const [currentView, setCurrentView] = useState<View>('signals');
   const [activeFilter, setActiveFilter] = useState('ALL');
@@ -89,8 +94,7 @@ const App: React.FC = () => {
   };
 
   const handleExecute = (signal: OptionSignal) => {
-    console.log('Execute signal:', signal);
-    // Implementation for execution modal would go here
+    setExecutingSignal(signal);
   };
 
   const handleViewAnalysis = (signal: OptionSignal) => {
@@ -261,6 +265,17 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Trade Modal */}
+      <ExecuteTradeModal
+        isOpen={!!executingSignal}
+        signal={executingSignal}
+        onClose={() => setExecutingSignal(null)}
+        onSuccess={() => {
+          setExecutingSignal(null);
+          refresh();
+        }}
+      />
     </div>
   );
 };
