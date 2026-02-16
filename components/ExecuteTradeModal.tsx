@@ -27,9 +27,25 @@ interface ContractRecommendation {
     bid?: number;
     ask?: number;
     max_contracts?: number;
+    cost_per_contract?: number; // Total cost for 1 contract (premium * 100)
 }
 
-type OrderStep = 'config' | 'finding' | 'selection' | 'confirm' | 'submitting' | 'success' | 'error';
+interface FindOptionResponse {
+    contracts: ContractRecommendation[];
+    no_affordable?: boolean;
+    min_budget_needed?: number;
+    cheapest_contract?: ContractRecommendation;
+    message?: string;
+    over_budget_options?: ContractRecommendation[];
+}
+
+interface BudgetError {
+    message: string;
+    minBudget: number;
+    cheapestContract?: ContractRecommendation;
+}
+
+type OrderStep = 'config' | 'finding' | 'selection' | 'confirm' | 'submitting' | 'success' | 'error' | 'budget_too_low';
 type DteRange = 'short' | 'swing' | 'monthly';
 
 const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, signal, onSuccess }) => {
@@ -40,6 +56,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
     const [step, setStep] = useState<OrderStep>('config');
     const [errorMsg, setErrorMsg] = useState('');
     const [txId, setTxId] = useState('');
+    const [budgetError, setBudgetError] = useState<BudgetError | null>(null);
 
     // User Configuration
     const [optionType, setOptionType] = useState<'CALL' | 'PUT'>('CALL');
@@ -64,6 +81,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
             setErrorMsg('');
             setTxId('');
             setConfirmText('');
+            setBudgetError(null);
             setRecommendations([]);
             setSelectedContract(null);
 
@@ -85,7 +103,10 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
         { id: 'monthly', label: 'Monthly', days: '30+ DTE' },
     ];
 
-    const handleFindContracts = async () => {
+    const handleFindContracts = async (budgetOverride?: number | any) => {
+        // Ensure budgetOverride is a number (it might be an Event object from onClick)
+        const effectiveBudget = (typeof budgetOverride === 'number' && !isNaN(budgetOverride)) ? budgetOverride : budget;
+
         setStep('finding');
         setErrorMsg('');
 
@@ -98,7 +119,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                     option_type: optionType,
                     dte_min: min,
                     dte_max: max,
-                    budget,
+                    budget: effectiveBudget,
                     stop_loss: stopLossEnabled ? signal.fib_stop_loss : null,
                     take_profit: takeProfitTarget,
                     broker_id: selectedBroker?.id,
@@ -123,14 +144,24 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
             if (dteRange === 'monthly') { dte_min = 30; dte_max = 60; }
 
             // First attempt
-            let result = await fetchContracts(dte_min, dte_max);
+            let result: FindOptionResponse = await fetchContracts(dte_min, dte_max);
 
-            // Auto-retry with wider range if no contracts found
-            if (!result.contracts || result.contracts.length === 0) {
+            // Auto-retry with wider range if no contracts found AND not budget constrained
+            if ((!result.contracts || result.contracts.length === 0) && !result.no_affordable) {
                 console.log('No contracts found. Retrying with wider DTE range (3-45 days)...');
 
                 // Auto-expand to 3-45 days
                 result = await fetchContracts(3, 45);
+            }
+
+            if (result.no_affordable) {
+                setBudgetError({
+                    message: result.message || 'No options available within your budget.',
+                    minBudget: result.min_budget_needed || (result.cheapest_contract ? result.cheapest_contract.premium * 100 : 0),
+                    cheapestContract: result.cheapest_contract
+                });
+                setStep('budget_too_low');
+                return;
             }
 
             if (result.contracts && result.contracts.length > 0) {
@@ -140,12 +171,21 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                 setQuantity(1);
                 setStep('selection');
             } else {
-                throw new Error('No contracts found matching criteria (even after expanding search).');
+                throw new Error('No contracts found matching criteria (even after expanding search). Please increase the budget.');
             }
 
         } catch (err: any) {
             setErrorMsg(err.message || 'Failed to find contracts.');
             setStep('error');
+        }
+    };
+
+    const handleRetryHigherBudget = () => {
+        if (budgetError?.minBudget) {
+            // Round up to nearest 50
+            const newBudget = Math.ceil((budgetError.minBudget + 50) / 50) * 50;
+            setBudget(newBudget);
+            handleFindContracts(newBudget);
         }
     };
 
@@ -234,7 +274,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
         // Update state for UI consistency
         setOrderType('limit');
         setLimitPrice(newPrice);
-        setStep('config');
+        setStep('confirm'); // Redirect to confirm step where config now lives
         setExecutionResult(null); // Clear previous error
     };
 
@@ -301,39 +341,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                 </div>
                             </div>
 
-                            {/* Order Type & Limit Price */}
-                            <div className="pt-4 border-t border-gray-800">
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Order Configuration</label>
-                                <div className="grid grid-cols-2 gap-2 mb-3">
-                                    <button
-                                        onClick={() => setOrderType('market')}
-                                        className={`py-2 rounded-lg text-xs font-black uppercase border ${orderType === 'market' ? `bg-${themeColor}-500 text-white border-${themeColor}-500` : 'bg-[#1a1f2e] text-gray-400 border-gray-700'}`}
-                                    >
-                                        Market
-                                    </button>
-                                    <button
-                                        onClick={() => setOrderType('limit')}
-                                        className={`py-2 rounded-lg text-xs font-black uppercase border ${orderType === 'limit' ? `bg-${themeColor}-500 text-white border-${themeColor}-500` : 'bg-[#1a1f2e] text-gray-400 border-gray-700'}`}
-                                    >
-                                        Limit
-                                    </button>
-                                </div>
 
-                                {orderType === 'limit' && (
-                                    <div className="relative animate-in fade-in slide-in-from-top-2">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</span>
-                                        <input
-                                            type="number"
-                                            value={limitPrice || ''}
-                                            onChange={e => setLimitPrice(parseFloat(e.target.value) || 0)}
-                                            placeholder="Limit Price"
-                                            step="0.01"
-                                            className="w-full bg-[#1a1f2e] border border-gray-700 rounded-lg pl-8 pr-3 py-3 text-white font-mono font-bold focus:border-blue-500 outline-none"
-                                        />
-                                        <span className="text-[10px] text-gray-500 mt-1 block">Max price per contract to pay</span>
-                                    </div>
-                                )}
-                            </div>
 
                             {/* Expiry Range */}
                             <div>
@@ -412,9 +420,9 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                         onClick={() => {
                                             setSelectedContract(contract);
                                             setQuantity(1);
-                                            if (orderType === 'limit') {
-                                                setLimitPrice(Number((contract.premium * 1.05).toFixed(2)));
-                                            }
+                                            setOrderType('limit'); // Default to limit
+                                            setLimitPrice(Number((contract.premium * 1.05).toFixed(2))); // Auto-fill limit price
+                                            setStep('confirm');
                                         }}
                                         className={`p-4 rounded-xl border cursor-pointer transition-all ${selectedContract === contract ? `bg-${themeColor}-500/10 border-${themeColor}-500 shadow-lg shadow-${themeColor}-900/10` : 'bg-[#1a1f2e] border-gray-700 hover:border-gray-500'}`}
                                     >
@@ -469,17 +477,64 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                         <span className="text-gray-500 text-xs font-bold uppercase">Expiry</span>
                                         <span className="font-mono text-white text-sm">{selectedContract.expiry} ({selectedContract.dte} DTE)</span>
                                     </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-gray-500 text-xs font-bold uppercase">Quantity</span>
-                                        <span className="font-mono text-white font-bold">{quantity} contract{quantity > 1 ? 's' : ''}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-gray-500 text-xs font-bold uppercase">Order Type</span>
-                                        <span className="font-bold text-white uppercase">{orderType} {orderType === 'limit' && `@ ${formatCurrency(limitPrice || 0)}`}</span>
-                                    </div>
+
                                     <div className="flex justify-between items-center">
                                         <span className="text-gray-500 text-xs font-bold uppercase">Premium</span>
                                         <span className="font-mono text-gray-400 text-sm">{formatCurrency(selectedContract.premium)} per contract (mid)</span>
+                                    </div>
+
+                                    <div className="pt-4 border-t border-gray-800 space-y-4">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-[10px] bg-gray-800 text-gray-400 px-1.5 rounded uppercase font-bold">Order Settings</span>
+                                            <div className="h-px bg-gray-800 flex-1"></div>
+                                        </div>
+
+                                        {/* Order Type Selector */}
+                                        <div>
+                                            <div className="flex bg-[#0f1219] rounded-lg border border-gray-700 p-1 mb-3">
+                                                <button onClick={() => setOrderType('market')} className={`flex-1 py-2 rounded text-xs font-black uppercase transition-all flex items-center justify-center gap-2 ${orderType === 'market' ? `bg-${themeColor}-600 text-white shadow-lg` : 'text-gray-500 hover:text-white'}`}>
+                                                    Market
+                                                </button>
+                                                <button onClick={() => setOrderType('limit')} className={`flex-1 py-2 rounded text-xs font-black uppercase transition-all flex items-center justify-center gap-2 ${orderType === 'limit' ? `bg-${themeColor}-600 text-white shadow-lg` : 'text-gray-500 hover:text-white'}`}>
+                                                    Limit
+                                                </button>
+                                            </div>
+
+                                            {orderType === 'limit' && (
+                                                <div className="relative animate-in fade-in slide-in-from-top-2 mb-3">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</span>
+                                                    <input
+                                                        type="number"
+                                                        value={limitPrice || ''}
+                                                        onChange={e => setLimitPrice(parseFloat(e.target.value) || 0)}
+                                                        placeholder="Limit Price"
+                                                        step="0.01"
+                                                        className="w-full bg-[#0f1219] border border-gray-700 rounded-lg pl-8 pr-3 py-3 text-white font-mono font-bold focus:border-blue-500 outline-none"
+                                                    />
+                                                    <span className="text-[10px] text-gray-500 mt-1 block">Auto-filled: Premium × 1.05</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-500 text-xs font-bold uppercase">Quantity</span>
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                                                    disabled={quantity <= 1}
+                                                    className={`w-8 h-8 flex items-center justify-center rounded bg-gray-800 border border-gray-700 ${quantity <= 1 ? 'text-gray-600 cursor-not-allowed' : 'text-white hover:bg-gray-700'} transition-colors`}
+                                                >
+                                                    <span className="material-symbols-outlined text-sm">remove</span>
+                                                </button>
+                                                <span className="font-mono font-black text-xl w-8 text-center text-white">{quantity}</span>
+                                                <button
+                                                    onClick={() => setQuantity(Math.min(selectedContract.max_contracts || 5, quantity + 1))}
+                                                    className="w-8 h-8 flex items-center justify-center rounded bg-gray-800 border border-gray-700 text-white hover:bg-gray-700 transition-colors"
+                                                >
+                                                    <span className="material-symbols-outlined text-sm">add</span>
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div className="flex justify-between items-center pt-2 border-t border-gray-800">
                                         <span className="text-gray-500 text-xs font-bold uppercase">Est. Total Cost</span>
@@ -559,7 +614,66 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                         </div>
                     )}
 
-                    {/* Steps: Submitting/Success/Error (Shared) */}
+                    {/* Step: Budget Too Low */}
+                    {step === 'budget_too_low' && budgetError && (
+                        <div className="flex flex-col h-full animate-in zoom-in-95 duration-200">
+                            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+                                <div className="w-full bg-yellow-900/10 border border-yellow-500/30 rounded-xl overflow-hidden mb-6">
+                                    <div className="bg-yellow-500/10 p-4 border-b border-yellow-500/20 flex items-center justify-center gap-2">
+                                        <span className="material-symbols-outlined text-yellow-500">savings</span>
+                                        <span className="text-yellow-400 font-black uppercase text-sm tracking-wide">Budget Too Low</span>
+                                    </div>
+                                    <div className="p-6 space-y-4">
+                                        <p className="text-gray-300 text-sm font-medium">{budgetError.message}</p>
+
+                                        {budgetError.cheapestContract && (
+                                            <div className="bg-[#0f1219] p-3 rounded-lg border border-gray-800 text-left">
+                                                <div className="text-[10px] text-gray-500 font-bold uppercase mb-1">Cheapest Available</div>
+                                                <div className="flex justify-between items-center">
+                                                    <div>
+                                                        <span className="text-white font-black block">{budgetError.cheapestContract.symbol} ${budgetError.cheapestContract.strike} {budgetError.cheapestContract.option_type}</span>
+                                                        <span className="text-xs text-gray-500">{budgetError.cheapestContract.expiry}</span>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="block text-yellow-400 font-mono font-bold">{formatCurrency((budgetError.cheapestContract.cost_per_contract || budgetError.cheapestContract.premium * 100) / 100)}/contract</span>
+                                                        <span className="text-[10px] text-gray-500">Total: {formatCurrency(budgetError.cheapestContract.cost_per_contract || budgetError.cheapestContract.premium * 100)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="bg-blue-900/10 border border-blue-500/20 rounded-lg p-3 text-left">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <span className="material-symbols-outlined text-blue-400 text-sm">lightbulb</span>
+                                                <span className="text-xs font-bold text-blue-400 uppercase">Suggestions</span>
+                                            </div>
+                                            <ul className="text-xs text-gray-400 space-y-1 ml-6 list-disc">
+                                                <li>Increase budget to {formatCurrency(Math.ceil((budgetError.minBudget + 50) / 50) * 50)}+</li>
+                                                <li>Try a longer expiry (30+ DTE)</li>
+                                                <li>Look at further OTM strikes</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="p-4 border-t border-gray-800 bg-[#0f1219] flex gap-3">
+                                <button
+                                    onClick={() => setStep('config')}
+                                    className="flex-1 py-4 border border-gray-700 text-gray-400 font-bold rounded-xl hover:bg-gray-800 transition-colors uppercase text-xs"
+                                >
+                                    ← Back
+                                </button>
+                                <button
+                                    onClick={handleRetryHigherBudget}
+                                    className="flex-[2] py-4 bg-yellow-600 hover:bg-yellow-500 text-white font-black rounded-xl transition-all active:scale-[0.98] uppercase text-xs flex items-center justify-center gap-2 shadow-lg shadow-yellow-900/20"
+                                >
+                                    <span className="material-symbols-outlined text-sm">refresh</span>
+                                    Retry with {formatCurrency(Math.ceil((budgetError.minBudget + 50) / 50) * 50)}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {step === 'submitting' && (
                         <div className="text-center py-12">
                             <div className="w-16 h-16 rounded-full border-4 border-gray-800 border-t-blue-500 animate-spin mx-auto mb-6"></div>
