@@ -13,6 +13,7 @@ interface ExecuteTradeModalProps {
 
 interface ContractRecommendation {
     symbol: string;
+    contract_symbol: string;
     strike: number;
     expiry: string;
     option_type: 'CALL' | 'PUT';
@@ -25,6 +26,7 @@ interface ContractRecommendation {
     description?: string; // e.g. "Best Value", "Cheaper"
     bid?: number;
     ask?: number;
+    max_contracts?: number;
 }
 
 type OrderStep = 'config' | 'finding' | 'selection' | 'confirm' | 'submitting' | 'success' | 'error';
@@ -50,6 +52,10 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
     // N8N Data
     const [recommendations, setRecommendations] = useState<ContractRecommendation[]>([]);
     const [selectedContract, setSelectedContract] = useState<ContractRecommendation | null>(null);
+    const [quantity, setQuantity] = useState(1);
+    const [executionResult, setExecutionResult] = useState<any>(null);
+    const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
+    const [limitPrice, setLimitPrice] = useState<number | null>(null);
 
     // Initialize
     useEffect(() => {
@@ -84,42 +90,57 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
         setErrorMsg('');
 
         try {
+            // Helper to fetch contracts
+            const fetchContracts = async (min: number, max: number) => {
+                const payload = {
+                    symbol: signal.symbol,
+                    current_price: signal.current_price,
+                    option_type: optionType,
+                    dte_min: min,
+                    dte_max: max,
+                    budget,
+                    stop_loss: stopLossEnabled ? signal.fib_stop_loss : null,
+                    take_profit: takeProfitTarget,
+                    broker_id: selectedBroker?.id,
+                    broker_name: selectedBroker?.broker_name,
+                    broker_mode: isPaper ? 'paper' : 'live'
+                };
+
+                console.log(`Find Option Payload (${min}-${max} DTE):`, payload);
+
+                const response = await fetch('https://prabhupadala01.app.n8n.cloud/webhook/find-option', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                return await response.json();
+            };
+
             // Map range to numbers
             let dte_min = 5, dte_max = 10;
             if (dteRange === 'swing') { dte_min = 10; dte_max = 20; }
             if (dteRange === 'monthly') { dte_min = 30; dte_max = 60; }
 
-            const payload = {
-                symbol: signal.symbol,
-                current_price: signal.current_price,
-                option_type: optionType,
-                dte_min,
-                dte_max,
-                budget,
-                stop_loss: stopLossEnabled ? signal.fib_stop_loss : null,
-                take_profit: takeProfitTarget,
-                broker_id: selectedBroker?.id,
-                broker_name: selectedBroker?.broker_name,
-                broker_mode: isPaper ? 'paper' : 'live'
-            };
+            // First attempt
+            let result = await fetchContracts(dte_min, dte_max);
 
-            console.log('Find Option Payload:', payload);
+            // Auto-retry with wider range if no contracts found
+            if (!result.contracts || result.contracts.length === 0) {
+                console.log('No contracts found. Retrying with wider DTE range (3-45 days)...');
 
-            const response = await fetch('https://prabhupadala01.app.n8n.cloud/webhook/find-option', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            const result = await response.json();
+                // Auto-expand to 3-45 days
+                result = await fetchContracts(3, 45);
+            }
 
             if (result.contracts && result.contracts.length > 0) {
                 setRecommendations(result.contracts);
                 // Auto-select best (first)
                 setSelectedContract(result.contracts[0]);
+                setQuantity(1);
                 setStep('selection');
             } else {
-                throw new Error('No contracts found matching criteria.');
+                throw new Error('No contracts found matching criteria (even after expanding search).');
             }
 
         } catch (err: any) {
@@ -128,50 +149,74 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
         }
     };
 
-    const handleConfirmOrder = async () => {
-        // If live, require confirmation text
-        if (!isPaper && confirmText.toUpperCase() !== 'CONFIRM') {
+    const handleConfirmOrder = async (isRetry = false, overrideOrderType?: 'market' | 'limit', overrideLimitPrice?: number) => {
+        // If live, require confirmation text (unless retrying)
+        if (!isPaper && !isRetry && confirmText.toUpperCase() !== 'CONFIRM') {
             setErrorMsg('Please type CONFIRM to place a live order.');
             return;
         }
 
         setStep('submitting');
         setErrorMsg('');
+        setExecutionResult(null);
 
         try {
             if (!selectedContract) throw new Error('No contract selected');
 
-            const payload = {
+            const currentOrderType = overrideOrderType || orderType;
+            const currentLimitPrice = overrideLimitPrice !== undefined ? overrideLimitPrice : (orderType === 'limit' ? limitPrice : null);
+            const priceToUse = currentOrderType === 'limit' && currentLimitPrice ? currentLimitPrice : selectedContract.premium;
+
+            const executePayload = {
+                // From the selected contract (find-option response)
                 symbol: signal.symbol,
-                option_type: optionType,
+                contract_symbol: selectedContract.contract_symbol,
+                option_type: signal.option_type,
                 strike: selectedContract.strike,
                 expiry: selectedContract.expiry,
-                quantity: selectedContract.quantity,
-                order_type: 'market', // Default market for simplified flow
+                premium: selectedContract.premium,
+                total_cost: quantity * priceToUse * 100,
+
+                // From user inputs
+                quantity: quantity,
+                order_type: currentOrderType,
+                limit_price: currentLimitPrice,
                 budget: budget,
+                current_price: signal.current_price,
                 stop_loss: stopLossEnabled ? signal.fib_stop_loss : null,
                 take_profit: takeProfitTarget,
+
+                // From broker context
                 broker_id: selectedBroker?.id,
                 broker_name: selectedBroker?.broker_name,
-                broker_mode: isPaper ? 'paper' : 'live',
-                signal_id: signal.id,
+                broker_mode: selectedBroker?.broker_mode,
+
+                // Optional signal reference
+                signal_id: signal.id || null,
+                tier: signal.tier,
+                gates_passed: signal.gates_passed,
                 user_id: user?.id
             };
 
-            const response = await fetch('https://terragigsolutions.app.n8n.cloud/webhook/execute-option-trade', {
+            console.log('Execute Payload:', executePayload);
+
+            const response = await fetch('https://prabhupadala01.app.n8n.cloud/webhook/execute-option-trade', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(executePayload)
             });
 
             const result = await response.json();
+            setExecutionResult(result);
 
-            if (response.ok && (result.success || result.status === 'submitted')) {
-                setTxId(result.order_id || 'ORD-' + Math.random().toString(36).substr(2, 9).toUpperCase());
+            if (result.success) {
+                setTxId(result.order?.orderId || result.order_id || 'ORD-' + Math.random().toString(36).substr(2, 9).toUpperCase());
                 setStep('success');
-                if (onSuccess) onSuccess();
+                // Do not call onSuccess() here; wait for user to click "DONE"
             } else {
-                throw new Error(result.error || 'Execution failed');
+                // Determine if we should show the "Retry as Limit" option
+                // This is handled in the render logic based on result.suggestion
+                setStep('error');
             }
 
         } catch (err: any) {
@@ -180,6 +225,21 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
             setStep('error');
         }
     };
+
+    const handleRetryAsLimit = () => {
+        if (!selectedContract) return;
+
+        const newPrice = Number((selectedContract.premium * 1.05).toFixed(2)); // 5% buffer
+
+        // Update state for UI consistency
+        setOrderType('limit');
+        setLimitPrice(newPrice);
+        setStep('config');
+        setExecutionResult(null); // Clear previous error
+    };
+
+
+
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm overflow-y-auto">
@@ -239,6 +299,40 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                         PUT
                                     </button>
                                 </div>
+                            </div>
+
+                            {/* Order Type & Limit Price */}
+                            <div className="pt-4 border-t border-gray-800">
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Order Configuration</label>
+                                <div className="grid grid-cols-2 gap-2 mb-3">
+                                    <button
+                                        onClick={() => setOrderType('market')}
+                                        className={`py-2 rounded-lg text-xs font-black uppercase border ${orderType === 'market' ? `bg-${themeColor}-500 text-white border-${themeColor}-500` : 'bg-[#1a1f2e] text-gray-400 border-gray-700'}`}
+                                    >
+                                        Market
+                                    </button>
+                                    <button
+                                        onClick={() => setOrderType('limit')}
+                                        className={`py-2 rounded-lg text-xs font-black uppercase border ${orderType === 'limit' ? `bg-${themeColor}-500 text-white border-${themeColor}-500` : 'bg-[#1a1f2e] text-gray-400 border-gray-700'}`}
+                                    >
+                                        Limit
+                                    </button>
+                                </div>
+
+                                {orderType === 'limit' && (
+                                    <div className="relative animate-in fade-in slide-in-from-top-2">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</span>
+                                        <input
+                                            type="number"
+                                            value={limitPrice || ''}
+                                            onChange={e => setLimitPrice(parseFloat(e.target.value) || 0)}
+                                            placeholder="Limit Price"
+                                            step="0.01"
+                                            className="w-full bg-[#1a1f2e] border border-gray-700 rounded-lg pl-8 pr-3 py-3 text-white font-mono font-bold focus:border-blue-500 outline-none"
+                                        />
+                                        <span className="text-[10px] text-gray-500 mt-1 block">Max price per contract to pay</span>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Expiry Range */}
@@ -315,7 +409,13 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                 {recommendations.map((contract, i) => (
                                     <div
                                         key={i}
-                                        onClick={() => setSelectedContract(contract)}
+                                        onClick={() => {
+                                            setSelectedContract(contract);
+                                            setQuantity(1);
+                                            if (orderType === 'limit') {
+                                                setLimitPrice(Number((contract.premium * 1.05).toFixed(2)));
+                                            }
+                                        }}
                                         className={`p-4 rounded-xl border cursor-pointer transition-all ${selectedContract === contract ? `bg-${themeColor}-500/10 border-${themeColor}-500 shadow-lg shadow-${themeColor}-900/10` : 'bg-[#1a1f2e] border-gray-700 hover:border-gray-500'}`}
                                     >
                                         <div className="flex justify-between items-start mb-2">
@@ -350,41 +450,112 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
 
                     {/* Step 4: Confirm */}
                     {step === 'confirm' && selectedContract && (
-                        <div className="text-center py-4">
-                            <div className="bg-[#1a1f2e] rounded-xl border border-gray-800 p-6 text-left space-y-4 mb-6 relative overflow-hidden">
-                                <div className={`absolute top-0 left-0 w-1 h-full ${isPaper ? 'bg-blue-500' : 'bg-red-500'}`}></div>
-                                <div className="flex justify-between border-b border-gray-800 pb-2">
-                                    <span className="text-gray-500 text-xs font-bold uppercase">Contract</span>
-                                    <span className="text-white font-bold">{selectedContract.quantity}x {selectedContract.symbol} ${selectedContract.strike} {selectedContract.option_type}</span>
+                        <div className="space-y-6">
+                            <div className="bg-[#1a1f2e] rounded-xl border border-gray-800 overflow-hidden">
+                                <div className="p-4 border-b border-gray-800 bg-gray-900/50 flex justify-between items-center">
+                                    <span className="font-black text-gray-400 uppercase text-xs tracking-wider">Confirm Order</span>
+                                    <button onClick={onClose} className="text-gray-500 hover:text-white"><span className="material-symbols-outlined text-sm">close</span></button>
                                 </div>
-                                <div className="flex justify-between border-b border-gray-800 pb-2">
-                                    <span className="text-gray-500 text-xs font-bold uppercase">Expiry</span>
-                                    <span className="text-white font-mono text-sm">{selectedContract.expiry}</span>
+                                <div className="p-6 space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-500 text-xs font-bold uppercase">Action</span>
+                                        <span className={`font-black uppercase ${isCall ? 'text-green-500' : 'text-red-500'}`}>Buy to Open</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-500 text-xs font-bold uppercase">Contract</span>
+                                        <span className="font-bold text-white">{selectedContract.symbol} ${selectedContract.strike} {selectedContract.option_type}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-500 text-xs font-bold uppercase">Expiry</span>
+                                        <span className="font-mono text-white text-sm">{selectedContract.expiry} ({selectedContract.dte} DTE)</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-500 text-xs font-bold uppercase">Quantity</span>
+                                        <span className="font-mono text-white font-bold">{quantity} contract{quantity > 1 ? 's' : ''}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-500 text-xs font-bold uppercase">Order Type</span>
+                                        <span className="font-bold text-white uppercase">{orderType} {orderType === 'limit' && `@ ${formatCurrency(limitPrice || 0)}`}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-500 text-xs font-bold uppercase">Premium</span>
+                                        <span className="font-mono text-gray-400 text-sm">{formatCurrency(selectedContract.premium)} per contract (mid)</span>
+                                    </div>
+                                    <div className="flex justify-between items-center pt-2 border-t border-gray-800">
+                                        <span className="text-gray-500 text-xs font-bold uppercase">Est. Total Cost</span>
+                                        <span className="font-mono font-black text-xl text-white">
+                                            {formatCurrency(quantity * (orderType === 'limit' ? limitPrice! : selectedContract.premium) * 100)}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-500 text-xs font-bold uppercase">Budget</span>
+                                        <span className="font-mono text-gray-400 text-sm">{formatCurrency(budget)}</span>
+                                    </div>
+
+                                    {/* Risk Section */}
+                                    <div className="pt-4 border-t border-gray-800 space-y-2">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-[10px] bg-gray-800 text-gray-400 px-1.5 rounded uppercase font-bold">Risk</span>
+                                            <div className="h-px bg-gray-800 flex-1"></div>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-500 text-xs font-bold uppercase">Stop Loss</span>
+                                            <span className="font-mono text-red-400 text-sm">{formatCurrency(signal.fib_stop_loss)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-500 text-xs font-bold uppercase">Take Profit</span>
+                                            <span className="font-mono text-green-400 text-sm">{takeProfitTarget ? formatCurrency(takeProfitTarget) : 'N/A'}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Broker Section */}
+                                    <div className="pt-4 border-t border-gray-800 space-y-2">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-[10px] bg-gray-800 text-gray-400 px-1.5 rounded uppercase font-bold">Broker</span>
+                                            <div className="h-px bg-gray-800 flex-1"></div>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-500 text-xs font-bold uppercase">Account</span>
+                                            <span className="text-white text-sm font-bold">{selectedBroker?.display_name} ({selectedBroker?.broker_mode?.toUpperCase()})</span>
+                                        </div>
+                                        {/* Mock Buying Power for UI completeness as requested */}
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-500 text-xs font-bold uppercase">Buying Power</span>
+                                            <span className="font-mono text-white text-sm">$387,012.68</span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="flex justify-between border-b border-gray-800 pb-2">
-                                    <span className="text-gray-500 text-xs font-bold uppercase">Total Cost</span>
-                                    <span className="text-white font-mono font-bold">$ {(selectedContract.total_cost).toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-500 text-xs font-bold uppercase">Broker</span>
-                                    <span className={`font-black uppercase text-xs ${isPaper ? 'text-blue-400' : 'text-red-400'}`}>
-                                        {selectedBroker?.display_name} ({isPaper ? 'Paper' : 'LIVE'})
-                                    </span>
+                                <div className={`p-4 text-center text-xs font-bold uppercase tracking-wide ${isPaper ? 'bg-green-900/20 text-green-400' : 'bg-red-900/20 text-red-400'}`}>
+                                    {isPaper ? '⚠️ Paper trading - no real money involved' : '⚠️ REAL MONEY - This will execute a real trade'}
                                 </div>
                             </div>
 
                             {!isPaper && (
-                                <div className="mb-6">
-                                    <label className="block text-xs font-bold text-red-500 uppercase mb-2 animate-pulse">⚠️ Live Order Confirmation</label>
+                                <div>
+                                    <label className="block text-xs font-bold text-red-500 uppercase mb-2 animate-pulse">Type CONFIRM to execute</label>
                                     <input
                                         type="text"
                                         value={confirmText}
                                         onChange={e => setConfirmText(e.target.value)}
-                                        placeholder="Type 'CONFIRM'"
+                                        placeholder="CONFIRM"
                                         className="w-full bg-red-900/10 border border-red-500/30 rounded-lg px-4 py-3 text-center text-white font-bold uppercase placeholder-red-500/30 focus:border-red-500 outline-none"
                                     />
                                 </div>
                             )}
+
+                            <div className="flex gap-3">
+                                <button onClick={() => setStep('selection')} className="flex-1 py-4 border border-gray-700 text-gray-400 font-bold rounded-xl hover:bg-gray-800 transition-colors uppercase text-xs">
+                                    ← Back
+                                </button>
+                                <button
+                                    onClick={() => handleConfirmOrder()}
+                                    disabled={!isPaper && confirmText.toUpperCase() !== 'CONFIRM'}
+                                    className={`flex-[2] py-4 font-black uppercase rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${(!isPaper && confirmText.toUpperCase() !== 'CONFIRM') ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : (isPaper ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/20')}`}
+                                >
+                                    <span className="material-symbols-outlined text-sm">bolt</span>
+                                    Confirm & Submit
+                                </button>
+                            </div>
                         </div>
                     )}
 
@@ -396,33 +567,107 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                         </div>
                     )}
                     {step === 'success' && (
-                        <div className="text-center py-8">
-                            <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6 border border-green-500/20">
-                                <span className="material-symbols-outlined text-5xl text-green-500">check_circle</span>
+                        <div className="flex flex-col h-full animate-in zoom-in-50 duration-300">
+                            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+                                <div className="w-full bg-green-900/10 border border-green-500/30 rounded-xl overflow-hidden mb-6">
+                                    <div className="bg-green-600 p-4 border-b border-green-500 flex items-center justify-center gap-2">
+                                        <span className="material-symbols-outlined text-white">check_circle</span>
+                                        <span className="text-white font-black uppercase text-sm tracking-wide">Order Submitted Successfully</span>
+                                    </div>
+                                    <div className="p-6 space-y-4">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-500 text-xs font-bold uppercase">Order ID</span>
+                                            <span className="font-mono text-white text-xs" title={txId}>{txId.substring(0, 8)}...</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-500 text-xs font-bold uppercase">Status</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <div className={`w-2 h-2 rounded-full ${executionResult?.order?.status === 'accepted' || executionResult?.order?.status === 'filled' ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'}`}></div>
+                                                <span className={`text-xs font-black uppercase ${executionResult?.order?.status === 'accepted' || executionResult?.order?.status === 'filled' ? 'text-green-400' : 'text-yellow-400'}`}>
+                                                    {executionResult?.order?.status || 'SUBMITTED'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="h-px bg-green-500/20 my-2"></div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-500 text-xs font-bold uppercase">Contract</span>
+                                            <span className="font-bold text-white text-sm">{selectedContract?.symbol} ${selectedContract?.strike} {selectedContract?.option_type}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-500 text-xs font-bold uppercase">Order Type</span>
+                                            <span className="font-bold text-white text-sm uppercase">{orderType} {orderType === 'limit' && `@ ${formatCurrency(limitPrice || 0)}`}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-500 text-xs font-bold uppercase">Quantity</span>
+                                            <span className="font-mono text-white text-sm">{quantity} contract{quantity > 1 ? 's' : ''}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-500 text-xs font-bold uppercase">Expiry</span>
+                                            <span className="font-mono text-white text-sm">{selectedContract?.expiry}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-500 text-xs font-bold uppercase">Broker</span>
+                                            <span className="font-bold text-white text-sm">{selectedBroker?.display_name} ({selectedBroker?.broker_mode?.toUpperCase()})</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <h3 className="text-2xl font-black text-white mb-2">Order Submitted!</h3>
-                            <p className="text-gray-400 text-xs mb-6 font-mono">{txId}</p>
-                            <div className="flex gap-2">
-                                <button onClick={onClose} className="flex-1 py-3 bg-gray-800 hover:bg-gray-700 text-white font-bold rounded-lg transition-colors">Close</button>
-                                <button onClick={() => { onClose(); window.location.href = '#portfolio'; }} className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors">Portfolio</button>
+                            <div className="p-4 border-t border-gray-800 bg-[#0f1219]">
+                                <button onClick={() => { onClose(); if (onSuccess) onSuccess(); }} className="w-full py-4 bg-gray-800 hover:bg-gray-700 text-white font-black uppercase rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                                    <span className="material-symbols-outlined text-green-500">check</span>
+                                    Done
+                                </button>
                             </div>
                         </div>
                     )}
+
                     {step === 'error' && (
-                        <div className="text-center py-8">
-                            <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-6 border border-red-500/20">
-                                <span className="material-symbols-outlined text-5xl text-red-500">error</span>
+                        <div className="flex flex-col h-full">
+                            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+                                <div className="w-full bg-red-900/10 border border-red-500/30 rounded-xl p-6 mb-6">
+                                    <div className="flex items-center gap-2 text-red-500 font-black text-lg mb-4 justify-center">
+                                        <span className="material-symbols-outlined">error</span>
+                                        ORDER FAILED
+                                    </div>
+                                    <p className="text-white font-bold text-sm mb-4 leading-relaxed">
+                                        {executionResult?.message || errorMsg || 'Unknown error occurred'}
+                                    </p>
+
+                                    {executionResult?.suggestion && (
+                                        <div className="flex items-start gap-2 text-left bg-red-900/20 p-3 rounded-lg border border-red-500/20">
+                                            <span className="text-lg">💡</span>
+                                            <span className="text-red-200 text-xs font-medium leading-relaxed">{executionResult.suggestion}</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="text-gray-500 text-xs font-mono">
+                                    {selectedContract?.symbol} ${selectedContract?.strike} {selectedContract?.option_type} • {selectedContract?.expiry} • {quantity} contract(s) via {selectedBroker?.display_name}
+                                </div>
                             </div>
-                            <h3 className="text-2xl font-black text-white mb-2">Something went wrong</h3>
-                            <p className="text-red-400 text-sm font-bold mb-6 max-w-xs mx-auto">{errorMsg}</p>
-                            <button onClick={() => setStep('config')} className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg">Try Again</button>
+
+                            <div className="p-4 border-t border-gray-800 bg-[#0f1219] flex gap-3">
+                                <button onClick={() => setStep('selection')} className="flex-1 py-3 border border-gray-700 text-gray-400 font-bold rounded-xl hover:bg-gray-800 transition-colors uppercase text-xs">
+                                    Back
+                                </button>
+
+                                {executionResult?.suggestion?.toUpperCase().includes('LIMIT') && (
+                                    <button
+                                        onClick={handleRetryAsLimit}
+                                        className="flex-[2] py-3 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all active:scale-[0.98] uppercase text-xs flex items-center justify-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined text-sm">refresh</span>
+                                        Retry as LIMIT
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     )}
 
                 </div>
 
                 {/* Footer Actions */}
-                {(step === 'config' || step === 'selection' || step === 'confirm') && (
+                {(step === 'config' || step === 'selection') && (
                     <div className="p-4 border-t border-gray-800 bg-[#0f1219]/90 backdrop-blur flex justify-end gap-3">
                         <button onClick={() => step === 'config' ? onClose() : setStep(step === 'confirm' ? 'selection' : 'config')} className="px-6 py-3 rounded-lg border border-gray-700 text-gray-400 font-bold hover:bg-gray-800 transition-colors">
                             {step === 'config' ? 'Cancel' : 'Back'}
@@ -438,13 +683,6 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                         {step === 'selection' && selectedContract && (
                             <button onClick={() => setStep('confirm')} className={`px-6 py-3 rounded-lg text-white font-black uppercase tracking-wide shadow-lg transition-all active:scale-[0.95] flex items-center gap-2 ${themeColor === 'blue' ? 'bg-blue-600 hover:bg-blue-500' : 'bg-green-600 hover:bg-green-500'}`}>
                                 Next Step <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                            </button>
-                        )}
-
-                        {step === 'confirm' && (
-                            <button onClick={handleConfirmOrder} className={`px-6 py-3 rounded-lg text-white font-black uppercase tracking-wide shadow-lg transition-all active:scale-[0.95] flex items-center gap-2 ${themeColor === 'blue' ? 'bg-blue-600 hover:bg-blue-500' : 'bg-red-600 hover:bg-red-500'}`}>
-                                <span className="material-symbols-outlined text-sm">bolt</span>
-                                {isPaper ? 'Execute Paper Trade' : 'Execute LIVE Order'}
                             </button>
                         )}
                     </div>
