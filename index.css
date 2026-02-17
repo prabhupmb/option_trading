@@ -41,3 +41,18 @@ body {
 .conviction-progress {
   transition: width 1.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* Shimmer animation for scan progress bar */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s infinite;
+}

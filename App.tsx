@@ -16,12 +16,14 @@ import UserProfilePage from './components/UserProfilePage';
 import { useAuth } from './services/useAuth';
 import { OptionSignal } from './types';
 import { useOptionSignals } from './hooks/useOptionSignals';
+import { useScanProgress } from './hooks/useScanProgress';
 
 const App: React.FC = () => {
   const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut, role, accessLevel } = useAuth();
 
   // New Hook
   const { signals, loading, error, refresh, lastUpdated } = useOptionSignals();
+  const { progress: scanProgress, startScan } = useScanProgress(user?.email || undefined);
 
   // Execution Modal State
   const [executingSignal, setExecutingSignal] = useState<OptionSignal | null>(null);
@@ -89,8 +91,8 @@ const App: React.FC = () => {
     return result;
   }, [signals, activeFilter, sortBy]);
 
-  const handleManualRefresh = async () => {
-    await refresh();
+  const handleManualRefresh = () => {
+    startScan(refresh);
   };
 
   const handleExecute = (signal: OptionSignal) => {
@@ -158,6 +160,7 @@ const App: React.FC = () => {
           selectedBrokerage={selectedBrokerage}
           onBrokerageChange={setSelectedBrokerage}
           onNavigate={setCurrentView}
+          scanProgress={scanProgress}
         />
 
         {currentView === 'signals' ? (
