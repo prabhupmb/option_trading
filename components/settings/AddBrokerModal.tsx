@@ -81,11 +81,13 @@ const AddBrokerModal: React.FC<Props> = ({ isOpen, onClose, onSave, initialData 
                 brokerData.base_url = mode === 'paper' ? 'https://paper-api.alpaca.markets' : 'https://api.alpaca.markets';
             } else if (brokerName === 'schwab') {
                 if (!accountId || !accessToken || !refreshToken) throw new Error('All Schwab fields are required');
+                brokerData.broker_mode = 'live';
                 brokerData.api_key = accountId;
                 brokerData.api_secret = accessToken;
                 brokerData.account_id = accountId;
                 brokerData.access_token = accessToken;
                 brokerData.refresh_token = refreshToken;
+                brokerData.token_expires_at = new Date(Date.now() + 15 * 60 * 1000).toISOString();
                 brokerData.base_url = 'https://api.schwabapi.com';
             } else if (brokerName === 'ibkr') {
                 brokerData.api_key = apiKey || 'ibkr';
