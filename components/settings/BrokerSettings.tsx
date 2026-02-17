@@ -22,9 +22,11 @@ const BrokerSettings: React.FC = () => {
 
     const handleSave = async (brokerData: Partial<BrokerCredential>) => {
         if (editingBroker) {
-            await updateBroker(editingBroker.id, brokerData);
+            const { error } = await updateBroker(editingBroker.id, brokerData);
+            if (error) throw error;
         } else {
-            await addBroker(brokerData);
+            const { error } = await addBroker(brokerData);
+            if (error) throw error;
         }
         setIsAddOpen(false);
         setEditingBroker(undefined);

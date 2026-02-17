@@ -4,18 +4,19 @@ import { BrokerCredential, BrokerName, BrokerMode } from '../types';
 import { useAuth } from '../services/useAuth';
 
 export const useBrokers = () => {
-    const { user } = useAuth();
+    const { user, dbUserId } = useAuth();
     const [brokers, setBrokers] = useState<BrokerCredential[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     const fetchBrokers = async () => {
-        if (!user) return;
+        if (!dbUserId) return;
         try {
             setLoading(true);
             const { data, error } = await supabase
                 .from('broker_credentials')
                 .select('*')
+                .eq('user_id', dbUserId)
                 .order('is_default', { ascending: false })
                 .order('created_at', { ascending: false });
 
@@ -31,11 +32,11 @@ export const useBrokers = () => {
 
     useEffect(() => {
         fetchBrokers();
-    }, [user]);
+    }, [dbUserId]);
 
     const addBroker = async (broker: Partial<BrokerCredential>) => {
         try {
-            if (!user) throw new Error('User not authenticated');
+            if (!dbUserId) throw new Error('User not authenticated');
 
             // If this is the first broker, make it default
             const isFirst = brokers.length === 0;
@@ -43,7 +44,7 @@ export const useBrokers = () => {
             const { data, error } = await supabase
                 .from('broker_credentials')
                 .insert({
-                    user_id: user.id,
+                    user_id: dbUserId,
                     ...broker,
                     is_default: broker.is_default || isFirst
                 })
@@ -129,12 +130,12 @@ export const useBrokers = () => {
     };
 
     const unsetOtherDefaults = async (currentId: string) => {
-        if (!user) return;
+        if (!dbUserId) return;
         await supabase
             .from('broker_credentials')
             .update({ is_default: false })
             .neq('id', currentId)
-            .eq('user_id', user.id); // Extra safety
+            .eq('user_id', dbUserId);
     };
 
     return {

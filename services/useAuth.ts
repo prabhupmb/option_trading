@@ -3,7 +3,19 @@ import { supabase } from './supabase';
 import type { Session, User } from '@supabase/supabase-js';
 import { UserRole, AccessLevel } from '../types';
 
-export type VerificationStatus = 'idle' | 'verifying' | 'allowed' | 'signup' | 'denied' | 'unauthorized';
+export type VerificationStatus = 'idle' | 'verifying' | 'allowed' | 'signup' | 'denied' | 'unauthorized' | 'trial_expired';
+
+const TRIAL_DURATION_DAYS = 7;
+
+const isTrialEligible = (role?: string, accessLevel?: string): boolean =>
+    role !== 'admin' && accessLevel !== 'trade';
+
+const getTrialDaysLeft = (createdAt: string): number => {
+    const trialEnd = new Date(createdAt);
+    trialEnd.setDate(trialEnd.getDate() + TRIAL_DURATION_DAYS);
+    const msLeft = trialEnd.getTime() - Date.now();
+    return Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+};
 
 export interface VerificationData {
     email?: string;
@@ -21,6 +33,9 @@ export interface AuthState {
     verificationData: VerificationData;
     role?: UserRole;
     accessLevel?: AccessLevel;
+    trialDaysLeft?: number;
+    isTrialUser: boolean;
+    dbUserId?: string;
 }
 
 export function useAuth() {
@@ -30,6 +45,7 @@ export function useAuth() {
         loading: true,
         verificationStatus: 'idle',
         verificationData: {},
+        isTrialUser: false,
     });
 
     const verifyUser = useCallback(async (session: Session) => {
@@ -68,12 +84,23 @@ export function useAuth() {
                     return;
                 }
 
-                // Access Granted
+                // Access Granted — check trial status
+                const userRole = userProfile.role as UserRole;
+                const userAccessLevel = userProfile.access_level as AccessLevel;
+                const trialEligible = isTrialEligible(userRole, userAccessLevel);
+                const daysLeft = trialEligible && userProfile.created_at
+                    ? getTrialDaysLeft(userProfile.created_at)
+                    : undefined;
+                const trialExpired = trialEligible && daysLeft !== undefined && daysLeft <= 0;
+
                 setAuthState(prev => ({
                     ...prev,
-                    verificationStatus: 'allowed',
-                    role: userProfile.role as UserRole,
-                    accessLevel: userProfile.access_level as AccessLevel,
+                    verificationStatus: trialExpired ? 'trial_expired' : 'allowed',
+                    role: userRole,
+                    accessLevel: userAccessLevel,
+                    isTrialUser: trialEligible,
+                    trialDaysLeft: daysLeft,
+                    dbUserId: userProfile.id,
                     verificationData: {
                         email: userProfile.email,
                         fullName: userProfile.name || session.user.user_metadata.full_name,
@@ -228,6 +255,7 @@ export function useAuth() {
             loading: false,
             verificationStatus: 'idle',
             verificationData: {},
+            isTrialUser: false,
         });
     };
 
@@ -240,6 +268,9 @@ export function useAuth() {
         verificationData: authState.verificationData,
         role: authState.role,
         accessLevel: authState.accessLevel,
+        trialDaysLeft: authState.trialDaysLeft,
+        isTrialUser: authState.isTrialUser,
+        dbUserId: authState.dbUserId,
         signInWithGoogle,
         signOut,
     };

@@ -8,6 +8,7 @@ import Navigation, { View } from './components/Navigation';
 import Portfolio from './components/Portfolio';
 import LoginPage from './components/LoginPage';
 import AccessDeniedPage from './components/AccessDeniedPage';
+import TrialExpiredPage from './components/TrialExpiredPage';
 import SignupForm from './components/SignupForm';
 import AIHub from './components/AIHub';
 import AdminPanel from './components/AdminPanel';
@@ -19,7 +20,7 @@ import { useOptionSignals } from './hooks/useOptionSignals';
 import { useScanProgress } from './hooks/useScanProgress';
 
 const App: React.FC = () => {
-  const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut, role, accessLevel } = useAuth();
+  const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut, role, accessLevel, trialDaysLeft, isTrialUser } = useAuth();
 
   // New Hook
   const { signals, loading, error, refresh, lastUpdated } = useOptionSignals();
@@ -146,9 +147,14 @@ const App: React.FC = () => {
     return <AccessDeniedPage onSignOut={signOut} userEmail={verificationData.email || user?.email || undefined} message={verificationData.message} />;
   }
 
+  // Trial Expired
+  if (verificationStatus === 'trial_expired') {
+    return <TrialExpiredPage onSignOut={signOut} userEmail={verificationData.email || user?.email || undefined} />;
+  }
+
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-[#0a0712] transition-colors font-sans text-slate-900 dark:text-white">
-      <Navigation activeView={currentView} onNavigate={setCurrentView} user={user} onSignOut={signOut} role={role} accessLevel={accessLevel} />
+      <Navigation activeView={currentView} onNavigate={setCurrentView} user={user} onSignOut={signOut} role={role} accessLevel={accessLevel} trialDaysLeft={trialDaysLeft} isTrialUser={isTrialUser} />
 
       <div className="flex-1 ml-64 flex flex-col min-w-0">
         <Header

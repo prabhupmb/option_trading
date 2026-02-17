@@ -11,9 +11,11 @@ interface NavigationProps {
   onSignOut?: () => void;
   role?: UserRole;
   accessLevel?: AccessLevel;
+  trialDaysLeft?: number;
+  isTrialUser?: boolean;
 }
 
-const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, onSignOut, role, accessLevel }) => {
+const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, onSignOut, role, accessLevel, trialDaysLeft, isTrialUser }) => {
   let tabs: { id: View; label: string; icon: string }[] = [
     { id: 'signals', label: 'Option Feed', icon: 'dashboard' },
     { id: 'smart-feed', label: 'Stock Feed', icon: 'query_stats' },
@@ -49,6 +51,26 @@ const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, o
           </div>
         </div>
       </div>
+
+      {/* Trial Badge */}
+      {isTrialUser && trialDaysLeft !== undefined && trialDaysLeft > 0 && (
+        <div className={`mx-4 mt-4 px-3 py-2 rounded-xl border text-center ${
+          trialDaysLeft <= 2
+            ? 'bg-red-500/10 border-red-500/20'
+            : 'bg-amber-500/10 border-amber-500/20'
+        }`}>
+          <div className="flex items-center justify-center gap-2">
+            <span className={`material-symbols-outlined text-sm ${
+              trialDaysLeft <= 2 ? 'text-red-400' : 'text-amber-400'
+            }`}>timer</span>
+            <span className={`text-xs font-bold ${
+              trialDaysLeft <= 2 ? 'text-red-400' : 'text-amber-400'
+            }`}>
+              {trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'} left in trial
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Nav Items */}
       <div className="flex-1 py-6 px-4 flex flex-col gap-2">
