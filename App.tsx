@@ -284,6 +284,7 @@ const App: React.FC = () => {
           setExecutingSignal(null);
           refresh();
         }}
+        onNavigate={(view) => { setExecutingSignal(null); setCurrentView(view as View); }}
       />
     </div>
   );
