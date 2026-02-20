@@ -17,13 +17,18 @@ import UserProfilePage from './components/UserProfilePage';
 import { useAuth } from './services/useAuth';
 import { OptionSignal } from './types';
 import { useOptionSignals } from './hooks/useOptionSignals';
+import { useStrategyConfigs } from './hooks/useStrategyConfigs';
 import { useScanProgress } from './hooks/useScanProgress';
 
 const App: React.FC = () => {
   const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut, role, accessLevel, trialDaysLeft, isTrialUser } = useAuth();
 
+  // Strategy filter
+  const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
+  const { strategies } = useStrategyConfigs();
+
   // New Hook
-  const { signals, loading, error, refresh, lastUpdated } = useOptionSignals();
+  const { signals, loading, error, refresh, lastUpdated } = useOptionSignals(selectedStrategy);
   const { progress: scanProgress, startScan } = useScanProgress(user?.email || undefined);
 
   // Execution Modal State
@@ -167,6 +172,9 @@ const App: React.FC = () => {
           onBrokerageChange={setSelectedBrokerage}
           onNavigate={setCurrentView}
           scanProgress={scanProgress}
+          strategies={strategies}
+          selectedStrategy={selectedStrategy}
+          onStrategyChange={setSelectedStrategy}
         />
 
         {currentView === 'signals' ? (

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useBrokers } from '../../hooks/useBrokers';
 import { useAuth } from '../../services/useAuth';
+import { useBrokerContext } from '../../context/BrokerContext';
 import BrokerCard from './BrokerCard';
 import AddBrokerModal from './AddBrokerModal';
 import DeleteBrokerModal from './DeleteBrokerModal';
@@ -9,6 +10,7 @@ import { BrokerCredential } from '../../types';
 const BrokerSettings: React.FC = () => {
     const { user, accessLevel } = useAuth();
     const { brokers, loading, error, addBroker, updateBroker, deleteBroker, setAsDefault, toggleActive } = useBrokers();
+    const { refreshBrokers, selectBroker } = useBrokerContext();
 
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [editingBroker, setEditingBroker] = useState<BrokerCredential | undefined>(undefined);
@@ -84,7 +86,11 @@ const BrokerSettings: React.FC = () => {
                             onEdit={(b) => { setEditingBroker(b); setIsAddOpen(true); }}
                             onDelete={(id) => setDeletingId(id)}
                             onToggleActive={(id, current) => toggleActive(id, current)}
-                            onSetDefault={(id) => setAsDefault(id)}
+                            onSetDefault={async (id) => {
+                                await setAsDefault(id);
+                                selectBroker(id);
+                                refreshBrokers();
+                            }}
                         />
                     ))}
 
