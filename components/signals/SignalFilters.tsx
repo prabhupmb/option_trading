@@ -22,7 +22,7 @@ const SignalFilters: React.FC<SignalFiltersProps> = ({
     ];
 
     return (
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 bg-[#1a1f2e] border border-gray-800 rounded-xl p-2 sticky top-[4rem] z-30">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 bg-white dark:bg-[#1a1f2e] border border-gray-200 dark:border-gray-800 rounded-xl p-2 sticky top-[4rem] z-30">
             <div className="flex flex-wrap gap-2">
                 {tabs.map((tab) => (
                     <button
@@ -30,7 +30,7 @@ const SignalFilters: React.FC<SignalFiltersProps> = ({
                         onClick={() => onFilterChange(tab.id)}
                         className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all border ${activeFilter === tab.id
                                 ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-500/20'
-                                : 'bg-transparent text-gray-400 border-transparent hover:bg-gray-800 hover:text-white'
+                                : 'bg-transparent text-gray-500 dark:text-gray-400 border-transparent hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-slate-900 dark:hover:text-white'
                             }`}
                     >
                         {tab.label}
@@ -38,7 +38,7 @@ const SignalFilters: React.FC<SignalFiltersProps> = ({
                 ))}
             </div>
 
-            <div className="flex items-center gap-3 px-2 border-t md:border-t-0 border-gray-800 pt-3 md:pt-0">
+            <div className="flex items-center gap-3 px-2 border-t md:border-t-0 border-gray-200 dark:border-gray-800 pt-3 md:pt-0">
                 <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Sort By:</span>
                 <div className="flex gap-2">
                     {['Confidence', 'Symbol', 'Signal'].map((option) => (
@@ -47,7 +47,7 @@ const SignalFilters: React.FC<SignalFiltersProps> = ({
                             onClick={() => onSortChange(option)}
                             className={`text-xs font-medium transition-colors ${sortBy === option
                                     ? 'text-blue-500 font-bold'
-                                    : 'text-gray-400 hover:text-white'
+                                    : 'text-gray-400 hover:text-slate-700 dark:hover:text-white'
                                 }`}
                         >
                             {option}

@@ -29,7 +29,7 @@ const StrategyDropdown: React.FC<StrategyDropdownProps> = ({ strategies, selecte
         <div className="relative" ref={dropdownRef}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center space-x-2 bg-[#1a1f2e] hover:bg-[#252b3b] text-white px-4 py-2 rounded-lg border border-gray-800 transition-all active:scale-[0.98] shadow-sm"
+                className="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 dark:bg-[#1a1f2e] dark:hover:bg-[#252b3b] text-slate-900 dark:text-white px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-800 transition-all active:scale-[0.98] shadow-sm"
             >
                 <span className="material-symbols-outlined text-sm">{displayIcon}</span>
                 <span className="font-bold text-sm uppercase tracking-wide">{displayLabel}</span>
@@ -42,8 +42,8 @@ const StrategyDropdown: React.FC<StrategyDropdownProps> = ({ strategies, selecte
             </button>
 
             {isOpen && (
-                <div className="absolute left-0 mt-2 w-56 bg-[#1a1f2e] border border-gray-800 rounded-xl shadow-2xl py-2 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                    <div className="px-3 py-2 border-b border-gray-800 mb-1">
+                <div className="absolute left-0 mt-2 w-56 bg-white dark:bg-[#1a1f2e] border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl py-2 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-800 mb-1">
                         <span className="text-[10px] font-black uppercase text-gray-500 tracking-widest">Strategy Filter</span>
                     </div>
 
@@ -51,13 +51,13 @@ const StrategyDropdown: React.FC<StrategyDropdownProps> = ({ strategies, selecte
                         {/* All Strategies option */}
                         <button
                             onClick={() => { onStrategyChange(null); setIsOpen(false); }}
-                            className={`w-full text-left px-4 py-3 hover:bg-[#252b3b] transition-colors flex items-center justify-between group
-                                ${selectedStrategy === null ? 'bg-[#252b3b]/50' : ''}
+                            className={`w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-[#252b3b] transition-colors flex items-center justify-between group
+                                ${selectedStrategy === null ? 'bg-gray-100/50 dark:bg-[#252b3b]/50' : ''}
                             `}
                         >
                             <div className="flex items-center gap-2">
                                 <span className="material-symbols-outlined text-sm text-gray-400">tune</span>
-                                <span className={`font-bold text-sm ${selectedStrategy === null ? 'text-blue-400' : 'text-gray-300 group-hover:text-white'}`}>
+                                <span className={`font-bold text-sm ${selectedStrategy === null ? 'text-blue-500 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300 group-hover:text-slate-900 dark:group-hover:text-white'}`}>
                                     All Strategies
                                 </span>
                             </div>
@@ -70,13 +70,13 @@ const StrategyDropdown: React.FC<StrategyDropdownProps> = ({ strategies, selecte
                             <button
                                 key={strategy.id}
                                 onClick={() => { onStrategyChange(strategy.strategy); setIsOpen(false); }}
-                                className={`w-full text-left px-4 py-3 hover:bg-[#252b3b] transition-colors flex items-center justify-between group
-                                    ${selectedStrategy === strategy.strategy ? 'bg-[#252b3b]/50' : ''}
+                                className={`w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-[#252b3b] transition-colors flex items-center justify-between group
+                                    ${selectedStrategy === strategy.strategy ? 'bg-gray-100/50 dark:bg-[#252b3b]/50' : ''}
                                 `}
                             >
                                 <div className="flex items-center gap-2">
                                     <span className="material-symbols-outlined text-sm text-gray-400">{strategy.icon}</span>
-                                    <span className={`font-bold text-sm ${selectedStrategy === strategy.strategy ? 'text-blue-400' : 'text-gray-300 group-hover:text-white'}`}>
+                                    <span className={`font-bold text-sm ${selectedStrategy === strategy.strategy ? 'text-blue-500 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300 group-hover:text-slate-900 dark:group-hover:text-white'}`}>
                                         {strategy.display_name}
                                     </span>
                                 </div>

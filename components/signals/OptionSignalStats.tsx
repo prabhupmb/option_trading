@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { OptionSignal } from '../../hooks/useOptionSignals';
+import { OptionSignal } from '../../types';
 
 interface OptionSignalStatsProps {
     signals: OptionSignal[];
@@ -24,11 +24,11 @@ const OptionSignalStats: React.FC<OptionSignalStatsProps> = ({ signals, onFilter
     };
 
     return (
-        <div className="mb-8 grid grid-cols-2 lg:grid-cols-4 gap-3 text-white">
+        <div className="mb-8 grid grid-cols-2 lg:grid-cols-4 gap-3 text-slate-900 dark:text-white">
             {/* STRONG BUY */}
             <div
                 onClick={() => handleCardClick('STRONG_BUY')}
-                className="bg-[#1a1f2e] border border-gray-800 p-4 rounded-xl flex items-center justify-between shadow-lg shadow-black/20 cursor-pointer hover:border-green-500/50 hover:bg-[#1a1f2e]/80 transition-all active:scale-[0.98]"
+                className="bg-white dark:bg-[#1a1f2e] border border-gray-200 dark:border-gray-800 p-4 rounded-xl flex items-center justify-between shadow-sm dark:shadow-lg dark:shadow-black/20 cursor-pointer hover:border-green-500/50 hover:bg-gray-50 dark:hover:bg-[#1a1f2e]/80 transition-all active:scale-[0.98]"
             >
                 <div>
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-green-500 mb-1">STRONG BUY</h4>
@@ -42,7 +42,7 @@ const OptionSignalStats: React.FC<OptionSignalStatsProps> = ({ signals, onFilter
             {/* BUY */}
             <div
                 onClick={() => handleCardClick('BUY')}
-                className="bg-[#1a1f2e] border border-gray-800 p-4 rounded-xl flex items-center justify-between shadow-lg shadow-black/20 cursor-pointer hover:border-green-400/50 hover:bg-[#1a1f2e]/80 transition-all active:scale-[0.98]"
+                className="bg-white dark:bg-[#1a1f2e] border border-gray-200 dark:border-gray-800 p-4 rounded-xl flex items-center justify-between shadow-sm dark:shadow-lg dark:shadow-black/20 cursor-pointer hover:border-green-400/50 hover:bg-gray-50 dark:hover:bg-[#1a1f2e]/80 transition-all active:scale-[0.98]"
             >
                 <div>
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-green-400 mb-1">BUY</h4>
@@ -56,7 +56,7 @@ const OptionSignalStats: React.FC<OptionSignalStatsProps> = ({ signals, onFilter
             {/* STRONG SELL */}
             <div
                 onClick={() => handleCardClick('STRONG_SELL')}
-                className="bg-[#1a1f2e] border border-gray-800 p-4 rounded-xl flex items-center justify-between shadow-lg shadow-black/20 cursor-pointer hover:border-red-500/50 hover:bg-[#1a1f2e]/80 transition-all active:scale-[0.98]"
+                className="bg-white dark:bg-[#1a1f2e] border border-gray-200 dark:border-gray-800 p-4 rounded-xl flex items-center justify-between shadow-sm dark:shadow-lg dark:shadow-black/20 cursor-pointer hover:border-red-500/50 hover:bg-gray-50 dark:hover:bg-[#1a1f2e]/80 transition-all active:scale-[0.98]"
             >
                 <div>
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-1">STRONG SELL</h4>
@@ -70,7 +70,7 @@ const OptionSignalStats: React.FC<OptionSignalStatsProps> = ({ signals, onFilter
             {/* SELL */}
             <div
                 onClick={() => handleCardClick('SELL')}
-                className="bg-[#1a1f2e] border border-gray-800 p-4 rounded-xl flex items-center justify-between shadow-lg shadow-black/20 cursor-pointer hover:border-red-400/50 hover:bg-[#1a1f2e]/80 transition-all active:scale-[0.98]"
+                className="bg-white dark:bg-[#1a1f2e] border border-gray-200 dark:border-gray-800 p-4 rounded-xl flex items-center justify-between shadow-sm dark:shadow-lg dark:shadow-black/20 cursor-pointer hover:border-red-400/50 hover:bg-gray-50 dark:hover:bg-[#1a1f2e]/80 transition-all active:scale-[0.98]"
             >
                 <div>
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-red-400 mb-1">SELL</h4>
