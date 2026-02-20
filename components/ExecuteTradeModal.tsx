@@ -460,8 +460,8 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
             setOptionType(signal.option_type as 'CALL' | 'PUT');
             setBudget(user?.user_metadata?.default_budget || 300);
 
-            // Step 3 defaults
-            setOrderMode('bracket');
+            // Step 3 defaults — bracket only for Schwab
+            setOrderMode(selectedBroker?.broker_name === 'schwab' ? 'bracket' : 'regular');
             setSlMode('percent');
             setSlPercent(20);
             setSlDollar('');
@@ -589,10 +589,11 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                 current_price: signal.current_price,
 
                 // Bracket fields — premium-based TP/SL
-                bracketOrder: isBracketActive && (computedSL != null || computedTP != null),
+                // Schwab: bracket by default; bracketOrder=true when Bracket selected
+                bracketOrder: (selectedBroker?.broker_name === 'schwab' && isBracketActive) ? true : isBracketActive,
                 stop_loss: isBracketActive ? computedSL : null,
                 take_profit: isBracketActive ? computedTP : null,
-                order_mode: orderMode,
+                order_mode: isBracketActive ? 'bracket' : 'regular',
 
                 // Broker
                 broker_id: selectedBroker?.id,
@@ -910,26 +911,28 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                     </div>
                                 </div>
 
-                                {/* Order Mode Toggle */}
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Order Mode</label>
-                                    <div className="flex bg-[#0d1117] rounded-lg border border-gray-700/60 p-1 gap-1">
-                                        <button
-                                            onClick={() => setOrderMode('bracket')}
-                                            className={`flex-1 py-2.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-2 ${orderMode === 'bracket' ? 'bg-indigo-900/30 text-indigo-400 border border-indigo-800' : 'text-gray-500 hover:text-white border border-transparent'}`}
-                                        >
-                                            <span className="material-symbols-outlined text-sm">link</span>
-                                            Bracket
-                                        </button>
-                                        <button
-                                            onClick={() => setOrderMode('regular')}
-                                            className={`flex-1 py-2.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-2 ${orderMode === 'regular' ? 'bg-green-900/30 text-green-400 border border-green-800' : 'text-gray-500 hover:text-white border border-transparent'}`}
-                                        >
-                                            <span className="material-symbols-outlined text-sm">description</span>
-                                            Regular
-                                        </button>
+                                {/* Order Mode Toggle — Schwab only */}
+                                {isSchwab && (
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Order Mode</label>
+                                        <div className="flex bg-[#0d1117] rounded-lg border border-gray-700/60 p-1 gap-1">
+                                            <button
+                                                onClick={() => setOrderMode('bracket')}
+                                                className={`flex-1 py-2.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-2 ${orderMode === 'bracket' ? 'bg-indigo-900/30 text-indigo-400 border border-indigo-800' : 'text-gray-500 hover:text-white border border-transparent'}`}
+                                            >
+                                                <span className="material-symbols-outlined text-sm">link</span>
+                                                Bracket
+                                            </button>
+                                            <button
+                                                onClick={() => setOrderMode('regular')}
+                                                className={`flex-1 py-2.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-2 ${orderMode === 'regular' ? 'bg-green-900/30 text-green-400 border border-green-800' : 'text-gray-500 hover:text-white border border-transparent'}`}
+                                            >
+                                                <span className="material-symbols-outlined text-sm">description</span>
+                                                Regular
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
+                                )}
 
                                 {orderMode === 'bracket' ? (
                                     <>
