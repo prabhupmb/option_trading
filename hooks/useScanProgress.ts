@@ -21,10 +21,14 @@ const STRATEGY_SCAN_CONFIG: Record<string, { webhook: string; table: string }> =
         webhook: 'https://prabhupadala01.app.n8n.cloud/webhook/scan-options-daytrade',
         table: 'day_trade',
     },
+    swing_trade: {
+        webhook: 'https://prabhupadala01.app.n8n.cloud/webhook/scan-options',
+        table: 'swing_trade',
+    },
 };
 
 const DEFAULT_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/scan-options';
-const DEFAULT_TABLE = 'option_signals';
+const DEFAULT_TABLE = 'swing_trade';
 
 export const useScanProgress = (userEmail?: string, strategyFilter?: string | null) => {
     const [progress, setProgress] = useState<ScanProgress>({

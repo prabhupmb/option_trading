@@ -5,6 +5,7 @@ import { OptionSignal } from '../types';
 // Maps strategy name to its dedicated table (if any)
 const STRATEGY_TABLE_MAP: Record<string, string> = {
     day_trade: 'day_trade',
+    swing_trade: 'swing_trade',
 };
 
 const getAdxTrend = (adx?: number): OptionSignal['adx_trend'] => {
@@ -61,7 +62,7 @@ export const useOptionSignals = (strategyFilter?: string | null) => {
                 const mapped = (data || []).map(mapDayTradeToSignal);
                 setSignals(mapped);
             } else if (strategyFilter) {
-                // Strategy exists but has no dedicated table — filter option_signals by watchlist
+                // Strategy exists but has no dedicated table — filter swing_trade by watchlist
                 const { data: watchlistData, error: watchlistError } = await supabase
                     .from('strategy_watchlists')
                     .select('symbol')
@@ -71,7 +72,7 @@ export const useOptionSignals = (strategyFilter?: string | null) => {
                 const symbols = (watchlistData || []).map(w => w.symbol);
 
                 const { data, error } = await supabase
-                    .from('option_signals')
+                    .from('swing_trade')
                     .select('*')
                     .eq('is_latest', true)
                     .in('symbol', symbols)
@@ -80,9 +81,9 @@ export const useOptionSignals = (strategyFilter?: string | null) => {
                 if (error) throw error;
                 setSignals(data as OptionSignal[]);
             } else {
-                // No filter — fetch all from option_signals
+                // No filter — fetch all from swing_trade
                 const { data, error } = await supabase
-                    .from('option_signals')
+                    .from('swing_trade')
                     .select('*')
                     .eq('is_latest', true)
                     .order('analyzed_at', { ascending: false });
