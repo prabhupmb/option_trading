@@ -15,7 +15,18 @@ const POLL_INTERVAL_MS = 5000;
 const TIMEOUT_MS = 120000; // 2 minutes
 const DONE_DISPLAY_MS = 2500;
 
-export const useScanProgress = (userEmail?: string) => {
+// Strategy-specific webhook URLs and table names
+const STRATEGY_SCAN_CONFIG: Record<string, { webhook: string; table: string }> = {
+    day_trade: {
+        webhook: 'https://prabhupadala01.app.n8n.cloud/webhook/scan-options-daytrade',
+        table: 'day_trade',
+    },
+};
+
+const DEFAULT_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/scan-options';
+const DEFAULT_TABLE = 'option_signals';
+
+export const useScanProgress = (userEmail?: string, strategyFilter?: string | null) => {
     const [progress, setProgress] = useState<ScanProgress>({
         status: 'idle',
         updated: 0,
@@ -39,11 +50,16 @@ export const useScanProgress = (userEmail?: string) => {
 
         cleanup();
 
+        // Determine which webhook + table to use based on strategy
+        const config = strategyFilter ? STRATEGY_SCAN_CONFIG[strategyFilter] : null;
+        const webhookUrl = config?.webhook || DEFAULT_WEBHOOK;
+        const tableName = config?.table || DEFAULT_TABLE;
+
         // 1. Snapshot pre-scan timestamps per symbol
         let preTimestamps: Record<string, string> = {};
         try {
             const { data: currentSignals } = await supabase
-                .from('option_signals')
+                .from(tableName)
                 .select('symbol, analyzed_at')
                 .eq('is_latest', true);
 
@@ -67,7 +83,7 @@ export const useScanProgress = (userEmail?: string) => {
 
         // 2. Call webhook (fire-and-forget, returns 202)
         try {
-            await fetch('https://prabhupadala01.app.n8n.cloud/webhook/scan-options', {
+            await fetch(webhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ triggered_by: userEmail || 'manual' }),
@@ -92,7 +108,7 @@ export const useScanProgress = (userEmail?: string) => {
         const pollForUpdates = async () => {
             try {
                 const { data: freshSignals } = await supabase
-                    .from('option_signals')
+                    .from(tableName)
                     .select('symbol, analyzed_at')
                     .eq('is_latest', true);
 
@@ -134,7 +150,7 @@ export const useScanProgress = (userEmail?: string) => {
             finishScan(onComplete);
         }, TIMEOUT_MS);
 
-    }, [progress.status, cleanup, userEmail]);
+    }, [progress.status, cleanup, userEmail, strategyFilter]);
 
     const finishScan = useCallback(async (onComplete?: () => Promise<void>) => {
         cleanup();

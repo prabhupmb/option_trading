@@ -29,7 +29,7 @@ const App: React.FC = () => {
 
   // New Hook
   const { signals, loading, error, refresh, lastUpdated } = useOptionSignals(selectedStrategy);
-  const { progress: scanProgress, startScan } = useScanProgress(user?.email || undefined);
+  const { progress: scanProgress, startScan } = useScanProgress(user?.email || undefined, selectedStrategy);
 
   // Execution Modal State
   const [executingSignal, setExecutingSignal] = useState<OptionSignal | null>(null);
