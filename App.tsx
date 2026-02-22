@@ -24,7 +24,7 @@ const App: React.FC = () => {
   const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut, role, accessLevel, trialDaysLeft, isTrialUser } = useAuth();
 
   // Strategy filter
-  const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
+  const [selectedStrategy, setSelectedStrategy] = useState<string | null>('swing_trade');
   const { strategies } = useStrategyConfigs();
 
   // New Hook
@@ -201,6 +201,7 @@ const App: React.FC = () => {
                   onFilterChange={setActiveFilter}
                   sortBy={sortBy}
                   onSortChange={setSortBy}
+                  onStrategyChange={setSelectedStrategy}
                 />
               </div>
             </div>

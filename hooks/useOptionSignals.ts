@@ -27,7 +27,7 @@ const mapDayTradeToSignal = (row: any): OptionSignal => ({
     gates_passed: row.gates_passed || '0/6',
     adx_value: row.adx_value || 0,
     adx_trend: getAdxTrend(row.adx_value),
-    sma_direction: row.trade_direction?.toUpperCase() === 'UP' ? 'UP' : row.trade_direction?.toUpperCase() === 'DOWN' ? 'DOWN' : 'Neutral',
+    sma_direction: undefined,
     fib_target1: row.target1 || 0,
     fib_target2: row.target2 || 0,
     fib_stop_loss: row.stop_loss || 0,
@@ -59,7 +59,11 @@ export const useOptionSignals = (strategyFilter?: string | null) => {
 
                 if (error) throw error;
 
-                const mapped = (data || []).map(mapDayTradeToSignal);
+                // day_trade table uses different column names (target1, target2, stop_loss)
+                // swing_trade table columns already match OptionSignal directly
+                const mapped = strategyFilter === 'day_trade'
+                    ? (data || []).map(mapDayTradeToSignal)
+                    : (data as OptionSignal[]);
                 setSignals(mapped);
             } else if (strategyFilter) {
                 // Strategy exists but has no dedicated table — filter swing_trade by watchlist

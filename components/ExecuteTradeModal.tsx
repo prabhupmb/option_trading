@@ -376,6 +376,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
 
     // Flow
     const [step, setStep] = useState<FlowStep>(1);
+    const [warningAcknowledged, setWarningAcknowledged] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
@@ -386,7 +387,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
 
     // Step 1: Config
     const [optionType, setOptionType] = useState<'CALL' | 'PUT'>('CALL');
-    const [dteRange, setDteRange] = useState<DteRange>('short');
+    const [dteRange, setDteRange] = useState<DteRange>('swing');
     const [budget, setBudget] = useState(300);
 
     // Step 2: Contract Selection
@@ -436,9 +437,52 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
 
     const dteOptions = [
         { id: 'short' as DteRange, label: 'Short-term', days: '5-10 DTE' },
-        { id: 'swing' as DteRange, label: 'Swing', days: '10-20 DTE' },
+        { id: 'swing' as DteRange, label: 'Swing', days: '10-15 DTE' },
         { id: 'monthly' as DteRange, label: 'Monthly', days: '30+ DTE' },
     ];
+
+    // ─── Trade Quality Warnings ────────────────────────────────
+
+    const tradeWarnings = useMemo(() => {
+        if (!signal) return [];
+        const warnings: { icon: string; title: string; detail: string; severity: 'high' | 'medium' }[] = [];
+
+        const rec = signal.trading_recommendation?.toUpperCase() || '';
+        const isStrong = rec.includes('STRONG');
+        if (!isStrong) {
+            const label = rec || 'UNKNOWN';
+            warnings.push({
+                icon: '⚡',
+                title: 'Not a Strong Signal',
+                detail: `Signal is "${label}" — only Strong Buy / Strong Sell signals indicate high-conviction setups. Weaker signals have higher failure rates.`,
+                severity: 'high',
+            });
+        }
+
+        const [passed, total] = (signal.gates_passed || '0/6').split('/').map(Number);
+        const missed = total - passed;
+        if (missed > 0) {
+            warnings.push({
+                icon: '🚦',
+                title: `${missed} Confirmation Gate${missed > 1 ? 's' : ''} Failed`,
+                detail: `Only ${passed} of ${total} gates passed. Each failed gate represents a missing confirmation (momentum, trend, volume, etc.). ${missed >= 3 ? 'High risk — most filters rejected this trade.' : 'Proceed with caution.'}`,
+                severity: missed >= 2 ? 'high' : 'medium',
+            });
+        }
+
+        if (signal.tier === 'B+') {
+            warnings.push({
+                icon: '📊',
+                title: 'Tier B+ Setup',
+                detail: 'A+ and A tier trades have the strongest historical win rate. B+ setups are valid but carry more uncertainty.',
+                severity: 'medium',
+            });
+        }
+
+        return warnings;
+    }, [signal]);
+
+    const needsWarning = tradeWarnings.length > 0 && !warningAcknowledged;
 
     // ─── Init ─────────────────────────────────────────────────
 
@@ -456,6 +500,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
             setDuplicateError(null);
             setBlockingError(null);
             setConfirmText('');
+            setWarningAcknowledged(false);
 
             setOptionType(signal.option_type as 'CALL' | 'PUT');
             setBudget(user?.user_metadata?.default_budget || 300);
@@ -506,7 +551,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
             };
 
             let dte_min = 5, dte_max = 10;
-            if (dteRange === 'swing') { dte_min = 10; dte_max = 20; }
+            if (dteRange === 'swing') { dte_min = 10; dte_max = 15; }
             if (dteRange === 'monthly') { dte_min = 30; dte_max = 60; }
 
             let result: FindOptionResponse & { success?: boolean; error?: string; message?: string } = await fetchContracts(dte_min, dte_max);
@@ -739,14 +784,70 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                 </div>
 
                 {/* ─── Step Indicator ───────────────────────── */}
-                {!submitted && !submitting && !duplicateError && !blockingError && (
+                {!submitted && !submitting && !duplicateError && !blockingError && !needsWarning && (
                     <StepIndicator current={step} onStepClick={(s) => { if (s < step) setStep(s); }} />
                 )}
 
                 {/* ─── Body ─────────────────────────────────── */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-5">
 
-                    {!duplicateError && !blockingError && (<>
+                    {/* ═══ TRADE WARNING SCREEN ═══ */}
+                    {needsWarning && !duplicateError && !blockingError && (
+                        <div className="space-y-4">
+                            <div className="text-center pt-2">
+                                <div className="text-5xl mb-3">⚠️</div>
+                                <h3 className="text-base font-black text-amber-400 uppercase tracking-widest">Confirm Trade Risk</h3>
+                                <p className="text-gray-400 text-xs mt-1 max-w-sm mx-auto">
+                                    This signal has <span className="text-amber-400 font-bold">{tradeWarnings.length} quality concern{tradeWarnings.length > 1 ? 's' : ''}</span>. Review before proceeding.
+                                </p>
+                            </div>
+
+                            <div className="space-y-3">
+                                {tradeWarnings.map((w, i) => (
+                                    <div
+                                        key={i}
+                                        className={`rounded-xl p-4 border ${w.severity === 'high'
+                                            ? 'bg-red-900/10 border-red-500/30'
+                                            : 'bg-amber-900/10 border-amber-500/30'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <span className="text-lg">{w.icon}</span>
+                                            <span className={`text-xs font-black uppercase tracking-wide ${w.severity === 'high' ? 'text-red-400' : 'text-amber-400'}`}>
+                                                {w.title}
+                                            </span>
+                                        </div>
+                                        <p className="text-gray-400 text-xs leading-relaxed pl-7">{w.detail}</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="bg-[#0d1117] rounded-xl p-3 border border-gray-800 flex items-start gap-3">
+                                <span className="text-blue-400 text-lg">💡</span>
+                                <p className="text-gray-400 text-xs leading-relaxed">
+                                    Best setups are <span className="text-white font-bold">Strong Buy / Strong Sell</span> with all <span className="text-white font-bold">6/6 gates passed</span> and <span className="text-white font-bold">Tier A+</span>. Deviating increases the chance of a losing trade.
+                                </p>
+                            </div>
+
+                            <div className="flex gap-3 pt-1">
+                                <button
+                                    onClick={onClose}
+                                    className="flex-1 py-3 border border-gray-700 text-gray-400 font-bold rounded-xl hover:bg-gray-800 transition-colors text-xs uppercase tracking-wide"
+                                >
+                                    Cancel Trade
+                                </button>
+                                <button
+                                    onClick={() => setWarningAcknowledged(true)}
+                                    className="flex-[2] py-3 bg-amber-600 hover:bg-amber-500 text-black font-black rounded-xl transition-all text-xs uppercase tracking-wide flex items-center justify-center gap-2"
+                                >
+                                    <span className="material-symbols-outlined text-sm">warning</span>
+                                    Proceed Anyway
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {!needsWarning && !duplicateError && !blockingError && (<>
                         {/* ═══ STEP 1: Configure ═══ */}
                         {step === 1 && !searching && !budgetError && (
                             <>
@@ -1258,7 +1359,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                 </div>
 
                 {/* ─── Footer ───────────────────────────────── */}
-                {!duplicateError && !blockingError && <div className="p-4 border-t border-gray-800 bg-[#0f1219]/90 backdrop-blur flex justify-end gap-3">
+                {!duplicateError && !blockingError && !needsWarning && <div className="p-4 border-t border-gray-800 bg-[#0f1219]/90 backdrop-blur flex justify-end gap-3">
                     {/* Cancel — always visible */}
                     <button
                         onClick={onClose}

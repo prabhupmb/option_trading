@@ -3,10 +3,11 @@ import { OptionSignal } from '../../types';
 
 interface OptionSignalStatsProps {
     signals: OptionSignal[];
+    activeFilter?: string;
     onFilterClick?: (filter: string) => void;
 }
 
-const OptionSignalStats: React.FC<OptionSignalStatsProps> = ({ signals, onFilterClick }) => {
+const OptionSignalStats: React.FC<OptionSignalStatsProps> = ({ signals, activeFilter, onFilterClick }) => {
     const stats = useMemo(() => {
         const normalize = (s: string) => s?.toUpperCase() || '';
         return {
@@ -19,7 +20,7 @@ const OptionSignalStats: React.FC<OptionSignalStatsProps> = ({ signals, onFilter
 
     const handleCardClick = (filter: string) => {
         if (onFilterClick) {
-            onFilterClick(filter);
+            onFilterClick(activeFilter === filter ? 'ALL' : filter);
         }
     };
 

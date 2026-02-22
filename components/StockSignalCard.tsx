@@ -129,9 +129,13 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, a
             <div className="flex justify-between items-center px-2 py-1 opacity-70">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[14px] text-green-500/40">flag</span>
-                <span className="text-[10px] font-bold text-gray-500 uppercase">Target 2</span>
+                <span className="text-[10px] font-bold text-gray-500 uppercase">
+                  {signal.fib_profit_zone_label ? 'Profit Zone' : 'Target 2'}
+                </span>
               </div>
-              <span className="font-mono text-xs font-bold text-green-700/70 dark:text-green-600/70">{formatCurrency(signal.fib_target2)}</span>
+              <span className="font-mono text-xs font-bold text-green-700/70 dark:text-green-600/70">
+                {signal.fib_profit_zone_label ?? formatCurrency(signal.fib_target2)}
+              </span>
             </div>
 
             <div className="flex justify-between items-center bg-red-50 dark:bg-red-900/5 px-2 py-1.5 rounded mt-1 border border-red-200/50 dark:border-red-500/10">

@@ -94,6 +94,7 @@ export interface OptionSignal {
   sma_direction?: 'UP' | 'DOWN' | 'Neutral';
   fib_target1: number;
   fib_target2: number;
+  fib_profit_zone_label?: string;
   fib_stop_loss: number;
   risk_reward_ratio: string;
   analyzed_at: string;

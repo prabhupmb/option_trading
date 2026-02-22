@@ -5,13 +5,15 @@ interface Props {
     onFilterChange: (filter: string) => void;
     sortBy: string;
     onSortChange: (sort: string) => void;
+    onStrategyChange?: (strategy: string | null) => void;
 }
 
 const OptionSignalFilters: React.FC<Props> = ({
     activeFilter,
     onFilterChange,
     sortBy,
-    onSortChange
+    onSortChange,
+    onStrategyChange,
 }) => {
     const tabs = [
         { id: 'ALL', label: 'All', color: 'text-gray-400' },
@@ -27,7 +29,10 @@ const OptionSignalFilters: React.FC<Props> = ({
                 {tabs.map((tab) => (
                     <button
                         key={tab.id}
-                        onClick={() => onFilterChange(tab.id)}
+                        onClick={() => {
+                            onFilterChange(tab.id);
+                            if (tab.id === 'ALL' && onStrategyChange) onStrategyChange(null);
+                        }}
                         className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all
                             ${activeFilter === tab.id
                                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20 scale-105'
