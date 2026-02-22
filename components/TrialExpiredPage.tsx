@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface TrialExpiredPageProps {
     onSignOut: () => void;
@@ -6,6 +6,12 @@ interface TrialExpiredPageProps {
 }
 
 const TrialExpiredPage: React.FC<TrialExpiredPageProps> = ({ onSignOut, userEmail }) => {
+    const [requestSent, setRequestSent] = useState(false);
+
+    const handleRequestUpgrade = () => {
+        setRequestSent(true);
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex items-center justify-center p-6 relative overflow-hidden">
             {/* Animated background */}
@@ -44,11 +50,27 @@ const TrialExpiredPage: React.FC<TrialExpiredPageProps> = ({ onSignOut, userEmai
                         <div>
                             <p className="text-sm text-slate-300 font-medium mb-1">Upgrade to Continue</p>
                             <p className="text-xs text-slate-500 leading-relaxed">
-                                Contact an administrator to upgrade your account to the Trade plan for full, unrestricted access to the Signal Feed trading terminal.
+                                Request an upgrade to unlock full access to the Signal Feed trading terminal.
                             </p>
                         </div>
                     </div>
                 </div>
+
+                {/* Request Upgrade Button */}
+                {requestSent ? (
+                    <div className="w-full flex items-center justify-center gap-2 bg-rh-green/10 text-rh-green font-medium py-3 px-6 rounded-xl border border-rh-green/20 mb-3">
+                        <span className="material-symbols-outlined text-lg">check_circle</span>
+                        <span className="text-sm">Request Sent — An admin will review your request shortly</span>
+                    </div>
+                ) : (
+                    <button
+                        onClick={handleRequestUpgrade}
+                        className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-bold py-3 px-6 rounded-xl transition-all duration-200 active:scale-[0.98] mb-3"
+                    >
+                        <span className="material-symbols-outlined text-lg">upgrade</span>
+                        <span className="text-sm">Request Upgrade</span>
+                    </button>
+                )}
 
                 {/* Sign Out Button */}
                 <button

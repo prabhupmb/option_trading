@@ -5,9 +5,10 @@ import { AccessLevel } from '../../types';
 interface SignalCardProps {
     signal: SmartSignal;
     accessLevel: AccessLevel;
+    onExecute?: (signal: SmartSignal) => void;
 }
 
-const SignalCard: React.FC<SignalCardProps> = ({ signal, accessLevel }) => {
+const SignalCard: React.FC<SignalCardProps> = ({ signal, accessLevel, onExecute }) => {
     const [expanded, setExpanded] = useState(false);
 
     const getSignalColor = (type: string, confidence: string) => {
@@ -180,14 +181,20 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal, accessLevel }) => {
                 </button>
 
                 {accessLevel === 'trade' && (
-                    <button className="flex-1 py-3 bg-green-600 hover:bg-green-500 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors">
+                    <button
+                        onClick={() => onExecute?.(signal)}
+                        className="flex-1 py-3 bg-green-600 hover:bg-green-500 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors"
+                    >
                         <span className="material-symbols-outlined text-sm">bolt</span>
                         Trade Now
                     </button>
                 )}
 
                 {accessLevel === 'paper' && (
-                    <button className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors">
+                    <button
+                        onClick={() => onExecute?.(signal)}
+                        className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors"
+                    >
                         <span className="material-symbols-outlined text-sm">description</span>
                         Paper Trade
                     </button>

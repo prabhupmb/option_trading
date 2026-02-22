@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useSignals } from '../hooks/useSignals';
+import { useSignals, SmartSignal } from '../hooks/useSignals';
 import { useAuth } from '../services/useAuth';
 import SignalCard from './signals/SignalCard';
 import SignalFilters from './signals/SignalFilters';
@@ -7,6 +7,7 @@ import SignalStats from './signals/SignalStats';
 import SignalSkeleton from './signals/SignalSkeleton';
 import UploadWatchlistModal from './signals/UploadWatchlistModal';
 import WatchlistManager from './signals/WatchlistManager';
+import ExecuteStockTradeModal from './ExecuteStockTradeModal';
 
 const SignalFeed: React.FC = () => {
     const { signals, loading, error, lastUpdated, refresh } = useSignals();
@@ -16,6 +17,7 @@ const SignalFeed: React.FC = () => {
     const [sortBy, setSortBy] = useState('Confidence');
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [showWatchlists, setShowWatchlists] = useState(false);
+    const [executingSignal, setExecutingSignal] = useState<SmartSignal | null>(null);
 
     // Filter and Sort Logic
     const processedSignals = useMemo(() => {
@@ -139,6 +141,7 @@ const SignalFeed: React.FC = () => {
                                     key={signal.id}
                                     signal={signal}
                                     accessLevel={accessLevel || 'signal'}
+                                    onExecute={setExecutingSignal}
                                 />
                             ))}
                         </div>
@@ -153,6 +156,17 @@ const SignalFeed: React.FC = () => {
                     </>
                 )}
             </div>
+
+            {/* Stock Trade Modal */}
+            <ExecuteStockTradeModal
+                isOpen={!!executingSignal}
+                signal={executingSignal}
+                onClose={() => setExecutingSignal(null)}
+                onSuccess={() => {
+                    setExecutingSignal(null);
+                    refresh();
+                }}
+            />
         </div>
     );
 };

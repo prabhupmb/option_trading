@@ -1,7 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import { UserProfile, UserRole, AccessLevel } from '../types';
 import type { User } from '@supabase/supabase-js';
+
+const TRIAL_DURATION_DAYS = 7;
+
+const WEBHOOK_APPROVE_USER = import.meta.env.VITE_WEBHOOK_APPROVE_USER || '';
+const WEBHOOK_UPGRADE_USER = import.meta.env.VITE_WEBHOOK_UPGRADE_USER || '';
 
 interface AdminPanelProps {
     currentUser: User | null;
@@ -14,6 +19,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
     const [actionReason, setActionReason] = useState('');
     const [showConfirm, setShowConfirm] = useState(false);
     const [pendingChange, setPendingChange] = useState<{ field: keyof UserProfile, value: any } | null>(null);
+    const [pendingOpen, setPendingOpen] = useState(true);
+    const [expiredOpen, setExpiredOpen] = useState(true);
 
     useEffect(() => {
         fetchUsers();
@@ -34,6 +41,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
         setLoading(false);
     };
 
+    // Derived lists
+    const pendingApproval = useMemo(
+        () => users.filter(u => !u.is_active),
+        [users]
+    );
+
+    const trialExpired = useMemo(() => {
+        const now = new Date();
+        return users.filter(u => {
+            if (u.role === 'admin' || u.access_level === 'trade') return false;
+            if (!u.created_at) return false;
+            const expiry = new Date(u.created_at);
+            expiry.setDate(expiry.getDate() + TRIAL_DURATION_DAYS);
+            return expiry < now && u.is_active;
+        });
+    }, [users]);
+
     const handleEditClick = (user: UserProfile) => {
         setEditingUser(user);
         setActionReason('');
@@ -52,16 +76,26 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
         const oldValue = editingUser[pendingChange.field];
         const newValue = pendingChange.value;
 
-        // 1. Update User
-        const { error: updateError } = await supabase
+        // 1. Update User — use .select() to verify the update actually happened
+        const { data: updatedRows, error: updateError } = await supabase
             .from('users')
             .update({ [pendingChange.field]: newValue })
-            .eq('id', editingUser.id);
+            .eq('id', editingUser.id)
+            .select();
 
         if (updateError) {
             alert('Failed to update user: ' + updateError.message);
+            console.error('Update error:', updateError);
             return;
         }
+
+        if (!updatedRows || updatedRows.length === 0) {
+            alert('Update failed: No rows were affected. This may be a permissions (RLS) issue. Check your Supabase RLS policies on the "users" table allow admin updates.');
+            console.error('Update returned 0 rows. RLS may be blocking the update. User ID:', editingUser.id, 'Field:', pendingChange.field, 'Value:', newValue);
+            return;
+        }
+
+        console.log('User updated successfully:', updatedRows[0]);
 
         // 2. Log Access Change
         const { error: logError } = await supabase
@@ -71,7 +105,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                 changed_field: pendingChange.field,
                 old_value: String(oldValue),
                 new_value: String(newValue),
-                changed_by: currentUser.email, // Using email for readability or ID
+                changed_by: currentUser.email,
                 reason: actionReason || 'Admin Update'
             });
 
@@ -85,6 +119,59 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
         setShowConfirm(false);
     };
 
+    const quickAction = async (userId: string, updates: Record<string, any>, reason: string) => {
+        // Determine which webhook to call based on the action
+        const isApproval = 'is_active' in updates;
+        const webhookUrl = isApproval ? WEBHOOK_APPROVE_USER : WEBHOOK_UPGRADE_USER;
+
+        if (!webhookUrl) {
+            alert('Webhook URL not configured. Set VITE_WEBHOOK_APPROVE_USER / VITE_WEBHOOK_UPGRADE_USER in your .env file.');
+            return;
+        }
+
+        try {
+            const response = await fetch(webhookUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: userId,
+                    action: reason,
+                    updates,
+                    admin_email: currentUser?.email || 'unknown',
+                    timestamp: new Date().toISOString(),
+                }),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                alert('Webhook failed: ' + errorText);
+                return;
+            }
+
+            await fetchUsers();
+        } catch (err: any) {
+            alert('Webhook request failed: ' + (err.message || 'Network error'));
+        }
+    };
+
+    const formatDate = (dateStr?: string) => {
+        if (!dateStr) return 'N/A';
+        return new Date(dateStr).toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric',
+        });
+    };
+
+    const daysSinceExpiry = (createdAt?: string) => {
+        if (!createdAt) return 0;
+        const expiry = new Date(createdAt);
+        expiry.setDate(expiry.getDate() + TRIAL_DURATION_DAYS);
+        const diff = Math.floor((Date.now() - expiry.getTime()) / (1000 * 60 * 60 * 24));
+        return Math.max(0, diff);
+    };
+
+    const getDisplayName = (user: UserProfile) =>
+        user.full_name || user.name || user.username || user.user_name || 'Unnamed';
+
     return (
         <div className="p-8 max-w-7xl mx-auto text-slate-900 dark:text-white">
             <h1 className="text-3xl font-black mb-8 flex items-center gap-3">
@@ -97,76 +184,208 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                     <span className="material-symbols-outlined animate-spin text-4xl text-rh-green">sync</span>
                 </div>
             ) : (
-                <div className="bg-white dark:bg-[#1e2124] rounded-3xl border border-gray-200 dark:border-white/5 overflow-hidden shadow-xl">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-slate-50 dark:bg-white/5 border-b border-gray-200 dark:border-white/10 text-xs uppercase tracking-widest font-bold text-slate-500">
-                                    <th className="p-6">User</th>
-                                    <th className="p-6">Email</th>
-                                    <th className="p-6">Role</th>
-                                    <th className="p-6">Access Level</th>
-                                    <th className="p-6 text-center">Status</th>
-                                    <th className="p-6 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100 dark:divide-white/5">
-                                {users.map(user => {
-                                    // Robust name resolution
-                                    // Try full_name (DB convention), then name, then username, then email part
-                                    const displayName = user.full_name || user.name || user.username || user.user_name || 'Unnamed';
-                                    const username = user.username || user.user_name;
+                <>
+                    {/* Section A: Pending Approval */}
+                    <div className="mb-6 bg-white dark:bg-[#1e2124] rounded-2xl border border-amber-500/20 shadow-lg overflow-hidden">
+                        <button
+                            onClick={() => setPendingOpen(!pendingOpen)}
+                            className="w-full flex items-center justify-between p-5 hover:bg-amber-500/5 transition-colors"
+                        >
+                            <div className="flex items-center gap-3">
+                                <span className="material-symbols-outlined text-amber-500">pending_actions</span>
+                                <span className="font-bold text-sm text-slate-900 dark:text-white">Pending Approval</span>
+                                {pendingApproval.length > 0 && (
+                                    <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                                        {pendingApproval.length}
+                                    </span>
+                                )}
+                            </div>
+                            <span className={`material-symbols-outlined text-slate-400 transition-transform ${pendingOpen ? 'rotate-180' : ''}`}>
+                                expand_more
+                            </span>
+                        </button>
 
-                                    return (
-                                        <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                                            <td className="p-6">
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold text-sm text-slate-900 dark:text-white">{displayName}</span>
-                                                    {username && username !== displayName && (
-                                                        <span className="text-[10px] font-mono text-slate-400">@{username}</span>
-                                                    )}
+                        {pendingOpen && (
+                            <div className="border-t border-amber-500/10">
+                                {pendingApproval.length === 0 ? (
+                                    <div className="p-6 text-center text-slate-400 text-sm">
+                                        <span className="material-symbols-outlined text-3xl mb-2 block text-slate-300 dark:text-slate-600">check_circle</span>
+                                        No pending approval requests
+                                    </div>
+                                ) : (
+                                    <div className="divide-y divide-amber-500/10">
+                                        {pendingApproval.map(user => (
+                                            <div key={user.id} className="flex items-center justify-between p-4 px-5 hover:bg-amber-500/5 transition-colors">
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-bold text-sm text-slate-900 dark:text-white truncate">{getDisplayName(user)}</p>
+                                                    <p className="text-xs text-slate-400 truncate">{user.email}</p>
+                                                    <p className="text-[10px] text-slate-500 mt-0.5">Requested on {formatDate(user.created_at)}</p>
                                                 </div>
-                                            </td>
-                                            <td className="p-6">
-                                                <span className="text-xs text-slate-500 font-medium">{user.email}</span>
-                                            </td>
-                                            <td className="p-6">
-                                                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wide ${user.role === 'admin' ? 'bg-purple-500/10 text-purple-500' : 'bg-slate-100 dark:bg-white/10 text-slate-500'
-                                                    }`}>
-                                                    {user.role}
-                                                </span>
-                                            </td>
-                                            <td className="p-6">
-                                                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wide ${user.access_level === 'trade' ? 'bg-rh-green/10 text-rh-green' :
-                                                    user.access_level === 'paper' ? 'bg-blue-500/10 text-blue-500' :
-                                                        'bg-orange-500/10 text-orange-500'
-                                                    }`}>
-                                                    {user.access_level}
-                                                </span>
-                                            </td>
-                                            <td className="p-6 text-center">
-                                                <button
-                                                    onClick={() => confirmChange('is_active', !user.is_active)}
-                                                    className={`w-10 h-6 rounded-full relative transition-colors duration-300 ${user.is_active ? 'bg-rh-green' : 'bg-slate-300 dark:bg-white/20'}`}
-                                                >
-                                                    <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${user.is_active ? 'translate-x-4' : ''}`}></div>
-                                                </button>
-                                            </td>
-                                            <td className="p-6 text-right">
-                                                <button
-                                                    onClick={() => handleEditClick(user)}
-                                                    className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
-                                                >
-                                                    <span className="material-symbols-outlined">edit</span>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                                                <div className="flex items-center gap-2 ml-4">
+                                                    <button
+                                                        onClick={() => quickAction(user.id, { is_active: true }, 'Approved new user signup')}
+                                                        className="flex items-center gap-1.5 bg-rh-green/10 hover:bg-rh-green/20 text-rh-green px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                                                    >
+                                                        <span className="material-symbols-outlined text-sm">check</span>
+                                                        Approve
+                                                    </button>
+                                                    <button
+                                                        onClick={() => quickAction(user.id, { is_active: false }, 'Rejected new user signup')}
+                                                        className="flex items-center gap-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                                                    >
+                                                        <span className="material-symbols-outlined text-sm">close</span>
+                                                        Reject
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
-                </div>
+
+                    {/* Section B: Trial Expired / Upgrade Requests */}
+                    <div className="mb-6 bg-white dark:bg-[#1e2124] rounded-2xl border border-blue-500/20 shadow-lg overflow-hidden">
+                        <button
+                            onClick={() => setExpiredOpen(!expiredOpen)}
+                            className="w-full flex items-center justify-between p-5 hover:bg-blue-500/5 transition-colors"
+                        >
+                            <div className="flex items-center gap-3">
+                                <span className="material-symbols-outlined text-blue-500">upgrade</span>
+                                <span className="font-bold text-sm text-slate-900 dark:text-white">Trial Expired / Upgrade Requests</span>
+                                {trialExpired.length > 0 && (
+                                    <span className="bg-blue-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                                        {trialExpired.length}
+                                    </span>
+                                )}
+                            </div>
+                            <span className={`material-symbols-outlined text-slate-400 transition-transform ${expiredOpen ? 'rotate-180' : ''}`}>
+                                expand_more
+                            </span>
+                        </button>
+
+                        {expiredOpen && (
+                            <div className="border-t border-blue-500/10">
+                                {trialExpired.length === 0 ? (
+                                    <div className="p-6 text-center text-slate-400 text-sm">
+                                        <span className="material-symbols-outlined text-3xl mb-2 block text-slate-300 dark:text-slate-600">verified</span>
+                                        No trial-expired users needing upgrade
+                                    </div>
+                                ) : (
+                                    <div className="divide-y divide-blue-500/10">
+                                        {trialExpired.map(user => (
+                                            <div key={user.id} className="flex items-center justify-between p-4 px-5 hover:bg-blue-500/5 transition-colors">
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-bold text-sm text-slate-900 dark:text-white truncate">{getDisplayName(user)}</p>
+                                                    <p className="text-xs text-slate-400 truncate">{user.email}</p>
+                                                    <div className="flex items-center gap-3 mt-1">
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${
+                                                            user.access_level === 'paper' ? 'bg-blue-500/10 text-blue-500' : 'bg-orange-500/10 text-orange-500'
+                                                        }`}>
+                                                            {user.access_level}
+                                                        </span>
+                                                        <span className="text-[10px] text-red-400 font-medium">
+                                                            Expired {daysSinceExpiry(user.created_at)} day{daysSinceExpiry(user.created_at) !== 1 ? 's' : ''} ago
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2 ml-4">
+                                                    {user.access_level !== 'paper' && (
+                                                        <button
+                                                            onClick={() => quickAction(user.id, { access_level: 'paper' }, 'Upgraded to paper trading')}
+                                                            className="flex items-center gap-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                                                        >
+                                                            <span className="material-symbols-outlined text-sm">description</span>
+                                                            Paper
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={() => quickAction(user.id, { access_level: 'trade' }, 'Upgraded to live trading')}
+                                                        className="flex items-center gap-1.5 bg-rh-green/10 hover:bg-rh-green/20 text-rh-green px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                                                    >
+                                                        <span className="material-symbols-outlined text-sm">trending_up</span>
+                                                        Trade
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Existing Users Table */}
+                    <div className="bg-white dark:bg-[#1e2124] rounded-3xl border border-gray-200 dark:border-white/5 overflow-hidden shadow-xl">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-white/5 border-b border-gray-200 dark:border-white/10 text-xs uppercase tracking-widest font-bold text-slate-500">
+                                        <th className="p-6">User</th>
+                                        <th className="p-6">Email</th>
+                                        <th className="p-6">Role</th>
+                                        <th className="p-6">Access Level</th>
+                                        <th className="p-6 text-center">Status</th>
+                                        <th className="p-6 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 dark:divide-white/5">
+                                    {users.map(user => {
+                                        const displayName = getDisplayName(user);
+                                        const username = user.username || user.user_name;
+
+                                        return (
+                                            <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                                                <td className="p-6">
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold text-sm text-slate-900 dark:text-white">{displayName}</span>
+                                                        {username && username !== displayName && (
+                                                            <span className="text-[10px] font-mono text-slate-400">@{username}</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="p-6">
+                                                    <span className="text-xs text-slate-500 font-medium">{user.email}</span>
+                                                </td>
+                                                <td className="p-6">
+                                                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wide ${user.role === 'admin' ? 'bg-purple-500/10 text-purple-500' : 'bg-slate-100 dark:bg-white/10 text-slate-500'
+                                                        }`}>
+                                                        {user.role}
+                                                    </span>
+                                                </td>
+                                                <td className="p-6">
+                                                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wide ${user.access_level === 'trade' ? 'bg-rh-green/10 text-rh-green' :
+                                                        user.access_level === 'paper' ? 'bg-blue-500/10 text-blue-500' :
+                                                            'bg-orange-500/10 text-orange-500'
+                                                        }`}>
+                                                        {user.access_level}
+                                                    </span>
+                                                </td>
+                                                <td className="p-6 text-center">
+                                                    <button
+                                                        onClick={() => confirmChange('is_active', !user.is_active)}
+                                                        className={`w-10 h-6 rounded-full relative transition-colors duration-300 ${user.is_active ? 'bg-rh-green' : 'bg-slate-300 dark:bg-white/20'}`}
+                                                    >
+                                                        <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${user.is_active ? 'translate-x-4' : ''}`}></div>
+                                                    </button>
+                                                </td>
+                                                <td className="p-6 text-right">
+                                                    <button
+                                                        onClick={() => handleEditClick(user)}
+                                                        className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
+                                                    >
+                                                        <span className="material-symbols-outlined">edit</span>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </>
             )}
 
             {/* Edit Modal */}
