@@ -49,6 +49,24 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, a
 
   const formatCurrency = (val?: number) => val ? `$${val.toFixed(2)}` : '-';
 
+  const cardWarnings = (() => {
+    if (isNoTrade) return [];
+    const warnings: { icon: string; text: string; severity: 'high' | 'medium' }[] = [];
+    const rec = signalText;
+    if (!rec.includes('STRONG')) {
+      warnings.push({ icon: '⚡', text: `Weak signal (${rec || '—'})`, severity: 'high' });
+    }
+    const [passed, total] = (signal.gates_passed || '0/6').split('/').map(Number);
+    const missed = total - passed;
+    if (missed > 0) {
+      warnings.push({ icon: '🚦', text: `${missed} gate${missed > 1 ? 's' : ''} failed (${signal.gates_passed})`, severity: missed >= 2 ? 'high' : 'medium' });
+    }
+    if (signal.tier === 'B+') {
+      warnings.push({ icon: '📊', text: 'Tier B+ (lower confidence)', severity: 'medium' });
+    }
+    return warnings;
+  })();
+
   return (
     <div className={`bg-white dark:bg-[#1a1f2e] border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden relative group transition-all duration-300 hover:border-gray-400 dark:hover:border-gray-600 hover:shadow-2xl ${isNoTrade ? 'opacity-60 grayscale-[0.5]' : ''}`}>
 
@@ -151,6 +169,25 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, a
           </div>
         )}
       </div>
+
+      {/* Warning Strip */}
+      {cardWarnings.length > 0 && (
+        <div className="px-4 pb-3 space-y-1.5">
+          {cardWarnings.map((w, i) => (
+            <div
+              key={i}
+              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold
+                ${w.severity === 'high'
+                  ? 'bg-red-500/5 border-red-500/20 text-red-400'
+                  : 'bg-amber-500/5 border-amber-500/20 text-amber-400'
+                }`}
+            >
+              <span className="text-xs">{w.icon}</span>
+              <span className="uppercase tracking-wide">{w.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Footer - Execute Button */}
       <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-[#0f1219]/50 flex gap-2">
