@@ -6,6 +6,8 @@ interface Props {
     sortBy: string;
     onSortChange: (sort: string) => void;
     onStrategyChange?: (strategy: string | null) => void;
+    searchQuery?: string;
+    onSearchChange?: (query: string) => void;
 }
 
 const OptionSignalFilters: React.FC<Props> = ({
@@ -14,6 +16,8 @@ const OptionSignalFilters: React.FC<Props> = ({
     sortBy,
     onSortChange,
     onStrategyChange,
+    searchQuery = '',
+    onSearchChange,
 }) => {
     const tabs = [
         { id: 'ALL', label: 'All', color: 'text-gray-400' },
@@ -45,6 +49,28 @@ const OptionSignalFilters: React.FC<Props> = ({
             </div>
 
             <div className="flex items-center gap-3 px-2 border-t md:border-t-0 border-gray-200 dark:border-gray-800 pt-3 md:pt-0">
+                {/* Ticker Search */}
+                {onSearchChange && (
+                    <div className="relative">
+                        <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">search</span>
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => onSearchChange(e.target.value)}
+                            placeholder="Search ticker..."
+                            className="w-28 md:w-36 pl-7 pr-7 py-1.5 rounded-lg text-xs font-bold bg-gray-100 dark:bg-[#0d1117] border border-gray-200 dark:border-gray-700/60 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-blue-500 transition-colors"
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => onSearchChange('')}
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                            >
+                                <span className="material-symbols-outlined text-sm">close</span>
+                            </button>
+                        )}
+                    </div>
+                )}
+
                 <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Sort By:</span>
                 <div className="flex gap-2">
                     {['Signal', 'Tier', 'Symbol', 'Time'].map((option) => (

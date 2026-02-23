@@ -3,7 +3,7 @@ import { supabase } from '../services/supabase';
 import { UserProfile, UserRole, AccessLevel } from '../types';
 import type { User } from '@supabase/supabase-js';
 
-const TRIAL_DURATION_DAYS = 7;
+const TRIAL_DURATION_DAYS = 30;
 
 const WEBHOOK_APPROVE_USER = import.meta.env.VITE_WEBHOOK_APPROVE_USER || '';
 const WEBHOOK_UPGRADE_USER = import.meta.env.VITE_WEBHOOK_UPGRADE_USER || '';
@@ -280,9 +280,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                                                     <p className="font-bold text-sm text-slate-900 dark:text-white truncate">{getDisplayName(user)}</p>
                                                     <p className="text-xs text-slate-400 truncate">{user.email}</p>
                                                     <div className="flex items-center gap-3 mt-1">
-                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${
-                                                            user.access_level === 'paper' ? 'bg-blue-500/10 text-blue-500' : 'bg-orange-500/10 text-orange-500'
-                                                        }`}>
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${user.access_level === 'paper' ? 'bg-blue-500/10 text-blue-500' : 'bg-orange-500/10 text-orange-500'
+                                                            }`}>
                                                             {user.access_level}
                                                         </span>
                                                         <span className="text-[10px] text-red-400 font-medium">

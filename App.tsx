@@ -37,11 +37,18 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('signals');
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState('Tier');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrokerage, setSelectedBrokerage] = useState<string>('Alpaca');
 
   // Filter & Sort Logic
   const processedSignals = useMemo(() => {
     let result = [...signals];
+
+    // Ticker search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toUpperCase();
+      result = result.filter(s => s.symbol.toUpperCase().includes(q));
+    }
 
     // Filter Logic
     if (activeFilter !== 'ALL') {
@@ -95,7 +102,7 @@ const App: React.FC = () => {
       return 0;
     });
     return result;
-  }, [signals, activeFilter, sortBy]);
+  }, [signals, activeFilter, sortBy, searchQuery]);
 
   const handleManualRefresh = () => {
     startScan(refresh);
@@ -202,6 +209,8 @@ const App: React.FC = () => {
                   sortBy={sortBy}
                   onSortChange={setSortBy}
                   onStrategyChange={setSelectedStrategy}
+                  searchQuery={searchQuery}
+                  onSearchChange={setSearchQuery}
                 />
               </div>
             </div>

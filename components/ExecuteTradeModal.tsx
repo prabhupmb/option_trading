@@ -115,9 +115,9 @@ const BLOCKING_ERROR_CONFIG: Record<BlockingErrorType, {
     },
     broker_not_configured: {
         icon: '⚙️',
-        title: 'BROKER NOT CONFIGURED',
+        title: 'NO BROKER CONFIGURED',
         color: '#f59e0b',
-        message: 'Could not connect to your broker. Please check your broker settings.',
+        message: 'Please configure a broker from the Settings screen before placing an order.',
     },
 };
 
@@ -372,7 +372,8 @@ const ModeToggle: React.FC<{ value: TPSLMode; onChange: (m: TPSLMode) => void; c
 
 const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, signal, onSuccess, onNavigate }) => {
     const { user, accessLevel } = useAuth();
-    const { selectedBroker } = useBrokerContext();
+    const { brokers, selectedBroker } = useBrokerContext();
+    const noBroker = !selectedBroker && brokers.filter(b => b.is_active).length === 0;
 
     // Flow
     const [step, setStep] = useState<FlowStep>(1);
@@ -498,7 +499,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
             setSelectedContract(null);
             setBudgetError(null);
             setDuplicateError(null);
-            setBlockingError(null);
+            setBlockingError(noBroker ? 'broker_not_configured' : null);
             setConfirmText('');
             setWarningAcknowledged(false);
 
@@ -809,7 +810,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                         className={`rounded-xl p-4 border ${w.severity === 'high'
                                             ? 'bg-red-900/10 border-red-500/30'
                                             : 'bg-amber-900/10 border-amber-500/30'
-                                        }`}
+                                            }`}
                                     >
                                         <div className="flex items-center gap-2 mb-1.5">
                                             <span className="text-lg">{w.icon}</span>

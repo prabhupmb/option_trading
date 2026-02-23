@@ -5,7 +5,7 @@ import { UserRole, AccessLevel } from '../types';
 
 export type VerificationStatus = 'idle' | 'verifying' | 'allowed' | 'signup' | 'denied' | 'unauthorized' | 'trial_expired';
 
-const TRIAL_DURATION_DAYS = 7;
+const TRIAL_DURATION_DAYS = 30;
 
 const isTrialEligible = (role?: string, accessLevel?: string): boolean =>
     role !== 'admin' && accessLevel !== 'trade';

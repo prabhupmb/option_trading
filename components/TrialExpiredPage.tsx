@@ -34,7 +34,7 @@ const TrialExpiredPage: React.FC<TrialExpiredPageProps> = ({ onSignOut, userEmai
                 </h1>
 
                 <p className="text-slate-400 text-sm mb-6">
-                    Your 7-day free trial has ended. Upgrade your plan to continue using Signal Feed.
+                    Your 30-day free trial has ended. Upgrade your plan to continue using Signal Feed.
                 </p>
 
                 {userEmail && (
