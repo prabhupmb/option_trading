@@ -30,6 +30,7 @@ const mapDayTradeToSignal = (row: any): OptionSignal => ({
     sma_direction: undefined,
     fib_target1: row.target1 || 0,
     fib_target2: row.target2 || 0,
+    fib_profit_zone_label: row.profit_zone_label || undefined,
     fib_stop_loss: row.stop_loss || 0,
     risk_reward_ratio: row.target1 && row.stop_loss && row.current_price
         ? ((row.target1 - row.current_price) / (row.current_price - row.stop_loss)).toFixed(1)

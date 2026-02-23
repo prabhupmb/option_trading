@@ -18,10 +18,17 @@ const SignalFeed: React.FC = () => {
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [showWatchlists, setShowWatchlists] = useState(false);
     const [executingSignal, setExecutingSignal] = useState<SmartSignal | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Filter and Sort Logic
     const processedSignals = useMemo(() => {
         let result = [...signals];
+
+        // Ticker search
+        if (searchQuery.trim()) {
+            const q = searchQuery.trim().toUpperCase();
+            result = result.filter(s => s.symbol.toUpperCase().includes(q));
+        }
 
         // Filter
         if (activeFilter !== 'ALL') {
@@ -40,7 +47,7 @@ const SignalFeed: React.FC = () => {
         });
 
         return result;
-    }, [signals, activeFilter, sortBy]);
+    }, [signals, activeFilter, sortBy, searchQuery]);
 
     return (
         <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#0f1219] min-h-screen text-slate-900 dark:text-white font-sans">
@@ -89,9 +96,16 @@ const SignalFeed: React.FC = () => {
                             <span className="material-symbols-outlined text-gray-500 text-sm">search</span>
                             <input
                                 type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Search Ticker..."
                                 className="bg-transparent border-none outline-none text-xs text-slate-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 w-32 focus:w-48 transition-all"
                             />
+                            {searchQuery && (
+                                <button onClick={() => setSearchQuery('')} className="text-gray-400 hover:text-white transition-colors">
+                                    <span className="material-symbols-outlined text-sm">close</span>
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
