@@ -408,8 +408,24 @@ const Portfolio: React.FC = () => {
                                                 {p.dayPLPct > 0 ? '+' : ''}{p.dayPLPct?.toFixed(1)}%
                                             </span>
                                         </span>
-                                        <span className="flex-1 text-right text-gray-400 text-xs">
-                                            {p.isOption ? formatExpiry(p.expirationDate) : '-'}
+                                        <span className="flex-1 text-right">
+                                            {p.isOption && p.expirationDate ? (() => {
+                                                const expDate = new Date(p.expirationDate);
+                                                const dte = Math.max(0, Math.ceil((expDate.getTime() - Date.now()) / 86400000));
+                                                const dteColor = dte <= 3 ? 'text-red-400' : dte <= 7 ? 'text-amber-400' : 'text-gray-500';
+                                                return (
+                                                    <>
+                                                        <span className="text-gray-300 text-xs block">
+                                                            {expDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                                        </span>
+                                                        <span className={`text-[10px] font-bold block ${dteColor}`}>
+                                                            {dte === 0 ? 'Expires today' : `${dte}d left`}
+                                                        </span>
+                                                    </>
+                                                );
+                                            })() : (
+                                                <span className="text-gray-600 text-xs">-</span>
+                                            )}
                                         </span>
                                         <span className="flex-1 text-right">
                                             {isBracket ? (
@@ -424,8 +440,8 @@ const Portfolio: React.FC = () => {
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); setSellPosition(p); }}
                                                     className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 flex items-center gap-1.5 ml-auto ${p.dayPL >= 0
-                                                            ? 'bg-green-950/40 text-green-400 border border-green-900 hover:bg-green-900/40'
-                                                            : 'bg-red-950/40 text-red-400 border border-red-900 hover:bg-red-900/40'
+                                                        ? 'bg-green-950/40 text-green-400 border border-green-900 hover:bg-green-900/40'
+                                                        : 'bg-red-950/40 text-red-400 border border-red-900 hover:bg-red-900/40'
                                                         }`}
                                                 >
                                                     <span className="material-symbols-outlined text-sm">sell</span>
