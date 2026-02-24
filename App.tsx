@@ -161,7 +161,7 @@ const App: React.FC = () => {
 
   // Trial Expired
   if (verificationStatus === 'trial_expired') {
-    return <TrialExpiredPage onSignOut={signOut} userEmail={verificationData.email || user?.email || undefined} />;
+    return <TrialExpiredPage onSignOut={signOut} userEmail={verificationData.email || user?.email || undefined} userId={user?.id} fullName={user?.user_metadata?.full_name} />;
   }
 
   return (

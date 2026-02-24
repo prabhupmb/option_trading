@@ -3,13 +3,39 @@ import React, { useState } from 'react';
 interface TrialExpiredPageProps {
     onSignOut: () => void;
     userEmail?: string;
+    userId?: string;
+    fullName?: string;
 }
 
-const TrialExpiredPage: React.FC<TrialExpiredPageProps> = ({ onSignOut, userEmail }) => {
+const TrialExpiredPage: React.FC<TrialExpiredPageProps> = ({ onSignOut, userEmail, userId, fullName }) => {
     const [requestSent, setRequestSent] = useState(false);
+    const [sending, setSending] = useState(false);
 
-    const handleRequestUpgrade = () => {
-        setRequestSent(true);
+    const handleRequestUpgrade = async () => {
+        setSending(true);
+        try {
+            const response = await fetch('https://prabhupadala01.app.n8n.cloud/webhook/upgrade-request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: userId || null,
+                    email: userEmail || null,
+                    full_name: fullName || 'Unknown',
+                    current_level: 'signal',
+                    requested_level: 'trade',
+                    request_source: 'trial_expired',
+                    message: null,
+                }),
+            });
+
+            if (response.ok) {
+                setRequestSent(true);
+            }
+        } catch (e) {
+            console.error('Upgrade request failed:', e);
+        } finally {
+            setSending(false);
+        }
     };
 
     return (
@@ -65,10 +91,11 @@ const TrialExpiredPage: React.FC<TrialExpiredPageProps> = ({ onSignOut, userEmai
                 ) : (
                     <button
                         onClick={handleRequestUpgrade}
-                        className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-bold py-3 px-6 rounded-xl transition-all duration-200 active:scale-[0.98] mb-3"
+                        disabled={sending}
+                        className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-bold py-3 px-6 rounded-xl transition-all duration-200 active:scale-[0.98] mb-3 disabled:opacity-60"
                     >
-                        <span className="material-symbols-outlined text-lg">upgrade</span>
-                        <span className="text-sm">Request Upgrade</span>
+                        <span className={`material-symbols-outlined text-lg ${sending ? 'animate-spin' : ''}`}>{sending ? 'sync' : 'upgrade'}</span>
+                        <span className="text-sm">{sending ? 'Sending Request...' : 'Request Upgrade'}</span>
                     </button>
                 )}
 

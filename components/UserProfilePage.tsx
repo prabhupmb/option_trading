@@ -12,15 +12,30 @@ const UserProfilePage: React.FC = () => {
         setRequesting(true);
         setMessage('');
 
-        try {
-            // Mocking the request - in production this would hit a webhook
-            // const response = await fetch('https://prabhupadala01.app.n8n.cloud/webhook/request-upgrade', ...);
+        const requestedLevel = type === 'trade' ? 'trade' : 'trade';
 
-            await new Promise(r => setTimeout(r, 1000)); // Simulate delay
+        try {
+            const response = await fetch('https://prabhupadala01.app.n8n.cloud/webhook/upgrade-request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: user?.id,
+                    email: user?.email,
+                    full_name: user?.user_metadata?.full_name || 'Unknown',
+                    current_level: accessLevel || 'signal',
+                    requested_level: type === 'live' ? 'trade' : 'trade',
+                    request_source: 'settings',
+                    message: null,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Request failed');
+            }
 
             setMessage(`Request for ${type === 'trade' ? 'Trading Access' : 'Live Trading'} sent to admin.`);
         } catch (e) {
-            setMessage('Failed to send request.');
+            setMessage('Failed to send request. Please try again.');
         } finally {
             setRequesting(false);
         }
