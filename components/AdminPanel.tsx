@@ -3,10 +3,26 @@ import { supabase } from '../services/supabase';
 import { UserProfile, UserRole, AccessLevel } from '../types';
 import type { User } from '@supabase/supabase-js';
 
-const TRIAL_DURATION_DAYS = 30;
 
 const WEBHOOK_APPROVE_USER = import.meta.env.VITE_WEBHOOK_APPROVE_USER || '';
 const WEBHOOK_UPGRADE_USER = import.meta.env.VITE_WEBHOOK_UPGRADE_USER || '';
+
+interface UpgradeRequest {
+    id: number;
+    user_id: string;
+    email: string;
+    full_name: string | null;
+    current_level: string;
+    requested_level: string;
+    request_source: string;
+    message: string | null;
+    status: string;
+    reviewed_by: string | null;
+    review_note: string | null;
+    reviewed_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
 
 interface AdminPanelProps {
     currentUser: User | null;
@@ -14,16 +30,19 @@ interface AdminPanelProps {
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
     const [users, setUsers] = useState<UserProfile[]>([]);
+    const [upgradeRequests, setUpgradeRequests] = useState<UpgradeRequest[]>([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
     const [actionReason, setActionReason] = useState('');
     const [showConfirm, setShowConfirm] = useState(false);
     const [pendingChange, setPendingChange] = useState<{ field: keyof UserProfile, value: any } | null>(null);
     const [pendingOpen, setPendingOpen] = useState(true);
-    const [expiredOpen, setExpiredOpen] = useState(true);
+    const [upgradeOpen, setUpgradeOpen] = useState(true);
 
     useEffect(() => {
         fetchUsers();
+        fetchUpgradeRequests();
     }, []);
 
     const fetchUsers = async () => {
@@ -41,22 +60,25 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
         setLoading(false);
     };
 
+    const fetchUpgradeRequests = async () => {
+        const { data, error } = await supabase
+            .from('upgrade_requests')
+            .select('*')
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching upgrade requests:', error);
+        } else {
+            setUpgradeRequests(data || []);
+        }
+    };
+
     // Derived lists
     const pendingApproval = useMemo(
         () => users.filter(u => !u.is_active),
         [users]
     );
-
-    const trialExpired = useMemo(() => {
-        const now = new Date();
-        return users.filter(u => {
-            if (u.role === 'admin' || u.access_level === 'trade') return false;
-            if (!u.created_at) return false;
-            const expiry = new Date(u.created_at);
-            expiry.setDate(expiry.getDate() + TRIAL_DURATION_DAYS);
-            return expiry < now && u.is_active;
-        });
-    }, [users]);
 
     const handleEditClick = (user: UserProfile) => {
         setEditingUser(user);
@@ -154,6 +176,47 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
         }
     };
 
+    const handleUpgradeAction = async (request: UpgradeRequest, action: 'approved' | 'rejected', newLevel?: string) => {
+        const reviewNote = action === 'approved'
+            ? `Upgraded to ${newLevel || request.requested_level} access`
+            : 'Request rejected by admin';
+
+        try {
+            const response = await fetch('https://prabhupadala01.app.n8n.cloud/webhook/upgrade-review', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    request_id: request.id,
+                    action: action === 'approved' ? 'approve' : 'reject',
+                    reviewed_by: currentUser?.id || currentUser?.email || 'unknown',
+                    review_note: reviewNote,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                alert('Failed to process request: ' + errorText);
+                return;
+            }
+        } catch (err: any) {
+            alert('Request failed: ' + (err.message || 'Network error'));
+            return;
+        }
+
+        await fetchUpgradeRequests();
+        await fetchUsers();
+    };
+
+    const timeAgo = (dateStr: string) => {
+        const diff = Date.now() - new Date(dateStr).getTime();
+        const mins = Math.floor(diff / 60000);
+        if (mins < 60) return `${mins}m ago`;
+        const hrs = Math.floor(mins / 60);
+        if (hrs < 24) return `${hrs}h ago`;
+        const days = Math.floor(hrs / 24);
+        return `${days}d ago`;
+    };
+
     const formatDate = (dateStr?: string) => {
         if (!dateStr) return 'N/A';
         return new Date(dateStr).toLocaleDateString('en-US', {
@@ -161,23 +224,31 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
         });
     };
 
-    const daysSinceExpiry = (createdAt?: string) => {
-        if (!createdAt) return 0;
-        const expiry = new Date(createdAt);
-        expiry.setDate(expiry.getDate() + TRIAL_DURATION_DAYS);
-        const diff = Math.floor((Date.now() - expiry.getTime()) / (1000 * 60 * 60 * 24));
-        return Math.max(0, diff);
-    };
-
     const getDisplayName = (user: UserProfile) =>
         user.full_name || user.name || user.username || user.user_name || 'Unnamed';
 
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        await Promise.all([fetchUsers(), fetchUpgradeRequests()]);
+        setRefreshing(false);
+    };
+
     return (
         <div className="p-8 max-w-7xl mx-auto text-slate-900 dark:text-white">
-            <h1 className="text-3xl font-black mb-8 flex items-center gap-3">
-                <span className="material-symbols-outlined text-4xl text-rh-green">admin_panel_settings</span>
-                Admin Panel
-            </h1>
+            <div className="flex items-center justify-between mb-8">
+                <h1 className="text-3xl font-black flex items-center gap-3">
+                    <span className="material-symbols-outlined text-4xl text-rh-green">admin_panel_settings</span>
+                    Admin Panel
+                </h1>
+                <button
+                    onClick={handleRefresh}
+                    disabled={refreshing}
+                    className="flex items-center gap-2 bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 text-slate-700 dark:text-white font-bold py-2.5 px-5 rounded-xl transition-all active:scale-[0.97] disabled:opacity-60"
+                >
+                    <span className={`material-symbols-outlined text-lg ${refreshing ? 'animate-spin' : ''}`}>sync</span>
+                    <span className="text-sm">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+                </button>
+            </div>
 
             {loading ? (
                 <div className="flex justify-center py-20">
@@ -245,66 +316,80 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                         )}
                     </div>
 
-                    {/* Section B: Trial Expired / Upgrade Requests */}
+                    {/* Section B: Upgrade Requests */}
                     <div className="mb-6 bg-white dark:bg-[#1e2124] rounded-2xl border border-blue-500/20 shadow-lg overflow-hidden">
                         <button
-                            onClick={() => setExpiredOpen(!expiredOpen)}
+                            onClick={() => setUpgradeOpen(!upgradeOpen)}
                             className="w-full flex items-center justify-between p-5 hover:bg-blue-500/5 transition-colors"
                         >
                             <div className="flex items-center gap-3">
                                 <span className="material-symbols-outlined text-blue-500">upgrade</span>
-                                <span className="font-bold text-sm text-slate-900 dark:text-white">Trial Expired / Upgrade Requests</span>
-                                {trialExpired.length > 0 && (
+                                <span className="font-bold text-sm text-slate-900 dark:text-white">Upgrade Requests</span>
+                                {upgradeRequests.length > 0 && (
                                     <span className="bg-blue-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                                        {trialExpired.length}
+                                        {upgradeRequests.length}
                                     </span>
                                 )}
                             </div>
-                            <span className={`material-symbols-outlined text-slate-400 transition-transform ${expiredOpen ? 'rotate-180' : ''}`}>
+                            <span className={`material-symbols-outlined text-slate-400 transition-transform ${upgradeOpen ? 'rotate-180' : ''}`}>
                                 expand_more
                             </span>
                         </button>
 
-                        {expiredOpen && (
+                        {upgradeOpen && (
                             <div className="border-t border-blue-500/10">
-                                {trialExpired.length === 0 ? (
+                                {upgradeRequests.length === 0 ? (
                                     <div className="p-6 text-center text-slate-400 text-sm">
                                         <span className="material-symbols-outlined text-3xl mb-2 block text-slate-300 dark:text-slate-600">verified</span>
-                                        No trial-expired users needing upgrade
+                                        No pending upgrade requests
                                     </div>
                                 ) : (
                                     <div className="divide-y divide-blue-500/10">
-                                        {trialExpired.map(user => (
-                                            <div key={user.id} className="flex items-center justify-between p-4 px-5 hover:bg-blue-500/5 transition-colors">
+                                        {upgradeRequests.map(req => (
+                                            <div key={req.id} className="flex items-center justify-between p-4 px-5 hover:bg-blue-500/5 transition-colors">
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="font-bold text-sm text-slate-900 dark:text-white truncate">{getDisplayName(user)}</p>
-                                                    <p className="text-xs text-slate-400 truncate">{user.email}</p>
-                                                    <div className="flex items-center gap-3 mt-1">
-                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${user.access_level === 'paper' ? 'bg-blue-500/10 text-blue-500' : 'bg-orange-500/10 text-orange-500'
-                                                            }`}>
-                                                            {user.access_level}
+                                                    <p className="font-bold text-sm text-slate-900 dark:text-white truncate">{req.full_name || 'Unknown'}</p>
+                                                    <p className="text-xs text-slate-400 truncate">{req.email}</p>
+                                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${req.current_level === 'paper' ? 'bg-blue-500/10 text-blue-500' : 'bg-orange-500/10 text-orange-500'}`}>
+                                                            {req.current_level}
                                                         </span>
-                                                        <span className="text-[10px] text-red-400 font-medium">
-                                                            Expired {daysSinceExpiry(user.created_at)} day{daysSinceExpiry(user.created_at) !== 1 ? 's' : ''} ago
+                                                        <span className="material-symbols-outlined text-[12px] text-slate-500">arrow_forward</span>
+                                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide bg-rh-green/10 text-rh-green">
+                                                            {req.requested_level}
+                                                        </span>
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${req.request_source === 'trial_expired' ? 'bg-amber-500/10 text-amber-500' : 'bg-slate-500/10 text-slate-400'}`}>
+                                                            {req.request_source === 'trial_expired' ? 'Trial Expired' : 'Settings'}
+                                                        </span>
+                                                        <span className="text-[10px] text-slate-500 font-medium">
+                                                            {timeAgo(req.created_at)}
                                                         </span>
                                                     </div>
+                                                    {req.message && (
+                                                        <p className="text-[11px] text-slate-400 mt-1.5 italic">&ldquo;{req.message}&rdquo;</p>
+                                                    )}
                                                 </div>
                                                 <div className="flex items-center gap-2 ml-4">
-                                                    {user.access_level !== 'paper' && (
-                                                        <button
-                                                            onClick={() => quickAction(user.id, { access_level: 'paper' }, 'Upgraded to paper trading')}
-                                                            className="flex items-center gap-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
-                                                        >
-                                                            <span className="material-symbols-outlined text-sm">description</span>
-                                                            Paper
-                                                        </button>
-                                                    )}
                                                     <button
-                                                        onClick={() => quickAction(user.id, { access_level: 'trade' }, 'Upgraded to live trading')}
+                                                        onClick={() => handleUpgradeAction(req, 'approved', 'paper')}
+                                                        className="flex items-center gap-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                                                    >
+                                                        <span className="material-symbols-outlined text-sm">description</span>
+                                                        Paper
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleUpgradeAction(req, 'approved', 'trade')}
                                                         className="flex items-center gap-1.5 bg-rh-green/10 hover:bg-rh-green/20 text-rh-green px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
                                                     >
                                                         <span className="material-symbols-outlined text-sm">trending_up</span>
                                                         Trade
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleUpgradeAction(req, 'rejected')}
+                                                        className="flex items-center gap-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                                                    >
+                                                        <span className="material-symbols-outlined text-sm">close</span>
+                                                        Reject
                                                     </button>
                                                 </div>
                                             </div>
