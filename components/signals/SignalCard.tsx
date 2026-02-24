@@ -114,8 +114,8 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal, accessLevel, onExecute 
                                 <p className="text-sm font-mono text-slate-900 dark:text-white">{signal.indicators?.adx?.toFixed(0) || '-'}</p>
                             </div>
                             <div className="text-right">
-                                <span className="text-[10px] text-gray-500 uppercase font-bold">Support</span>
-                                <p className="text-sm font-mono text-blue-500 dark:text-blue-400">{formatCurrency(signal.entry_price)}</p>
+                                <span className="text-[10px] text-gray-500 uppercase font-bold">Stop Loss</span>
+                                <p className="text-sm font-mono text-red-500 dark:text-red-400">{formatCurrency(signal.stop_loss)}</p>
                             </div>
                         </>
                     )}
