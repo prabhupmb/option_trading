@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useBrokerContext } from '../context/BrokerContext';
 import { useAuth } from '../services/useAuth';
+import SellPositionModal from './SellPositionModal';
 
 // --- TYPES ---
 interface PortfolioAccount {
@@ -129,6 +130,7 @@ const Portfolio: React.FC = () => {
     const [posFilter, setPosFilter] = useState('all');
     const [orderFilter, setOrderFilter] = useState('all');
     const [refreshing, setRefreshing] = useState(false);
+    const [sellPosition, setSellPosition] = useState<Position | null>(null);
 
     const fetchPortfolio = useCallback(async () => {
         if (!selectedBroker) {
@@ -245,6 +247,16 @@ const Portfolio: React.FC = () => {
             return true;
         });
 
+    // Check if a position has a pending bracket/GTC sell order
+    const hasBracketOrder = (pos: Position): boolean => {
+        const pendingStatuses = ['QUEUED', 'WORKING', 'NEW', 'ACCEPTED', 'PENDING_ACTIVATION'];
+        return allOrders.some(o =>
+            o.symbol === pos.symbol &&
+            pendingStatuses.includes(o.status) &&
+            (o.instruction?.includes('SELL') || o.instruction === 'SELL_TO_CLOSE')
+        );
+    };
+
     return (
         <div className="p-6 max-w-[1200px] mx-auto space-y-6 animate-in fade-in duration-300">
 
@@ -314,8 +326,8 @@ const Portfolio: React.FC = () => {
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={`px-4 py-2.5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors ${activeTab === tab
-                                ? 'text-white border-green-500'
-                                : 'text-gray-500 border-transparent hover:text-gray-300'
+                            ? 'text-white border-green-500'
+                            : 'text-gray-500 border-transparent hover:text-gray-300'
                             }`}
                     >
                         {tab === 'positions' ? 'Active Positions' : 'Order History'}
@@ -337,8 +349,8 @@ const Portfolio: React.FC = () => {
                                 key={f}
                                 onClick={() => setPosFilter(f)}
                                 className={`px-3.5 py-1.5 rounded-md border text-xs font-semibold transition-colors capitalize ${posFilter === f
-                                        ? 'bg-green-950/40 text-green-400 border-green-900'
-                                        : 'bg-[#111820] text-gray-400 border-gray-800 hover:border-gray-600'
+                                    ? 'bg-green-950/40 text-green-400 border-green-900'
+                                    : 'bg-[#111820] text-gray-400 border-gray-800 hover:border-gray-600'
                                     }`}
                             >
                                 {f}
@@ -361,10 +373,12 @@ const Portfolio: React.FC = () => {
                                 <span className="flex-1 text-right">MKT VALUE</span>
                                 <span className="flex-1 text-right">P&L</span>
                                 <span className="flex-1 text-right">EXPIRY</span>
+                                <span className="flex-1 text-right">ACTION</span>
                             </div>
                             {/* Table Rows */}
                             {filteredPositions.map((p, i) => {
                                 const plColor = p.dayPL > 0 ? 'text-green-400' : p.dayPL < 0 ? 'text-red-400' : 'text-gray-400';
+                                const isBracket = hasBracketOrder(p);
                                 return (
                                     <div key={i} className={`flex items-center px-4 py-3 hover:bg-white/[0.02] transition-colors ${i < filteredPositions.length - 1 ? 'border-b border-gray-800/50' : ''}`}>
                                         <span className="flex-[2] flex items-center gap-2.5">
@@ -397,6 +411,28 @@ const Portfolio: React.FC = () => {
                                         <span className="flex-1 text-right text-gray-400 text-xs">
                                             {p.isOption ? formatExpiry(p.expirationDate) : '-'}
                                         </span>
+                                        <span className="flex-1 text-right">
+                                            {isBracket ? (
+                                                <span
+                                                    className="px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1.5 ml-auto bg-gray-800/50 text-gray-500 border border-gray-700 cursor-not-allowed"
+                                                    title="Bracket (GTC) order is active — position will auto-close at TP/SL"
+                                                >
+                                                    <span className="material-symbols-outlined text-sm">lock</span>
+                                                    Bracket
+                                                </span>
+                                            ) : (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setSellPosition(p); }}
+                                                    className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 flex items-center gap-1.5 ml-auto ${p.dayPL >= 0
+                                                            ? 'bg-green-950/40 text-green-400 border border-green-900 hover:bg-green-900/40'
+                                                            : 'bg-red-950/40 text-red-400 border border-red-900 hover:bg-red-900/40'
+                                                        }`}
+                                                >
+                                                    <span className="material-symbols-outlined text-sm">sell</span>
+                                                    Close
+                                                </button>
+                                            )}
+                                        </span>
                                     </div>
                                 );
                             })}
@@ -415,8 +451,8 @@ const Portfolio: React.FC = () => {
                                 key={f}
                                 onClick={() => setOrderFilter(f)}
                                 className={`px-3.5 py-1.5 rounded-md border text-xs font-semibold transition-colors capitalize ${orderFilter === f
-                                        ? 'bg-green-950/40 text-green-400 border-green-900'
-                                        : 'bg-[#111820] text-gray-400 border-gray-800 hover:border-gray-600'
+                                    ? 'bg-green-950/40 text-green-400 border-green-900'
+                                    : 'bg-[#111820] text-gray-400 border-gray-800 hover:border-gray-600'
                                     }`}
                             >
                                 {f}
@@ -461,8 +497,8 @@ const Portfolio: React.FC = () => {
                                     </span>
                                     <span className="flex-1">
                                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide border ${o.instruction?.includes('BUY')
-                                                ? 'bg-green-950 text-green-400 border-green-900'
-                                                : 'bg-red-950 text-red-400 border-red-900'
+                                            ? 'bg-green-950 text-green-400 border-green-900'
+                                            : 'bg-red-950 text-red-400 border-red-900'
                                             }`}>
                                             {o.instruction?.replace('_', ' ')}
                                         </span>
@@ -487,6 +523,23 @@ const Portfolio: React.FC = () => {
             <div className="text-center py-3 border-t border-[#1e2a36]">
                 <span className="text-gray-600 text-[11px]">Last synced: {formatDate(data.timestamp)}</span>
             </div>
+
+            {/* Sell Position Modal */}
+            <SellPositionModal
+                isOpen={!!sellPosition}
+                onClose={() => setSellPosition(null)}
+                position={sellPosition}
+                brokerInfo={selectedBroker ? {
+                    broker_id: selectedBroker.id,
+                    broker_name: selectedBroker.broker_name,
+                    broker_mode: selectedBroker.broker_mode,
+                } : null}
+                userId={user?.id}
+                onSuccess={() => {
+                    setSellPosition(null);
+                    fetchPortfolio();
+                }}
+            />
         </div>
     );
 };
