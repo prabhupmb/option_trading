@@ -27,6 +27,8 @@ interface Position {
     dayPL: number;
     dayPLPct: number;
     isOption: boolean;
+    underlyingPrice?: number;
+    underlyingPricePct?: number;
 }
 
 interface Order {
@@ -394,6 +396,16 @@ const Portfolio: React.FC = () => {
                                                     </span>
                                                 ) : (
                                                     <span className="text-gray-600 text-[11px] block">EQUITY</span>
+                                                )}
+                                                {p.underlyingPrice != null && (
+                                                    <span className="flex items-center gap-1.5 mt-0.5">
+                                                        <span className="text-gray-300 text-[11px] font-mono">${p.underlyingPrice.toFixed(2)}</span>
+                                                        {p.underlyingPricePct != null && (
+                                                            <span className={`text-[10px] font-bold ${p.underlyingPricePct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                {p.underlyingPricePct >= 0 ? '▲' : '▼'} {Math.abs(p.underlyingPricePct).toFixed(1)}%
+                                                            </span>
+                                                        )}
+                                                    </span>
                                                 )}
                                             </span>
                                         </span>

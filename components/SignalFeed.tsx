@@ -8,6 +8,7 @@ import SignalSkeleton from './signals/SignalSkeleton';
 import UploadWatchlistModal from './signals/UploadWatchlistModal';
 import WatchlistManager from './signals/WatchlistManager';
 import ExecuteStockTradeModal from './ExecuteStockTradeModal';
+import DataDelayBanner from './DataDelayBanner';
 
 const SignalFeed: React.FC = () => {
     const { signals, loading, error, lastUpdated, refresh } = useSignals();
@@ -52,6 +53,9 @@ const SignalFeed: React.FC = () => {
     return (
         <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#0f1219] min-h-screen text-slate-900 dark:text-white font-sans">
             <div className="max-w-[1600px] mx-auto p-6 lg:p-8">
+
+                {/* Data Delay Banner */}
+                <DataDelayBanner onRefresh={refresh} loading={loading} />
 
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">

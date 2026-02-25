@@ -19,6 +19,7 @@ import { OptionSignal } from './types';
 import { useOptionSignals } from './hooks/useOptionSignals';
 import { useStrategyConfigs } from './hooks/useStrategyConfigs';
 import { useScanProgress } from './hooks/useScanProgress';
+import DataDelayBanner from './components/DataDelayBanner';
 
 const App: React.FC = () => {
   const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut, role, accessLevel, trialDaysLeft, isTrialUser } = useAuth();
@@ -186,6 +187,9 @@ const App: React.FC = () => {
 
         {currentView === 'signals' ? (
           <main className="flex-1 p-8 overflow-y-auto">
+            {/* Data Delay Banner */}
+            <DataDelayBanner onRefresh={handleManualRefresh} loading={loading} />
+
             {/* Stats Bar */}
             <OptionSignalStats signals={signals} onFilterClick={setActiveFilter} />
 

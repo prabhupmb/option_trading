@@ -98,4 +98,5 @@ export interface OptionSignal {
   fib_stop_loss: number;
   risk_reward_ratio: string;
   analyzed_at: string;
+  ai_entry_hint?: string;
 }
