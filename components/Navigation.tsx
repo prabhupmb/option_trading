@@ -2,7 +2,7 @@ import React from 'react';
 import type { User } from '@supabase/supabase-js';
 import { UserRole, AccessLevel } from '../types';
 
-export type View = 'signals' | 'smart-feed' | 'portfolio' | 'ai-hub' | 'watchlist' | 'history' | 'settings' | 'admin';
+export type View = 'signals' | 'smart-feed' | 'portfolio' | 'ai-hub' | 'chat' | 'watchlist' | 'history' | 'settings' | 'admin';
 
 interface NavigationProps {
   activeView: View;
@@ -21,6 +21,7 @@ const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, o
     { id: 'smart-feed', label: 'Stock Feed', icon: 'query_stats' },
     { id: 'portfolio', label: 'Portfolio', icon: 'analytics' },
     { id: 'ai-hub', label: 'AI Hub', icon: 'auto_awesome' },
+    { id: 'chat', label: 'Group Chat', icon: 'forum' },
     { id: 'settings', label: 'Settings', icon: 'settings' }
   ];
 
@@ -54,18 +55,15 @@ const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, o
 
       {/* Trial Badge */}
       {isTrialUser && trialDaysLeft !== undefined && trialDaysLeft > 0 && (
-        <div className={`mx-4 mt-4 px-3 py-2 rounded-xl border text-center ${
-          trialDaysLeft <= 2
-            ? 'bg-red-500/10 border-red-500/20'
-            : 'bg-amber-500/10 border-amber-500/20'
-        }`}>
+        <div className={`mx-4 mt-4 px-3 py-2 rounded-xl border text-center ${trialDaysLeft <= 2
+          ? 'bg-red-500/10 border-red-500/20'
+          : 'bg-amber-500/10 border-amber-500/20'
+          }`}>
           <div className="flex items-center justify-center gap-2">
-            <span className={`material-symbols-outlined text-sm ${
-              trialDaysLeft <= 2 ? 'text-red-400' : 'text-amber-400'
-            }`}>timer</span>
-            <span className={`text-xs font-bold ${
-              trialDaysLeft <= 2 ? 'text-red-400' : 'text-amber-400'
-            }`}>
+            <span className={`material-symbols-outlined text-sm ${trialDaysLeft <= 2 ? 'text-red-400' : 'text-amber-400'
+              }`}>timer</span>
+            <span className={`text-xs font-bold ${trialDaysLeft <= 2 ? 'text-red-400' : 'text-amber-400'
+              }`}>
               {trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'} left in trial
             </span>
           </div>

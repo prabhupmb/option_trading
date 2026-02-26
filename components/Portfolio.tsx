@@ -68,6 +68,25 @@ interface PortfolioData {
 }
 
 // --- HELPERS ---
+const parseOCC = (symbol: string | null | undefined) => {
+    if (!symbol || symbol.length < 15) return null;
+    try {
+        const match = symbol.match(/^([A-Z]+)(\d{6})([CP])(\d{8})$/);
+        if (!match) return null;
+        const [, ticker, dateStr, optType, strikeRaw] = match;
+        const yy = dateStr.slice(0, 2);
+        const mm = dateStr.slice(2, 4);
+        const dd = dateStr.slice(4, 6);
+        const expiry = `20${yy}-${mm}-${dd}`;
+        const strike = parseInt(strikeRaw, 10) / 1000;
+        const expiryDate = new Date(`${expiry}T16:00:00`);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dte = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return { underlying: ticker, expiry, strike, dte, optionType: optType === 'C' ? 'CALL' : 'PUT' };
+    } catch { return null; }
+};
+
 const WEBHOOK_URL = 'https://prabhupadala01.app.n8n.cloud/webhook/portfolio';
 
 const formatCurrency = (val: number | null | undefined): string => {
@@ -366,104 +385,138 @@ const Portfolio: React.FC = () => {
                             <p className="text-gray-500 text-sm">No active positions</p>
                         </div>
                     ) : (
-                        <div className="bg-[#111820] rounded-xl border border-[#1e2a36] overflow-hidden">
+                        <div className="bg-slate-900/80 rounded-2xl border border-slate-800 overflow-hidden">
                             {/* Table Header */}
-                            <div className="flex px-4 py-2.5 border-b border-[#1e2a36] text-[10px] font-bold text-gray-500 tracking-widest uppercase">
-                                <span className="flex-[2]">SYMBOL</span>
-                                <span className="flex-1 text-right">QTY</span>
-                                <span className="flex-1 text-right">AVG COST</span>
-                                <span className="flex-1 text-right">MKT VALUE</span>
-                                <span className="flex-1 text-right">P&L</span>
-                                <span className="flex-1 text-right">EXPIRY</span>
-                                <span className="flex-1 text-right">ACTION</span>
+                            <div className="grid grid-cols-[2fr_0.7fr_0.7fr_1fr_0.6fr_0.6fr_0.7fr_0.9fr_1fr_0.8fr] px-4 py-2.5 border-b border-slate-800 text-[10px] font-bold text-gray-500 tracking-widest uppercase">
+                                <span>SYMBOL</span>
+                                <span className="text-center">TYPE</span>
+                                <span className="text-right">STRIKE</span>
+                                <span className="text-right">EXPIRY</span>
+                                <span className="text-center">DTE</span>
+                                <span className="text-right">QTY</span>
+                                <span className="text-right">AVG COST</span>
+                                <span className="text-right">MKT VALUE</span>
+                                <span className="text-right">P&L</span>
+                                <span className="text-right">ACTION</span>
                             </div>
                             {/* Table Rows */}
                             {filteredPositions.map((p, i) => {
+                                const parsed = parseOCC(p.symbol);
                                 const plColor = p.dayPL > 0 ? 'text-green-400' : p.dayPL < 0 ? 'text-red-400' : 'text-gray-400';
                                 const isBracket = hasBracketOrder(p);
+                                const optType = parsed?.optionType || p.putCall || null;
+                                const strike = parsed?.strike ?? p.strikePrice ?? null;
+                                const expiryStr = parsed?.expiry || p.expirationDate || null;
+                                const dte = parsed?.dte ?? (expiryStr ? Math.max(0, Math.ceil((new Date(expiryStr + 'T16:00:00').getTime() - new Date().setHours(0, 0, 0, 0)) / 86400000)) : null);
+                                const dteColor = dte !== null
+                                    ? dte <= 3 ? 'bg-red-500/20 text-red-400 animate-pulse border border-red-500/30'
+                                        : dte <= 7 ? 'bg-red-500/15 text-red-400 border border-red-500/20'
+                                            : dte <= 14 ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20'
+                                                : 'bg-slate-700/60 text-slate-300 border border-slate-600/30'
+                                    : '';
+
                                 return (
-                                    <div key={i} className={`flex items-center px-4 py-3 hover:bg-white/[0.02] transition-colors ${i < filteredPositions.length - 1 ? 'border-b border-gray-800/50' : ''}`}>
-                                        <span className="flex-[2] flex items-center gap-2.5">
+                                    <div
+                                        key={i}
+                                        className={`group grid grid-cols-[2fr_0.7fr_0.7fr_1fr_0.6fr_0.6fr_0.7fr_0.9fr_1fr_0.8fr] items-center px-4 py-3 hover:bg-white/[0.03] transition-colors ${i < filteredPositions.length - 1 ? 'border-b border-slate-800/50' : ''}`}
+                                    >
+                                        {/* Symbol */}
+                                        <span className="flex items-center gap-2.5 min-w-0">
                                             <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-950 to-green-900/20 text-green-400 flex items-center justify-center text-xs font-bold border border-green-900 shrink-0">
-                                                {p.underlying?.charAt(0) || '?'}
+                                                {(parsed?.underlying || p.underlying)?.charAt(0) || '?'}
                                             </span>
-                                            <span>
-                                                <span className="text-white font-semibold text-sm block">{p.underlying}</span>
-                                                {p.isOption ? (
-                                                    <span className="flex items-center gap-1.5 mt-0.5">
-                                                        <TypeBadge type={p.putCall!} />
-                                                        <span className="text-gray-400 text-[11px]">${p.strikePrice}</span>
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-gray-600 text-[11px] block">EQUITY</span>
-                                                )}
-                                                {p.underlyingPrice != null && (
-                                                    <span className="flex items-center gap-1.5 mt-0.5">
-                                                        <span className="text-gray-300 text-[11px] font-mono">${p.underlyingPrice.toFixed(2)}</span>
-                                                        {p.underlyingPricePct != null && (
-                                                            <span className={`text-[10px] font-bold ${p.underlyingPricePct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                                {p.underlyingPricePct >= 0 ? '▲' : '▼'} {Math.abs(p.underlyingPricePct).toFixed(1)}%
-                                                            </span>
-                                                        )}
-                                                    </span>
-                                                )}
+                                            <span className="min-w-0">
+                                                <span className="text-white font-bold text-sm block truncate">{parsed?.underlying || p.underlying}</span>
+                                                <span className="text-gray-500 text-[10px] block truncate font-mono">{p.symbol}</span>
                                             </span>
                                         </span>
-                                        <span className="flex-1 text-right text-gray-300 text-sm font-medium">{p.quantity}</span>
-                                        <span className="flex-1 text-right text-gray-300 text-sm">{formatCurrency(p.avgPrice)}</span>
-                                        <span className="flex-1 text-right text-white text-sm font-semibold">{formatCurrency(p.marketValue)}</span>
-                                        <span className="flex-1 text-right">
-                                            <span className={`text-sm font-semibold block ${plColor}`}>
-                                                {p.dayPL > 0 ? '+' : ''}{formatCurrency(p.dayPL)}
-                                            </span>
-                                            <span className={`text-[11px] block opacity-80 ${plColor}`}>
-                                                {p.dayPLPct > 0 ? '+' : ''}{p.dayPLPct?.toFixed(1)}%
-                                            </span>
+                                        {/* Type */}
+                                        <span className="text-center">
+                                            {optType ? (
+                                                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider border ${optType === 'CALL' ? 'bg-green-950 text-green-400 border-green-900' : 'bg-red-950 text-red-400 border-red-900'}`}>
+                                                    {optType}
+                                                </span>
+                                            ) : (
+                                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider border bg-slate-800 text-slate-400 border-slate-700">STOCK</span>
+                                            )}
                                         </span>
-                                        <span className="flex-1 text-right">
-                                            {p.isOption && p.expirationDate ? (() => {
-                                                const expDate = new Date(p.expirationDate);
-                                                const dte = Math.max(0, Math.ceil((expDate.getTime() - Date.now()) / 86400000));
-                                                const dteColor = dte <= 3 ? 'text-red-400' : dte <= 7 ? 'text-amber-400' : 'text-gray-500';
-                                                return (
-                                                    <>
-                                                        <span className="text-gray-300 text-xs block">
-                                                            {expDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                                        </span>
-                                                        <span className={`text-[10px] font-bold block ${dteColor}`}>
-                                                            {dte === 0 ? 'Expires today' : `${dte}d left`}
-                                                        </span>
-                                                    </>
-                                                );
-                                            })() : (
+                                        {/* Strike */}
+                                        <span className="text-right text-gray-300 text-sm font-mono">
+                                            {strike != null ? `$${strike.toFixed(2)}` : '-'}
+                                        </span>
+                                        {/* Expiry */}
+                                        <span className="text-right text-gray-300 text-xs">
+                                            {expiryStr ? new Date(expiryStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : '-'}
+                                        </span>
+                                        {/* DTE */}
+                                        <span className="text-center">
+                                            {dte !== null ? (
+                                                <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-bold ${dteColor}`}>
+                                                    {dte}d
+                                                </span>
+                                            ) : (
                                                 <span className="text-gray-600 text-xs">-</span>
                                             )}
                                         </span>
-                                        <span className="flex-1 text-right">
-                                            {isBracket ? (
-                                                <span
-                                                    className="px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1.5 ml-auto bg-gray-800/50 text-gray-500 border border-gray-700 cursor-not-allowed"
-                                                    title="Bracket (GTC) order is active — position will auto-close at TP/SL"
-                                                >
-                                                    <span className="material-symbols-outlined text-sm">lock</span>
-                                                    Bracket
-                                                </span>
-                                            ) : (
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setSellPosition(p); }}
-                                                    className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 flex items-center gap-1.5 ml-auto ${p.dayPL >= 0
-                                                        ? 'bg-green-950/40 text-green-400 border border-green-900 hover:bg-green-900/40'
-                                                        : 'bg-red-950/40 text-red-400 border border-red-900 hover:bg-red-900/40'
-                                                        }`}
-                                                >
-                                                    <span className="material-symbols-outlined text-sm">sell</span>
-                                                    Close
-                                                </button>
-                                            )}
+                                        {/* Qty */}
+                                        <span className="text-right text-gray-300 text-sm font-medium">{p.quantity}</span>
+                                        {/* Avg Cost */}
+                                        <span className="text-right text-gray-300 text-sm font-mono">{formatCurrency(p.avgPrice)}</span>
+                                        {/* Mkt Value */}
+                                        <span className="text-right text-white text-sm font-semibold font-mono">{formatCurrency(p.marketValue)}</span>
+                                        {/* P&L */}
+                                        <span className="text-right">
+                                            <span className={`text-sm font-semibold block font-mono ${plColor}`}>
+                                                {p.dayPL > 0 ? '+' : ''}{formatCurrency(p.dayPL)}
+                                            </span>
+                                            <span className={`text-[10px] block opacity-80 ${plColor}`}>
+                                                {p.dayPLPct > 0 ? '+' : ''}{p.dayPLPct?.toFixed(1)}%
+                                            </span>
+                                        </span>
+                                        {/* Action — visible on hover */}
+                                        <span className="text-right">
+                                            <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 inline-block">
+                                                {isBracket ? (
+                                                    <span
+                                                        className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold inline-flex items-center gap-1.5 bg-gray-800/50 text-gray-500 border border-gray-700 cursor-not-allowed"
+                                                        title="Bracket (GTC) order is active"
+                                                    >
+                                                        <span className="material-symbols-outlined text-sm">lock</span>
+                                                        Bracket
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setSellPosition(p); }}
+                                                        className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 inline-flex items-center gap-1.5 bg-transparent text-red-400 border border-red-500/40 hover:bg-red-500/10 hover:border-red-500/60"
+                                                    >
+                                                        <span className="material-symbols-outlined text-sm">close</span>
+                                                        Close
+                                                    </button>
+                                                )}
+                                            </span>
                                         </span>
                                     </div>
                                 );
                             })}
+                            {/* Footer Totals */}
+                            {filteredPositions.length > 0 && (() => {
+                                const totalMktValue = filteredPositions.reduce((sum, p) => sum + (p.marketValue || 0), 0);
+                                const totalPL = filteredPositions.reduce((sum, p) => sum + (p.dayPL || 0), 0);
+                                const totalPLColor = totalPL > 0 ? 'text-green-400' : totalPL < 0 ? 'text-red-400' : 'text-gray-400';
+                                return (
+                                    <div className="grid grid-cols-[2fr_0.7fr_0.7fr_1fr_0.6fr_0.6fr_0.7fr_0.9fr_1fr_0.8fr] items-center px-4 py-3 border-t border-slate-700 bg-slate-800/30">
+                                        <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                            {filteredPositions.length} Position{filteredPositions.length !== 1 ? 's' : ''}
+                                        </span>
+                                        <span></span><span></span><span></span><span></span><span></span><span></span>
+                                        <span className="text-right text-white text-sm font-bold font-mono">{formatCurrency(totalMktValue)}</span>
+                                        <span className={`text-right text-sm font-bold font-mono ${totalPLColor}`}>
+                                            {totalPL > 0 ? '+' : ''}{formatCurrency(totalPL)}
+                                        </span>
+                                        <span></span>
+                                    </div>
+                                );
+                            })()}
                         </div>
                     )}
                 </div>

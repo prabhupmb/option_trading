@@ -99,4 +99,5 @@ export interface OptionSignal {
   risk_reward_ratio: string;
   analyzed_at: string;
   ai_entry_hint?: string;
+  ai_reason?: string;
 }

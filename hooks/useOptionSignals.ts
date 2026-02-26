@@ -38,6 +38,7 @@ const mapDayTradeToSignal = (row: any): OptionSignal => ({
         : '-',
     analyzed_at: row.analyzed_at || row.created_at,
     ai_entry_hint: row.ai_entry_hint || undefined,
+    ai_reason: row.ai_reason || undefined,
 });
 
 const mapMpSignalToOptionSignal = (row: any): OptionSignal => {

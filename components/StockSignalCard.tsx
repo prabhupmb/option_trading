@@ -169,16 +169,27 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, a
           </div>
         )}
 
-        {/* AI Entry Hint — shown for day_trade signals */}
-        {signal.ai_entry_hint && (
-          <div className="pt-2 border-t border-gray-200/50 dark:border-gray-800/50 border-dashed">
-            <div className="flex items-start gap-2.5 bg-purple-50 dark:bg-purple-900/10 px-3 py-2.5 rounded-lg border border-purple-200/50 dark:border-purple-500/20">
-              <span className="material-symbols-outlined text-[16px] text-purple-500 mt-0.5 flex-shrink-0">lightbulb</span>
-              <div>
-                <span className="text-[9px] font-black text-purple-600/70 dark:text-purple-400/60 uppercase tracking-widest block mb-1">AI Entry Hint</span>
-                <p className="text-[11px] leading-relaxed text-purple-900 dark:text-purple-200 font-medium">{signal.ai_entry_hint}</p>
+        {/* AI Insights — shown for day_trade signals */}
+        {(signal.ai_entry_hint || signal.ai_reason) && (
+          <div className="pt-2 border-t border-gray-200/50 dark:border-gray-800/50 border-dashed space-y-2">
+            {signal.ai_entry_hint && (
+              <div className="flex items-start gap-2.5 bg-purple-50 dark:bg-purple-900/10 px-3 py-2.5 rounded-lg border border-purple-200/50 dark:border-purple-500/20">
+                <span className="material-symbols-outlined text-[16px] text-purple-500 mt-0.5 flex-shrink-0">lightbulb</span>
+                <div>
+                  <span className="text-[9px] font-black text-purple-600/70 dark:text-purple-400/60 uppercase tracking-widest block mb-1">AI Entry Hint</span>
+                  <p className="text-[11px] leading-relaxed text-purple-900 dark:text-purple-200 font-medium">{signal.ai_entry_hint}</p>
+                </div>
               </div>
-            </div>
+            )}
+            {signal.ai_reason && (
+              <div className="flex items-start gap-2.5 bg-indigo-50 dark:bg-indigo-900/10 px-3 py-2.5 rounded-lg border border-indigo-200/50 dark:border-indigo-500/20">
+                <span className="material-symbols-outlined text-[16px] text-indigo-500 mt-0.5 flex-shrink-0">psychology</span>
+                <div>
+                  <span className="text-[9px] font-black text-indigo-600/70 dark:text-indigo-400/60 uppercase tracking-widest block mb-1">AI Reason</span>
+                  <p className="text-[11px] leading-relaxed text-indigo-900 dark:text-indigo-200 font-medium">{signal.ai_reason}</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
