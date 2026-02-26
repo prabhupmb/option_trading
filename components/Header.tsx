@@ -26,9 +26,10 @@ interface HeaderProps {
   strategies?: StrategyConfig[];
   selectedStrategy?: string | null;
   onStrategyChange?: (strategy: string | null) => void;
+  isAdmin?: boolean;
 }
 
-const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading, user, onSignOut, selectedBrokerage, onBrokerageChange, onNavigate, scanProgress, strategies, selectedStrategy, onStrategyChange }) => {
+const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading, user, onSignOut, selectedBrokerage, onBrokerageChange, onNavigate, scanProgress, strategies, selectedStrategy, onStrategyChange, isAdmin }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const userAvatar = user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
@@ -83,42 +84,44 @@ const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading, user, 
             <span className="material-symbols-outlined text-2xl">contrast</span>
           </button>
 
-          {/* Refresh / Scan Button */}
-          <button
-            onClick={onRefresh}
-            disabled={isScanning}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${isScanning
+          {/* Refresh / Scan Button — Admin Only */}
+          {isAdmin && (
+            <button
+              onClick={onRefresh}
+              disabled={isScanning}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${isScanning
                 ? 'bg-blue-500/10 border border-blue-500/30 text-blue-400 cursor-wait'
                 : isDone
                   ? 'bg-green-500/10 border border-green-500/30 text-green-400'
                   : isError
                     ? 'bg-red-500/10 border border-red-500/30 text-red-400'
                     : 'text-slate-400 hover:text-slate-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-white/5 border border-transparent'
-              }`}
-          >
-            {isScanning ? (
-              <>
-                <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
-                <span className="hidden sm:inline">
-                  Scanning... {scanProgress!.updated}/{scanProgress!.total}
-                </span>
-              </>
-            ) : isDone ? (
-              <>
-                <span className="material-symbols-outlined text-lg">check_circle</span>
-                <span className="hidden sm:inline">Updated!</span>
-              </>
-            ) : isError ? (
-              <>
-                <span className="material-symbols-outlined text-lg">error</span>
-                <span className="hidden sm:inline">Scan failed</span>
-              </>
-            ) : (
-              <>
-                <span className={`material-symbols-outlined text-2xl ${loading ? 'animate-spin' : ''}`}>refresh</span>
-              </>
-            )}
-          </button>
+                }`}
+            >
+              {isScanning ? (
+                <>
+                  <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
+                  <span className="hidden sm:inline">
+                    Scanning... {scanProgress!.updated}/{scanProgress!.total}
+                  </span>
+                </>
+              ) : isDone ? (
+                <>
+                  <span className="material-symbols-outlined text-lg">check_circle</span>
+                  <span className="hidden sm:inline">Updated!</span>
+                </>
+              ) : isError ? (
+                <>
+                  <span className="material-symbols-outlined text-lg">error</span>
+                  <span className="hidden sm:inline">Scan failed</span>
+                </>
+              ) : (
+                <>
+                  <span className={`material-symbols-outlined text-2xl ${loading ? 'animate-spin' : ''}`}>refresh</span>
+                </>
+              )}
+            </button>
+          )}
 
           {/* User Menu */}
           <div className="relative">

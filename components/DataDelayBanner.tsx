@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 interface DataDelayBannerProps {
     onRefresh: () => void;
     loading?: boolean;
+    isAdmin?: boolean;
 }
 
-const DataDelayBanner: React.FC<DataDelayBannerProps> = ({ onRefresh, loading }) => {
+const DataDelayBanner: React.FC<DataDelayBannerProps> = ({ onRefresh, loading, isAdmin }) => {
     const [dismissed, setDismissed] = useState(false);
 
     if (dismissed) return null;
@@ -19,14 +20,16 @@ const DataDelayBanner: React.FC<DataDelayBannerProps> = ({ onRefresh, loading })
                 </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-                <button
-                    onClick={onRefresh}
-                    disabled={loading}
-                    className="px-3 py-1.5 rounded-lg bg-amber-900/30 hover:bg-amber-900/50 text-amber-300 text-[11px] font-bold border border-amber-800/40 transition-colors flex items-center gap-1.5"
-                >
-                    <span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : ''}`}>refresh</span>
-                    Refresh
-                </button>
+                {isAdmin && (
+                    <button
+                        onClick={onRefresh}
+                        disabled={loading}
+                        className="px-3 py-1.5 rounded-lg bg-amber-900/30 hover:bg-amber-900/50 text-amber-300 text-[11px] font-bold border border-amber-800/40 transition-colors flex items-center gap-1.5"
+                    >
+                        <span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : ''}`}>refresh</span>
+                        Refresh
+                    </button>
+                )}
                 <button
                     onClick={() => setDismissed(true)}
                     className="w-7 h-7 rounded-lg hover:bg-white/5 flex items-center justify-center transition-colors"

@@ -12,7 +12,7 @@ import DataDelayBanner from './DataDelayBanner';
 
 const SignalFeed: React.FC = () => {
     const { signals, loading, error, lastUpdated, refresh } = useSignals();
-    const { accessLevel } = useAuth();
+    const { accessLevel, role } = useAuth();
 
     const [activeFilter, setActiveFilter] = useState('ALL');
     const [sortBy, setSortBy] = useState('Confidence');
@@ -55,7 +55,7 @@ const SignalFeed: React.FC = () => {
             <div className="max-w-[1600px] mx-auto p-6 lg:p-8">
 
                 {/* Data Delay Banner */}
-                <DataDelayBanner onRefresh={refresh} loading={loading} />
+                <DataDelayBanner onRefresh={refresh} loading={loading} isAdmin={role === 'admin'} />
 
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
@@ -89,13 +89,15 @@ const SignalFeed: React.FC = () => {
                             Watchlists
                         </button>
 
-                        <button
-                            onClick={refresh}
-                            className="bg-gray-100 dark:bg-[#1a1f2e] hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-800 transition-all flex items-center gap-2 text-xs font-bold uppercase tracking-wider"
-                        >
-                            <span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : ''}`}>refresh</span>
-                            Refresh
-                        </button>
+                        {role === 'admin' && (
+                            <button
+                                onClick={refresh}
+                                className="bg-gray-100 dark:bg-[#1a1f2e] hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-800 transition-all flex items-center gap-2 text-xs font-bold uppercase tracking-wider"
+                            >
+                                <span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : ''}`}>refresh</span>
+                                Refresh
+                            </button>
+                        )}
                         <div className="hidden md:flex items-center gap-2 bg-gray-100 dark:bg-[#1a1f2e] border border-gray-300 dark:border-gray-800 rounded-lg px-3 py-2">
                             <span className="material-symbols-outlined text-gray-500 text-sm">search</span>
                             <input
