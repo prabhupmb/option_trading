@@ -16,7 +16,8 @@ const DataDelayBanner: React.FC<DataDelayBannerProps> = ({ onRefresh, loading, i
             <div className="flex items-center gap-2.5 min-w-0">
                 <span className="material-symbols-outlined text-amber-400 text-base shrink-0">schedule</span>
                 <p className="text-amber-300/90 text-xs font-medium truncate">
-                    Market data may be <strong className="text-amber-200">15–20 min delayed</strong>. Click refresh for the latest data.
+                    Market data may be <strong className="text-amber-200">15–20 min delayed</strong>.{' '}
+                    {isAdmin ? 'Click refresh for the latest data.' : 'Request an admin to refresh for the latest data.'}
                 </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
