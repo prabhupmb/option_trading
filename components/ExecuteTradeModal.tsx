@@ -294,7 +294,7 @@ interface FindOptionResponse {
 type FlowStep = 1 | 2 | 3;
 type DteRange = 'short' | 'swing' | 'monthly';
 type TPSLMode = 'percent' | 'dollar' | 'off';
-type OrderMode = 'bracket' | 'regular';
+type OrderMode = 'bracket' | 'limit';
 
 const SL_PRESETS = [10, 20, 30, 50];
 const TP_PRESETS = [25, 50, 100, 200];
@@ -398,6 +398,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
 
     // Step 3: TP/SL
     const [orderMode, setOrderMode] = useState<OrderMode>('bracket');
+    const [limitPrice, setLimitPrice] = useState<string>('');
     const [slMode, setSlMode] = useState<TPSLMode>('percent');
     const [slPercent, setSlPercent] = useState(20);
     const [slDollar, setSlDollar] = useState<string>('');
@@ -507,7 +508,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
             setBudget(user?.user_metadata?.default_budget || 300);
 
             // Step 3 defaults — bracket only for Schwab
-            setOrderMode(selectedBroker?.broker_name === 'schwab' ? 'bracket' : 'regular');
+            setOrderMode(selectedBroker?.broker_name === 'schwab' ? 'bracket' : 'limit');
             setSlMode('percent');
             setSlPercent(20);
             setSlDollar('');
@@ -631,7 +632,8 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                 quantity: quantity,
                 total_cost: quantity * premium * 100,
                 budget: budget,
-                order_type: 'market',
+                order_type: orderMode === 'limit' ? 'limit' : 'market',
+                limit_price: orderMode === 'limit' ? (parseFloat(limitPrice) || premium) : null,
                 current_price: signal.current_price,
 
                 // Bracket fields — premium-based TP/SL
@@ -639,7 +641,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                 bracketOrder: (selectedBroker?.broker_name === 'schwab' && isBracketActive) ? true : isBracketActive,
                 stop_loss: isBracketActive ? computedSL : null,
                 take_profit: isBracketActive ? computedTP : null,
-                order_mode: isBracketActive ? 'bracket' : 'regular',
+                order_mode: isBracketActive ? 'bracket' : 'limit',
 
                 // Broker
                 broker_id: selectedBroker?.id,
@@ -717,6 +719,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
     const selectContract = (c: ContractRecommendation) => {
         setSelectedContract(c);
         setQuantity(1);
+        setLimitPrice((c.ask || c.premium).toFixed(2));
         // Init dollar inputs from defaults
         setSlDollar((c.premium * (1 - 20 / 100)).toFixed(2));
         setTpDollar((c.premium * (1 + 50 / 100)).toFixed(2));
@@ -1026,11 +1029,11 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                                 Bracket
                                             </button>
                                             <button
-                                                onClick={() => setOrderMode('regular')}
-                                                className={`flex-1 py-2.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-2 ${orderMode === 'regular' ? 'bg-green-900/30 text-green-400 border border-green-800' : 'text-gray-500 hover:text-white border border-transparent'}`}
+                                                onClick={() => setOrderMode('limit')}
+                                                className={`flex-1 py-2.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-2 ${orderMode === 'limit' ? 'bg-green-900/30 text-green-400 border border-green-800' : 'text-gray-500 hover:text-white border border-transparent'}`}
                                             >
-                                                <span className="material-symbols-outlined text-sm">description</span>
-                                                Regular
+                                                <span className="material-symbols-outlined text-sm">tune</span>
+                                                Limit Order
                                             </button>
                                         </div>
                                     </div>
@@ -1169,9 +1172,37 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                         )}
                                     </>
                                 ) : (
-                                    <div className="bg-[#0d1117] rounded-lg p-4 border border-gray-700/60 flex items-center gap-3">
-                                        <span className="material-symbols-outlined text-gray-500">description</span>
-                                        <span className="text-gray-400 text-xs">Regular order — no automatic TP/SL. You'll manage exits manually.</span>
+                                    <div className="space-y-4">
+                                        <div className="bg-[#0d1117] rounded-lg p-4 border border-green-800/40">
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <span className="material-symbols-outlined text-green-400 text-sm">tune</span>
+                                                <span className="text-green-400 text-[10px] font-black uppercase tracking-widest">Limit Price</span>
+                                            </div>
+                                            <p className="text-gray-400 text-[11px] mb-3">
+                                                Set the maximum price you're willing to pay per contract. The order will only fill at or below this price.
+                                            </p>
+                                            <div className="flex items-center bg-[#080c11] border border-gray-700/60 rounded-lg overflow-hidden">
+                                                <span className="px-3 text-gray-500 font-bold border-r border-gray-700/60">$</span>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0.01"
+                                                    value={limitPrice}
+                                                    onChange={e => setLimitPrice(e.target.value)}
+                                                    placeholder={premium.toFixed(2)}
+                                                    className="flex-1 px-3 py-3 bg-transparent text-white font-mono font-bold text-lg outline-none"
+                                                />
+                                                <span className="px-3 text-gray-600 text-xs font-bold border-l border-gray-700/60">per contract</span>
+                                            </div>
+                                            <div className="flex justify-between items-center mt-2 text-[11px]">
+                                                <span className="text-gray-500">Current Ask</span>
+                                                <span className="text-white font-mono font-bold">{formatCurrency(selectedContract?.ask || premium)}</span>
+                                            </div>
+                                        </div>
+                                        <div className="bg-[#0d1117] rounded-lg p-3 border border-gray-700/40 flex items-start gap-2">
+                                            <span className="material-symbols-outlined text-amber-400 text-sm mt-0.5">info</span>
+                                            <span className="text-gray-400 text-[11px] leading-relaxed">Limit order — no automatic TP/SL. You'll manage exits manually. Order will only execute at your specified price or better.</span>
+                                        </div>
                                     </div>
                                 )}
 
@@ -1192,7 +1223,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                 {/* Total */}
                                 <div className="flex justify-between items-center pt-3 border-t border-gray-800">
                                     <span className="text-gray-500 text-xs font-bold uppercase">Est. Total Cost</span>
-                                    <span className="font-mono font-black text-xl text-white">{formatCurrency(quantity * premium * 100)}</span>
+                                    <span className="font-mono font-black text-xl text-white">{formatCurrency(quantity * (orderMode === 'limit' ? (parseFloat(limitPrice) || premium) : premium) * 100)}</span>
                                 </div>
 
                                 {/* Live confirmation */}
