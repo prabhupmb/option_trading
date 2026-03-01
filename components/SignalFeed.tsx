@@ -89,15 +89,15 @@ const SignalFeed: React.FC = () => {
                             Watchlists
                         </button>
 
-                        {role === 'admin' && (
-                            <button
-                                onClick={refresh}
-                                className="bg-gray-100 dark:bg-[#1a1f2e] hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-800 transition-all flex items-center gap-2 text-xs font-bold uppercase tracking-wider"
-                            >
-                                <span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : ''}`}>refresh</span>
-                                Refresh
-                            </button>
-                        )}
+                        <button
+                            onClick={refresh}
+                            disabled={loading}
+                            className="bg-gray-100 dark:bg-[#1a1f2e] hover:bg-gray-200 dark:hover:bg-green-600/10 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-800 hover:border-green-300 dark:hover:border-green-500/30 transition-all flex items-center gap-2 text-xs font-bold uppercase tracking-wider disabled:opacity-50"
+                            title="Refresh stock feed"
+                        >
+                            <span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : ''}`}>refresh</span>
+                            Refresh
+                        </button>
                         <div className="hidden md:flex items-center gap-2 bg-gray-100 dark:bg-[#1a1f2e] border border-gray-300 dark:border-gray-800 rounded-lg px-3 py-2">
                             <span className="material-symbols-outlined text-gray-500 text-sm">search</span>
                             <input

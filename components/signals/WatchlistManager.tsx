@@ -10,10 +10,27 @@ interface Watchlist {
     stock_count?: number;
 }
 
+interface Toast {
+    message: string;
+    type: 'success' | 'error';
+}
+
 const WatchlistManager: React.FC<{ onUpdate: () => void }> = ({ onUpdate }) => {
     const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
     const [loading, setLoading] = useState(true);
     const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+
+    // Delete modal state
+    const [deleteTarget, setDeleteTarget] = useState<Watchlist | null>(null);
+    const [deleting, setDeleting] = useState(false);
+
+    // Toast state
+    const [toast, setToast] = useState<Toast | null>(null);
+
+    const showToast = (message: string, type: 'success' | 'error') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 4000);
+    };
 
     const fetchWatchlists = async () => {
         try {
@@ -21,7 +38,6 @@ const WatchlistManager: React.FC<{ onUpdate: () => void }> = ({ onUpdate }) => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) return;
 
-            // Fetch watchlists using session.user.id (matches auth.uid() for RLS)
             const { data, error } = await supabase
                 .from('watchlists')
                 .select(`
@@ -33,7 +49,6 @@ const WatchlistManager: React.FC<{ onUpdate: () => void }> = ({ onUpdate }) => {
 
             if (error) throw error;
 
-            // Transform data to include count
             const formattedData = data.map((item: any) => ({
                 ...item,
                 stock_count: item.watchlist_stocks?.[0]?.count || 0
@@ -51,16 +66,45 @@ const WatchlistManager: React.FC<{ onUpdate: () => void }> = ({ onUpdate }) => {
         fetchWatchlists();
     }, []);
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this watchlist?')) return;
+    const handleDeleteConfirm = async () => {
+        if (!deleteTarget) return;
+
         try {
-            const { error } = await supabase.from('watchlists').delete().eq('id', id);
-            if (error) throw error;
-            fetchWatchlists();
-            onUpdate(); // Trigger refresh in parent
-        } catch (err) {
-            console.error('Error deleting watchlist:', err);
-            alert('Failed to delete watchlist');
+            setDeleting(true);
+
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                showToast('Authentication error. Please refresh and try again.', 'error');
+                return;
+            }
+
+            const response = await fetch('https://prabhupadala01.app.n8n.cloud/webhook/delete-watchlist', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    watchlist_id: deleteTarget.id,
+                    user_id: user.id
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || 'Failed to delete watchlist');
+            }
+
+            // Remove from list without full reload
+            setWatchlists(prev => prev.filter(w => w.id !== deleteTarget.id));
+            setDeleteTarget(null);
+            showToast(`"${deleteTarget.name}" deleted successfully`, 'success');
+            onUpdate(); // Refresh parent signal feed
+
+        } catch (err: any) {
+            console.error('Delete watchlist error:', err);
+            showToast(err.message || 'Failed to delete watchlist', 'error');
+            // Keep modal open on error
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -68,7 +112,6 @@ const WatchlistManager: React.FC<{ onUpdate: () => void }> = ({ onUpdate }) => {
         setAnalyzingId(watchlist.id);
         try {
             const { data: { session } } = await supabase.auth.getSession();
-            // Trigger N8N webhook — pass email so backend resolves public.users.id
             await fetch('https://prabhupadala01.app.n8n.cloud/webhook/analyze-watchlist', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -78,10 +121,10 @@ const WatchlistManager: React.FC<{ onUpdate: () => void }> = ({ onUpdate }) => {
                     watchlist_id: watchlist.id
                 })
             });
-            alert(`Analysis started for ${watchlist.name}! Signals will appear shortly.`);
+            showToast(`Analysis started for "${watchlist.name}"! Signals will appear shortly.`, 'success');
         } catch (err) {
             console.error('Error triggering analysis:', err);
-            alert('Failed to start analysis');
+            showToast('Failed to start analysis', 'error');
         } finally {
             setAnalyzingId(null);
         }
@@ -130,7 +173,7 @@ const WatchlistManager: React.FC<{ onUpdate: () => void }> = ({ onUpdate }) => {
 
                                 {list.type !== 'default' && (
                                     <button
-                                        onClick={() => handleDelete(list.id)}
+                                        onClick={() => setDeleteTarget(list)}
                                         className="text-gray-500 hover:text-red-500 p-1 rounded hover:bg-red-500/10 transition-colors"
                                         title="Delete Watchlist"
                                     >
@@ -140,6 +183,90 @@ const WatchlistManager: React.FC<{ onUpdate: () => void }> = ({ onUpdate }) => {
                             </div>
                         </div>
                     ))}
+                </div>
+            )}
+
+            {/* ─── DELETE CONFIRMATION MODAL ─── */}
+            {deleteTarget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+                    <div className="bg-[#1a1f2e] border border-gray-800 rounded-xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+
+                        {/* Header */}
+                        <div className="p-5 border-b border-gray-800 flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
+                                <span className="material-symbols-outlined text-red-500">warning</span>
+                            </div>
+                            <div>
+                                <h3 className="text-white font-black text-sm uppercase tracking-tight">Delete Watchlist</h3>
+                                <p className="text-gray-500 text-xs mt-0.5">This action cannot be undone</p>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-5 space-y-4">
+                            <div className="bg-[#0f1219] rounded-lg p-3 border border-gray-700/50 flex items-center gap-3">
+                                <span className="material-symbols-outlined text-gray-400">list</span>
+                                <div>
+                                    <p className="text-white font-bold text-sm">{deleteTarget.name}</p>
+                                    <p className="text-gray-500 text-xs">{deleteTarget.stock_count} stocks • {deleteTarget.type}</p>
+                                </div>
+                            </div>
+
+                            <div className="bg-red-950/20 border border-red-900/30 rounded-lg p-3 flex items-start gap-2.5">
+                                <span className="material-symbols-outlined text-red-400 text-base mt-0.5 shrink-0">error</span>
+                                <p className="text-red-300/90 text-xs leading-relaxed">
+                                    This will permanently delete the watchlist, all stocks in it, and all analysis signals. This action cannot be undone.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-5 border-t border-gray-800 flex justify-end gap-3 bg-[#0f1219]/50 rounded-b-xl">
+                            <button
+                                onClick={() => setDeleteTarget(null)}
+                                disabled={deleting}
+                                className="px-4 py-2.5 rounded-lg text-gray-400 hover:text-white text-xs font-bold uppercase tracking-wider hover:bg-white/5 transition-all disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDeleteConfirm}
+                                disabled={deleting}
+                                className="px-5 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold uppercase tracking-wider shadow-lg shadow-red-600/20 transition-all flex items-center gap-2"
+                            >
+                                {deleting ? (
+                                    <>
+                                        <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                                        Deleting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="material-symbols-outlined text-sm">delete_forever</span>
+                                        Delete Watchlist
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ─── TOAST NOTIFICATION ─── */}
+            {toast && (
+                <div className={`fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3 rounded-xl shadow-2xl border animate-in slide-in-from-bottom-4 fade-in duration-300 ${toast.type === 'success'
+                        ? 'bg-green-950/90 border-green-800/50 text-green-300'
+                        : 'bg-red-950/90 border-red-800/50 text-red-300'
+                    }`}>
+                    <span className="material-symbols-outlined text-lg">
+                        {toast.type === 'success' ? 'check_circle' : 'error'}
+                    </span>
+                    <span className="text-sm font-medium">{toast.message}</span>
+                    <button
+                        onClick={() => setToast(null)}
+                        className="ml-2 text-gray-500 hover:text-white transition-colors"
+                    >
+                        <span className="material-symbols-outlined text-sm">close</span>
+                    </button>
                 </div>
             )}
         </div>
