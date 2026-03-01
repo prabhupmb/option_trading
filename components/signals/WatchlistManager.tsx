@@ -18,9 +18,19 @@ const WatchlistManager: React.FC<{ onUpdate: () => void }> = ({ onUpdate }) => {
     const [analyzingId, setAnalyzingId] = useState<string | null>(null);
 
     const fetchWatchlists = async () => {
-        if (!user) return;
         try {
             setLoading(true);
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+
+            // Look up user_id from public.users by email
+            const { data: userData } = await supabase
+                .from('users')
+                .select('id')
+                .eq('email', session.user.email)
+                .single();
+            if (!userData) return;
+
             // Fetch watchlists and count of stocks
             const { data, error } = await supabase
                 .from('watchlists')
@@ -28,7 +38,7 @@ const WatchlistManager: React.FC<{ onUpdate: () => void }> = ({ onUpdate }) => {
           *,
           watchlist_stocks (count)
         `)
-                .eq('user_id', user.id)
+                .eq('user_id', userData.id)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -67,12 +77,20 @@ const WatchlistManager: React.FC<{ onUpdate: () => void }> = ({ onUpdate }) => {
     const handleAnalyze = async (watchlist: Watchlist) => {
         setAnalyzingId(watchlist.id);
         try {
+            const { data: { session } } = await supabase.auth.getSession();
+            // Look up user_id from public.users by email
+            const { data: userData } = await supabase
+                .from('users')
+                .select('id')
+                .eq('email', session?.user?.email)
+                .single();
+
             // Trigger N8N webhook
             await fetch('https://prabhupadala01.app.n8n.cloud/webhook/analyze-watchlist', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    user_id: user?.id,
+                    user_id: userData?.id,
                     watchlist_id: watchlist.id
                 })
             });

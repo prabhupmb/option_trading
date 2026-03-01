@@ -91,27 +91,52 @@ const UploadWatchlistModal: React.FC<UploadWatchlistModalProps> = ({ isOpen, onC
     };
 
     const handleUpload = async () => {
-        if (!user || !watchlistName || parsedSymbols.length === 0) return;
+        if (!watchlistName || parsedSymbols.length === 0) return;
 
         try {
             setUploading(true);
 
-            // 1. Create Watchlist
+            // STEP 1: Get authenticated session
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                alert('Please log in first');
+                return;
+            }
+
+            // STEP 1b: Look up user_id from public.users by email
+            // (public.users has its own UUIDs that differ from auth.uid())
+            const { data: userData } = await supabase
+                .from('users')
+                .select('id')
+                .eq('email', session.user.email)
+                .single();
+
+            if (!userData) {
+                alert('User profile not found. Please contact support.');
+                return;
+            }
+            const userId = userData.id;
+
+            // STEP 2: Create Watchlist
             const { data: watchlist, error: wlError } = await supabase
                 .from('watchlists')
                 .insert({
-                    user_id: user.id,
+                    user_id: userId,
                     name: watchlistName,
                     type: 'custom',
-                    is_active: true
                 })
                 .select()
                 .single();
 
-            if (wlError) throw wlError;
+            if (wlError) {
+                if (wlError.message?.includes('row-level security') || wlError.code === '42501') {
+                    throw new Error('Authentication error. Please refresh and try again.');
+                }
+                throw wlError;
+            }
             if (!watchlist) throw new Error('Failed to create watchlist');
 
-            // 2. Insert Stocks
+            // STEP 3: Insert Stocks
             const stocksToInsert = parsedSymbols.map(symbol => ({
                 watchlist_id: watchlist.id,
                 symbol: symbol
@@ -121,20 +146,27 @@ const UploadWatchlistModal: React.FC<UploadWatchlistModalProps> = ({ isOpen, onC
                 .from('watchlist_stocks')
                 .insert(stocksToInsert);
 
-            if (stockError) throw stockError;
+            if (stockError) {
+                // Silently skip duplicate symbol errors (ON CONFLICT DO NOTHING)
+                if (!stockError.message?.includes('duplicate')) {
+                    throw stockError;
+                }
+            }
 
-            // 3. Trigger N8N Webhook
-            await fetch('https://prabhupadala01.app.n8n.cloud/webhook/analyze-watchlist', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    user_id: user.id,
-                    watchlist_id: watchlist.id,
-                    watchlist_name: watchlistName
-                })
-            });
+            // STEP 4: Trigger N8N Webhook (non-blocking — analysis will retry if this fails)
+            try {
+                await fetch('https://prabhupadala01.app.n8n.cloud/webhook/analyze-watchlist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        watchlist_id: watchlist.id,
+                        watchlist_name: watchlistName
+                    })
+                });
+            } catch (webhookErr) {
+                console.warn('N8N webhook failed, analysis will retry:', webhookErr);
+            }
 
             alert('Watchlist uploaded and analysis started! Signals will appear shortly.');
             onUploadSuccess();
