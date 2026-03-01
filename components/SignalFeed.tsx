@@ -66,7 +66,7 @@ const SignalFeed: React.FC = () => {
                         </h1>
                         <p className="text-gray-500 text-sm font-medium mt-1 flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                            Live Analysis • Auto-refreshing every 1 hour
+                            Live Analysis • All active watchlists refresh daily
                             <span className="text-gray-400 dark:text-gray-600">•</span>
                             Last updated: {lastUpdated.toLocaleTimeString()}
                         </p>

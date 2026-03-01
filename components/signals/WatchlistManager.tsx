@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabase';
-import { useAuth } from '../../services/useAuth';
 
 interface Watchlist {
     id: string;
@@ -12,7 +11,6 @@ interface Watchlist {
 }
 
 const WatchlistManager: React.FC<{ onUpdate: () => void }> = ({ onUpdate }) => {
-    const { user } = useAuth();
     const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
     const [loading, setLoading] = useState(true);
     const [analyzingId, setAnalyzingId] = useState<string | null>(null);
@@ -23,22 +21,14 @@ const WatchlistManager: React.FC<{ onUpdate: () => void }> = ({ onUpdate }) => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) return;
 
-            // Look up user_id from public.users by email
-            const { data: userData } = await supabase
-                .from('users')
-                .select('id')
-                .eq('email', session.user.email)
-                .single();
-            if (!userData) return;
-
-            // Fetch watchlists and count of stocks
+            // Fetch watchlists using session.user.id (matches auth.uid() for RLS)
             const { data, error } = await supabase
                 .from('watchlists')
                 .select(`
           *,
           watchlist_stocks (count)
         `)
-                .eq('user_id', userData.id)
+                .eq('user_id', session.user.id)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -59,7 +49,7 @@ const WatchlistManager: React.FC<{ onUpdate: () => void }> = ({ onUpdate }) => {
 
     useEffect(() => {
         fetchWatchlists();
-    }, [user]);
+    }, []);
 
     const handleDelete = async (id: string) => {
         if (!confirm('Are you sure you want to delete this watchlist?')) return;
@@ -78,19 +68,13 @@ const WatchlistManager: React.FC<{ onUpdate: () => void }> = ({ onUpdate }) => {
         setAnalyzingId(watchlist.id);
         try {
             const { data: { session } } = await supabase.auth.getSession();
-            // Look up user_id from public.users by email
-            const { data: userData } = await supabase
-                .from('users')
-                .select('id')
-                .eq('email', session?.user?.email)
-                .single();
-
-            // Trigger N8N webhook
+            // Trigger N8N webhook — pass email so backend resolves public.users.id
             await fetch('https://prabhupadala01.app.n8n.cloud/webhook/analyze-watchlist', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    user_id: userData?.id,
+                    user_id: session?.user?.id,
+                    email: session?.user?.email,
                     watchlist_id: watchlist.id
                 })
             });

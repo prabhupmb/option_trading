@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../services/supabase';
-import { useAuth } from '../../services/useAuth';
 
 interface UploadWatchlistModalProps {
     isOpen: boolean;
@@ -10,7 +9,6 @@ interface UploadWatchlistModalProps {
 }
 
 const UploadWatchlistModal: React.FC<UploadWatchlistModalProps> = ({ isOpen, onClose, onUploadSuccess }) => {
-    const { user } = useAuth();
     const [watchlistName, setWatchlistName] = useState('');
     const [file, setFile] = useState<File | null>(null);
     const [parsedSymbols, setParsedSymbols] = useState<string[]>([]);
@@ -48,8 +46,6 @@ const UploadWatchlistModal: React.FC<UploadWatchlistModalProps> = ({ isOpen, onC
                     // CSV Parsing
                     const text = data as string;
                     const lines = text.split('\n');
-                    // Assuming first column is symbol, skip header if present
-                    // Simple heuristic: just look at first token of each line
                     symbols = lines.map(line => line.split(',')[0].trim().toUpperCase())
                         .filter(s => s && s.length >= 1 && s.length <= 5 && /^[A-Z]+$/.test(s));
                 } else {
@@ -58,7 +54,6 @@ const UploadWatchlistModal: React.FC<UploadWatchlistModalProps> = ({ isOpen, onC
                     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                     const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
 
-                    // Flatten and extract symbols (assuming first column or just scan all cells? Prompt says "first column")
                     symbols = jsonData.map(row => {
                         const cell = row[0]; // First column
                         if (typeof cell === 'string') return cell.trim().toUpperCase();
@@ -69,12 +64,6 @@ const UploadWatchlistModal: React.FC<UploadWatchlistModalProps> = ({ isOpen, onC
                 // Remove duplicates
                 const uniqueSymbols = Array.from(new Set(symbols));
                 setParsedSymbols(uniqueSymbols);
-
-                // rudimentary invalid count (total rows - valid)
-                // Hard to know exact "invalid" count without stricter parsing logic, but we can just say "X valid symbols found"
-                // Prompt asks for Invalid count. Let's assume lines/rows that were rejected.
-                // For CSV/Excel, total rows minus valid.
-                // Let's keep it simple: Just show valid count primarily.
             } catch (err) {
                 console.error('Error parsing file:', err);
                 alert('Failed to parse file. Ensure it is a valid Excel or CSV.');
@@ -96,47 +85,37 @@ const UploadWatchlistModal: React.FC<UploadWatchlistModalProps> = ({ isOpen, onC
         try {
             setUploading(true);
 
-            // STEP 1: Get authenticated session
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-                alert('Please log in first');
-                return;
+            // Step 1: Get session
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError || !session) {
+                throw new Error('Authentication error. Please refresh and try again.');
             }
 
-            // STEP 1b: Look up user_id from public.users by email
-            // (public.users has its own UUIDs that differ from auth.uid())
-            const { data: userData } = await supabase
-                .from('users')
-                .select('id')
-                .eq('email', session.user.email)
-                .single();
+            // Step 2: Insert watchlist using session.user.id
+            // Log the payload so we can debug FK constraint issues
+            const insertPayload = {
+                user_id: session.user.id,
+                name: watchlistName,
+                type: 'custom'
+            };
+            console.log('=== WATCHLIST INSERT DEBUG ===');
+            console.log('session.user.id (auth.uid):', session.user.id);
+            console.log('session.user.email:', session.user.email);
+            console.log('Insert payload:', JSON.stringify(insertPayload, null, 2));
 
-            if (!userData) {
-                alert('User profile not found. Please contact support.');
-                return;
-            }
-            const userId = userData.id;
-
-            // STEP 2: Create Watchlist
-            const { data: watchlist, error: wlError } = await supabase
+            const { data: watchlist, error: watchlistError } = await supabase
                 .from('watchlists')
-                .insert({
-                    user_id: userId,
-                    name: watchlistName,
-                    type: 'custom',
-                })
+                .insert(insertPayload)
                 .select()
                 .single();
 
-            if (wlError) {
-                if (wlError.message?.includes('row-level security') || wlError.code === '42501') {
-                    throw new Error('Authentication error. Please refresh and try again.');
-                }
-                throw wlError;
+            if (watchlistError) {
+                console.error('Watchlist insert error:', watchlistError);
+                throw new Error('Upload failed: ' + watchlistError.message);
             }
             if (!watchlist) throw new Error('Failed to create watchlist');
 
-            // STEP 3: Insert Stocks
+            // Step 3: Insert Stocks
             const stocksToInsert = parsedSymbols.map(symbol => ({
                 watchlist_id: watchlist.id,
                 symbol: symbol
@@ -147,19 +126,20 @@ const UploadWatchlistModal: React.FC<UploadWatchlistModalProps> = ({ isOpen, onC
                 .insert(stocksToInsert);
 
             if (stockError) {
-                // Silently skip duplicate symbol errors (ON CONFLICT DO NOTHING)
+                console.error('Stock insert error:', stockError);
                 if (!stockError.message?.includes('duplicate')) {
                     throw stockError;
                 }
             }
 
-            // STEP 4: Trigger N8N Webhook (non-blocking — analysis will retry if this fails)
+            // Step 4: Trigger N8N Webhook — pass email so backend resolves public.users.id
             try {
                 await fetch('https://prabhupadala01.app.n8n.cloud/webhook/analyze-watchlist', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        user_id: userId,
+                        user_id: session.user.id,
+                        email: session.user.email,
                         watchlist_id: watchlist.id,
                         watchlist_name: watchlistName
                     })
