@@ -106,8 +106,22 @@ const App: React.FC = () => {
     return result;
   }, [signals, activeFilter, sortBy, searchQuery]);
 
-  const handleManualRefresh = () => {
-    startScan(refresh);
+  const handleManualRefresh = async () => {
+    if (selectedStrategy === 'day_trade') {
+      try {
+        await fetch('https://prabhupadala01.app.n8n.cloud/webhook/refresh-daytrade', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_email: user?.email })
+        });
+        await refresh(); // Reload data from table after webhook completes
+      } catch (err) {
+        console.error('Day trade refresh failed:', err);
+        await refresh(); // Still reload table data even if webhook fails
+      }
+    } else {
+      startScan(refresh);
+    }
   };
 
   const handleExecute = (signal: OptionSignal) => {
