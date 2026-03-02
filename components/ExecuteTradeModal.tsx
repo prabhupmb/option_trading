@@ -406,6 +406,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
     const [tpPercent, setTpPercent] = useState(50);
     const [tpDollar, setTpDollar] = useState<string>('');
     const [quantity, setQuantity] = useState(1);
+    const [totalCostOverride, setTotalCostOverride] = useState<string>('');
     const [confirmText, setConfirmText] = useState('');
 
     // Budget error
@@ -1210,20 +1211,42 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                 <div className="flex justify-between items-center">
                                     <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Quantity</label>
                                     <div className="flex items-center gap-3">
-                                        <button onClick={() => setQuantity(Math.max(1, quantity - 1))} disabled={quantity <= 1} className={`w-8 h-8 flex items-center justify-center rounded-lg bg-[#0d1117] border border-gray-700 ${quantity <= 1 ? 'text-gray-600' : 'text-white hover:bg-gray-800'} transition-colors`}>
+                                        <button onClick={() => { const q = Math.max(1, quantity - 1); setQuantity(q); setTotalCostOverride(''); }} disabled={quantity <= 1} className={`w-8 h-8 flex items-center justify-center rounded-lg bg-[#0d1117] border border-gray-700 ${quantity <= 1 ? 'text-gray-600' : 'text-white hover:bg-gray-800'} transition-colors`}>
                                             <span className="material-symbols-outlined text-sm">remove</span>
                                         </button>
                                         <span className="font-mono font-black text-xl w-8 text-center text-white">{quantity}</span>
-                                        <button onClick={() => setQuantity(Math.min(selectedContract.max_contracts || 10, quantity + 1))} className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#0d1117] border border-gray-700 text-white hover:bg-gray-800 transition-colors">
+                                        <button onClick={() => { const q = Math.min(selectedContract.max_contracts || 10, quantity + 1); setQuantity(q); setTotalCostOverride(''); }} className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#0d1117] border border-gray-700 text-white hover:bg-gray-800 transition-colors">
                                             <span className="material-symbols-outlined text-sm">add</span>
                                         </button>
                                     </div>
                                 </div>
 
-                                {/* Total */}
+                                {/* Editable Total Cost */}
                                 <div className="flex justify-between items-center pt-3 border-t border-gray-800">
-                                    <span className="text-gray-500 text-xs font-bold uppercase">Est. Total Cost</span>
-                                    <span className="font-mono font-black text-xl text-white">{formatCurrency(quantity * (orderMode === 'limit' ? (parseFloat(limitPrice) || premium) : premium) * 100)}</span>
+                                    <div>
+                                        <span className="text-gray-500 text-xs font-bold uppercase">Est. Total Cost</span>
+                                        <p className="text-gray-600 text-[10px] mt-0.5">Edit to auto-adjust qty</p>
+                                    </div>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-sm">$</span>
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            value={totalCostOverride || (quantity * (orderMode === 'limit' ? (parseFloat(limitPrice) || premium) : premium) * 100).toFixed(2)}
+                                            onChange={(e) => {
+                                                const val = e.target.value.replace(/[^0-9.]/g, '');
+                                                setTotalCostOverride(val);
+                                                const cost = parseFloat(val);
+                                                const unitPrice = (orderMode === 'limit' ? (parseFloat(limitPrice) || premium) : premium) * 100;
+                                                if (cost && unitPrice > 0) {
+                                                    const newQty = Math.max(1, Math.min(selectedContract.max_contracts || 10, Math.floor(cost / unitPrice)));
+                                                    setQuantity(newQty);
+                                                }
+                                            }}
+                                            onBlur={() => setTotalCostOverride('')}
+                                            className="w-40 bg-[#0d1117] border border-gray-700 hover:border-gray-600 focus:border-blue-500 rounded-lg pl-7 pr-3 py-2 text-right text-white font-mono font-black text-lg outline-none transition-colors"
+                                        />
+                                    </div>
                                 </div>
 
                                 {/* Live confirmation */}
