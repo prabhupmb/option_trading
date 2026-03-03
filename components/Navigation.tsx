@@ -2,7 +2,7 @@ import React from 'react';
 import type { User } from '@supabase/supabase-js';
 import { UserRole, AccessLevel } from '../types';
 
-export type View = 'signals' | 'smart-feed' | 'portfolio' | 'ai-hub' | 'chat' | 'watchlist' | 'history' | 'settings' | 'admin';
+export type View = 'signals' | 'smart-feed' | 'portfolio' | 'quick-trade' | 'ai-hub' | 'chat' | 'watchlist' | 'history' | 'settings' | 'admin';
 
 interface NavigationProps {
   activeView: View;
@@ -20,6 +20,7 @@ const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, o
     { id: 'signals', label: 'Option Feed', icon: 'dashboard' },
     { id: 'smart-feed', label: 'Stock Feed', icon: 'query_stats' },
     { id: 'portfolio', label: 'Portfolio', icon: 'analytics' },
+    { id: 'quick-trade', label: 'Quick Trade', icon: 'bolt' },
     { id: 'ai-hub', label: 'AI Hub', icon: 'auto_awesome' },
     { id: 'chat', label: 'Group Chat', icon: 'forum' },
     { id: 'settings', label: 'Settings', icon: 'settings' }

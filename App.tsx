@@ -15,6 +15,8 @@ import AIHub from './components/AIHub';
 import AdminPanel from './components/AdminPanel';
 import SignalFeed from './components/SignalFeed';
 import UserProfilePage from './components/UserProfilePage';
+import QuickTradePage from './components/QuickTradePage';
+import QuickTradeModal from './components/quicktrade/QuickTradeModal';
 import { useAuth } from './services/useAuth';
 import { OptionSignal } from './types';
 import { useOptionSignals } from './hooks/useOptionSignals';
@@ -35,6 +37,7 @@ const App: React.FC = () => {
 
   // Execution Modal State
   const [executingSignal, setExecutingSignal] = useState<OptionSignal | null>(null);
+  const [quickTradeSignal, setQuickTradeSignal] = useState<OptionSignal | null>(null);
 
   const [currentView, setCurrentView] = useState<View>('signals');
   const [activeFilter, setActiveFilter] = useState('ALL');
@@ -271,6 +274,7 @@ const App: React.FC = () => {
                       signal={signal}
                       onViewAnalysis={handleViewAnalysis}
                       onExecute={handleExecute}
+                      onQuickTrade={setQuickTradeSignal}
                       accessLevel={accessLevel}
                     />
                   ))}
@@ -300,6 +304,10 @@ const App: React.FC = () => {
             </div>
           ) : currentView === 'smart-feed' ? (
             <SignalFeed />
+          ) : currentView === 'quick-trade' ? (
+            <div className="flex-1 overflow-hidden">
+              <QuickTradePage />
+            </div>
           ) : currentView === 'settings' ? (
             <div className="flex-1 overflow-y-auto">
               <UserProfilePage />
@@ -329,6 +337,18 @@ const App: React.FC = () => {
           refresh();
         }}
         onNavigate={(view) => { setExecutingSignal(null); setCurrentView(view as View); }}
+      />
+
+      {/* Quick Trade Modal */}
+      <QuickTradeModal
+        isOpen={!!quickTradeSignal}
+        signal={quickTradeSignal}
+        onClose={() => setQuickTradeSignal(null)}
+        onSuccess={() => {
+          setQuickTradeSignal(null);
+          refresh();
+        }}
+        onNavigate={(view) => { setQuickTradeSignal(null); setCurrentView(view as View); }}
       />
     </div>
   );

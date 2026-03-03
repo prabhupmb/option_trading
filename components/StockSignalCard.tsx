@@ -5,10 +5,11 @@ interface Props {
   signal: OptionSignal;
   onViewAnalysis?: (signal: any) => void;
   onExecute?: (signal: any) => void;
+  onQuickTrade?: (signal: OptionSignal) => void;
   accessLevel?: AccessLevel;
 }
 
-const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, accessLevel = 'signal' }) => {
+const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, onQuickTrade, accessLevel = 'signal' }) => {
   const isNoTrade = signal.tier === 'NO_TRADE';
   const signalText = signal.trading_recommendation?.toUpperCase() || '';
 
@@ -79,8 +80,19 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, a
               {signal.option_type}
             </span>
           </div>
-          <div className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest border ${getSignalBadgeStyle(signalText)}`}>
-            {signalText}
+          <div className="flex items-center gap-2">
+            {onQuickTrade && !isNoTrade && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onQuickTrade(signal); }}
+                className="px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded text-[10px] font-bold text-white uppercase tracking-wider transition-colors flex items-center gap-1 shadow-lg shadow-purple-600/20"
+              >
+                <span className="material-symbols-outlined text-xs">bolt</span>
+                Trade
+              </button>
+            )}
+            <div className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest border ${getSignalBadgeStyle(signalText)}`}>
+              {signalText}
+            </div>
           </div>
         </div>
 
