@@ -145,7 +145,7 @@ const QuickTradeForm: React.FC<QuickTradeFormProps> = ({
                 <div className="flex gap-3 pt-2">
                     {onNavigate && (
                         <button
-                            onClick={() => { onSuccess?.(); onNavigate('portfolio'); }}
+                            onClick={() => { onSuccess?.(); onClose?.(); onNavigate('portfolio'); }}
                             className="flex-1 px-4 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2"
                         >
                             <span className="material-symbols-outlined text-sm">analytics</span>
@@ -153,10 +153,10 @@ const QuickTradeForm: React.FC<QuickTradeFormProps> = ({
                         </button>
                     )}
                     <button
-                        onClick={() => { reset(); }}
+                        onClick={() => { reset(); onSuccess?.(); onClose?.(); }}
                         className="flex-1 px-4 py-3 bg-[#1a1f2e] hover:bg-[#252b3d] text-white rounded-xl text-xs font-bold uppercase tracking-wider border border-gray-700 transition-colors"
                     >
-                        Trade Again
+                        Done
                     </button>
                 </div>
             </div>
@@ -181,8 +181,8 @@ const QuickTradeForm: React.FC<QuickTradeFormProps> = ({
                 </div>
                 {signalTier && (
                     <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider ${signalTier === 'A+' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
-                            signalTier === 'A' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
-                                'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                        signalTier === 'A' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                            'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
                         }`}>
                         Tier {signalTier}
                     </span>
@@ -196,8 +196,8 @@ const QuickTradeForm: React.FC<QuickTradeFormProps> = ({
                     <button
                         onClick={() => setOrderMode('market')}
                         className={`p-2.5 rounded-xl text-center transition-all ${orderMode === 'market'
-                                ? 'bg-amber-500/10 border-2 border-amber-500 text-amber-400 shadow-lg shadow-amber-500/10'
-                                : 'bg-[#0d1117] border-2 border-gray-700 text-gray-500 hover:border-amber-500/30 hover:text-amber-400'
+                            ? 'bg-amber-500/10 border-2 border-amber-500 text-amber-400 shadow-lg shadow-amber-500/10'
+                            : 'bg-[#0d1117] border-2 border-gray-700 text-gray-500 hover:border-amber-500/30 hover:text-amber-400'
                             }`}
                     >
                         <div className="text-xs font-black uppercase">MARKET</div>
@@ -206,8 +206,8 @@ const QuickTradeForm: React.FC<QuickTradeFormProps> = ({
                     <button
                         onClick={() => setOrderMode('limit')}
                         className={`p-2.5 rounded-xl text-center transition-all ${orderMode === 'limit'
-                                ? 'bg-blue-500/10 border-2 border-blue-500 text-blue-400 shadow-lg shadow-blue-500/10'
-                                : 'bg-[#0d1117] border-2 border-gray-700 text-gray-500 hover:border-blue-500/30 hover:text-blue-400'
+                            ? 'bg-blue-500/10 border-2 border-blue-500 text-blue-400 shadow-lg shadow-blue-500/10'
+                            : 'bg-[#0d1117] border-2 border-gray-700 text-gray-500 hover:border-blue-500/30 hover:text-blue-400'
                             }`}
                     >
                         <div className="text-xs font-black uppercase">LIMIT</div>
@@ -233,8 +233,8 @@ const QuickTradeForm: React.FC<QuickTradeFormProps> = ({
                     <button
                         onClick={() => setOptionType('CALL')}
                         className={`py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${optionType === 'CALL'
-                                ? 'bg-green-600 text-white shadow-lg shadow-green-600/20 border border-green-500'
-                                : 'bg-[#0d1117] text-gray-500 border border-gray-700 hover:border-green-500/30 hover:text-green-400'
+                            ? 'bg-green-600 text-white shadow-lg shadow-green-600/20 border border-green-500'
+                            : 'bg-[#0d1117] text-gray-500 border border-gray-700 hover:border-green-500/30 hover:text-green-400'
                             }`}
                     >
                         <span className="material-symbols-outlined text-sm align-middle mr-1">trending_up</span>
@@ -243,8 +243,8 @@ const QuickTradeForm: React.FC<QuickTradeFormProps> = ({
                     <button
                         onClick={() => setOptionType('PUT')}
                         className={`py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${optionType === 'PUT'
-                                ? 'bg-red-600 text-white shadow-lg shadow-red-600/20 border border-red-500'
-                                : 'bg-[#0d1117] text-gray-500 border border-gray-700 hover:border-red-500/30 hover:text-red-400'
+                            ? 'bg-red-600 text-white shadow-lg shadow-red-600/20 border border-red-500'
+                            : 'bg-[#0d1117] text-gray-500 border border-gray-700 hover:border-red-500/30 hover:text-red-400'
                             }`}
                     >
                         <span className="material-symbols-outlined text-sm align-middle mr-1">trending_down</span>
@@ -262,8 +262,8 @@ const QuickTradeForm: React.FC<QuickTradeFormProps> = ({
                             key={exp}
                             onClick={() => setExpiryType(exp)}
                             className={`py-2 rounded-xl text-center transition-all ${expiryType === exp
-                                    ? 'bg-purple-600 text-white border border-purple-500 shadow-lg shadow-purple-600/20'
-                                    : 'bg-[#0d1117] text-gray-500 border border-gray-700 hover:border-purple-500/30 hover:text-purple-400'
+                                ? 'bg-purple-600 text-white border border-purple-500 shadow-lg shadow-purple-600/20'
+                                : 'bg-[#0d1117] text-gray-500 border border-gray-700 hover:border-purple-500/30 hover:text-purple-400'
                                 }`}
                         >
                             <div className="text-xs font-black uppercase">{exp === '0dte' ? '0DTE' : exp}</div>
@@ -394,11 +394,11 @@ const QuickTradeForm: React.FC<QuickTradeFormProps> = ({
                 onClick={handleSubmit}
                 disabled={loading || !symbol}
                 className={`w-full py-3.5 rounded-xl text-white text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${loading ? 'bg-gray-600 cursor-wait' :
-                        orderMode === 'market'
-                            ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/20'
-                            : isCall
-                                ? 'bg-green-600 hover:bg-green-500 shadow-green-600/20'
-                                : 'bg-red-600 hover:bg-red-500 shadow-red-600/20'
+                    orderMode === 'market'
+                        ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/20'
+                        : isCall
+                            ? 'bg-green-600 hover:bg-green-500 shadow-green-600/20'
+                            : 'bg-red-600 hover:bg-red-500 shadow-red-600/20'
                     }`}
             >
                 {loading ? (
