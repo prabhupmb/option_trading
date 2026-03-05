@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import ExecuteTradeModal from './components/ExecuteTradeModal';
 import Header from './components/Header';
 import StockSignalCard from './components/StockSignalCard';
@@ -44,6 +44,69 @@ const App: React.FC = () => {
   const [sortBy, setSortBy] = useState('Tier');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrokerage, setSelectedBrokerage] = useState<string>('Alpaca');
+
+  // ─── AUTO-REFRESH on Option Feed ───
+  const autoRefreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const getAutoRefreshIntervalMs = useCallback(() => {
+    // Only auto-refresh on signals view
+    if (currentView !== 'signals') return null;
+    if (!selectedStrategy) return null;
+
+    // Get current time in ET
+    const now = new Date();
+    const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    const day = et.getDay();
+    if (day === 0 || day === 6) return null; // weekends off
+
+    const hour = et.getHours();
+    const mins = et.getMinutes();
+    const timeInMins = hour * 60 + mins;
+
+    // Before 9:30 AM or after 4:00 PM ET → no refresh
+    if (timeInMins < 570 || timeInMins >= 960) return null;
+
+    const isBeforeNoon = timeInMins < 720; // 12:00 PM
+
+    if (isBeforeNoon) {
+      // Before noon: day_trade=1min, swing_trade=3min, others=3min
+      if (selectedStrategy === 'day_trade') return 60_000;   // 1 min
+      return 180_000;                                         // 3 min
+    } else {
+      // After noon to 4 PM: 15 min for all
+      return 900_000;                                         // 15 min
+    }
+  }, [currentView, selectedStrategy]);
+
+  useEffect(() => {
+    // Clear previous timer
+    if (autoRefreshTimer.current) {
+      clearInterval(autoRefreshTimer.current);
+      autoRefreshTimer.current = null;
+    }
+
+    const intervalMs = getAutoRefreshIntervalMs();
+    if (intervalMs) {
+      autoRefreshTimer.current = setInterval(() => {
+        // Re-check time each tick (handles noon crossover)
+        const nowMs = getAutoRefreshIntervalMs();
+        if (nowMs) {
+          refresh();
+        } else {
+          // Market closed mid-interval, stop
+          if (autoRefreshTimer.current) clearInterval(autoRefreshTimer.current);
+          autoRefreshTimer.current = null;
+        }
+      }, intervalMs);
+    }
+
+    return () => {
+      if (autoRefreshTimer.current) {
+        clearInterval(autoRefreshTimer.current);
+        autoRefreshTimer.current = null;
+      }
+    };
+  }, [currentView, selectedStrategy, getAutoRefreshIntervalMs, refresh]);
 
   // Filter & Sort Logic
   const processedSignals = useMemo(() => {
@@ -212,7 +275,7 @@ const App: React.FC = () => {
           {currentView === 'signals' ? (
             <main className="flex-1 p-8 overflow-y-auto">
               {/* Data Delay Banner */}
-              <DataDelayBanner onRefresh={handleManualRefresh} loading={loading} isAdmin={role === 'admin'} />
+              <DataDelayBanner onRefresh={refresh} loading={loading} isAdmin={role === 'admin'} />
 
               {/* Stats Bar */}
               <OptionSignalStats signals={signals} onFilterClick={setActiveFilter} />

@@ -7,6 +7,7 @@ export interface QuickTradeParams {
     expiryType: '0dte' | 'weekly' | 'monthly';
     budget: number;
     orderMode: 'market' | 'limit';
+    strikePreference: 'atm' | 'otm' | 'deep_otm';
     bracketOrder: boolean;
     tpPercent: number;
     slPercent: number;
@@ -32,6 +33,7 @@ export interface QuickTradeOrder {
     bid?: number;
     ask?: number;
     spreadPct?: number;
+    distFromPrice?: number;
 }
 
 export interface QuickTradeResult {
