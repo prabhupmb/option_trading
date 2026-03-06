@@ -16,6 +16,7 @@ import AdminPanel from './components/AdminPanel';
 import SignalFeed from './components/SignalFeed';
 import UserProfilePage from './components/UserProfilePage';
 import QuickTradePage from './components/QuickTradePage';
+import AutoTradeSettings from './components/AutoTradeSettings';
 import QuickTradeModal from './components/quicktrade/QuickTradeModal';
 import { useAuth } from './services/useAuth';
 import { OptionSignal } from './types';
@@ -371,6 +372,8 @@ const App: React.FC = () => {
             <div className="flex-1 overflow-hidden">
               <QuickTradePage />
             </div>
+          ) : currentView === 'auto-trade' ? (
+            <AutoTradeSettings />
           ) : currentView === 'settings' ? (
             <div className="flex-1 overflow-y-auto">
               <UserProfilePage />
