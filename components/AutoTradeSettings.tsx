@@ -115,7 +115,6 @@ interface AutoTrade {
 
 const AutoTradeSettings: React.FC = () => {
     const [loadingSettings, setLoadingSettings] = useState(true);
-    const [isNewUser, setIsNewUser] = useState(false);
     const [saving, setSaving] = useState(false);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
     const [userId, setUserId] = useState<string | null>(null);
@@ -160,11 +159,10 @@ const AutoTradeSettings: React.FC = () => {
             if (error) throw error;
 
             if (!data) {
-                setIsNewUser(true);
+                // New user — no row yet, will upsert on first save
                 return;
             }
 
-            setIsNewUser(false);
             setEnabled(data.enabled ?? DEFAULTS.enabled);
             setBroker(data.broker ?? DEFAULTS.broker);
             setBudget(String(data.budget ?? DEFAULTS.budget));
@@ -223,6 +221,26 @@ const AutoTradeSettings: React.FC = () => {
         return errs;
     };
 
+    // ── Build payload (shared by save + toggle) ──
+    const buildPayload = (overrides: Record<string, any> = {}) => {
+        return {
+            user_id: userId,
+            enabled,
+            broker,
+            budget: parseFloat(budget) || DEFAULTS.budget,
+            max_daily: parseInt(maxDaily) || DEFAULTS.max_daily,
+            min_tier: minTier,
+            option_types: optionTypes,
+            dte_min: parseInt(dteMin) || DEFAULTS.dte_min,
+            dte_max: parseInt(dteMax) || DEFAULTS.dte_max,
+            tp_pct: (parseFloat(tpPct) || 30) / 100,
+            sl_pct: (parseFloat(slPct) || 15) / 100,
+            bid_discount: (parseFloat(bidDiscount) || 15) / 100,
+            updated_at: new Date().toISOString(),
+            ...overrides,
+        };
+    };
+
     // ── Save ──
     const handleSave = async () => {
         const errs = validate();
@@ -236,34 +254,11 @@ const AutoTradeSettings: React.FC = () => {
         setSaving(true);
         setSaveStatus('idle');
 
-        const payload: any = {
-            enabled,
-            broker,
-            budget: parseFloat(budget) || DEFAULTS.budget,
-            max_daily: parseInt(maxDaily) || DEFAULTS.max_daily,
-            min_tier: minTier,
-            option_types: optionTypes,
-            dte_min: parseInt(dteMin) || DEFAULTS.dte_min,
-            dte_max: parseInt(dteMax) || DEFAULTS.dte_max,
-            tp_pct: (parseFloat(tpPct) || 30) / 100,
-            sl_pct: (parseFloat(slPct) || 15) / 100,
-            bid_discount: (parseFloat(bidDiscount) || 15) / 100,
-            updated_at: new Date().toISOString(),
-        };
-
         try {
-            if (isNewUser) {
-                payload.user_id = userId;
-                const { error } = await supabase.from('auto_trade_settings').insert(payload);
-                if (error) throw error;
-                setIsNewUser(false);
-            } else {
-                const { error } = await supabase
-                    .from('auto_trade_settings')
-                    .update(payload)
-                    .eq('user_id', userId);
-                if (error) throw error;
-            }
+            const { error } = await supabase
+                .from('auto_trade_settings')
+                .upsert(buildPayload(), { onConflict: 'user_id' });
+            if (error) throw error;
             setSaveStatus('saved');
             setTimeout(() => setSaveStatus('idle'), 3000);
         } catch (err: any) {
@@ -274,18 +269,36 @@ const AutoTradeSettings: React.FC = () => {
         }
     };
 
-    // ── Enable toggle ──
+    // ── Enable toggle (auto-saves to DB) ──
     const handleToggleEnable = () => {
         if (!enabled) {
             setShowConfirm(true);
         } else {
+            // Disable immediately and save
             setEnabled(false);
+            if (userId) {
+                supabase
+                    .from('auto_trade_settings')
+                    .upsert({ ...buildPayload(), enabled: false }, { onConflict: 'user_id' })
+                    .then(({ error }) => {
+                        if (error) console.error('Failed to disable auto-trade:', error);
+                    });
+            }
         }
     };
 
     const confirmEnable = () => {
         setEnabled(true);
         setShowConfirm(false);
+        // Save enabled=true to DB immediately
+        if (userId) {
+            supabase
+                .from('auto_trade_settings')
+                .upsert({ ...buildPayload(), enabled: true }, { onConflict: 'user_id' })
+                .then(({ error }) => {
+                    if (error) console.error('Failed to enable auto-trade:', error);
+                });
+        }
     };
 
     // ── Option type toggle ──
@@ -513,8 +526,8 @@ const AutoTradeSettings: React.FC = () => {
                                     <div className="flex items-center gap-3">
                                         <span className="text-white font-mono text-xs font-bold">${t.total_cost?.toFixed(0)}</span>
                                         <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${t.order_status === 'FILLED' || t.order_status === 'SUBMITTED' ? 'bg-green-500/10 text-green-400' :
-                                                t.order_status === 'ERROR' ? 'bg-red-500/10 text-red-400' :
-                                                    'bg-gray-500/10 text-gray-400'
+                                            t.order_status === 'ERROR' ? 'bg-red-500/10 text-red-400' :
+                                                'bg-gray-500/10 text-gray-400'
                                             }`}>
                                             {t.order_status}
                                         </span>
