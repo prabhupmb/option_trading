@@ -276,7 +276,7 @@ const App: React.FC = () => {
           {currentView === 'signals' ? (
             <main className="flex-1 p-8 overflow-y-auto">
               {/* Data Delay Banner */}
-              <DataDelayBanner onRefresh={refresh} loading={loading} isAdmin={role === 'admin'} />
+              <DataDelayBanner onRefresh={handleManualRefresh} loading={loading} isAdmin={role === 'admin'} />
 
               {/* Stats Bar */}
               <OptionSignalStats signals={signals} onFilterClick={setActiveFilter} />
