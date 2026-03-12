@@ -37,10 +37,15 @@ const SignalFeed: React.FC = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_email: user?.email })
             });
+            // Wait briefly for backend to finish writing to the table
+            await new Promise(r => setTimeout(r, 2000));
+            await refresh();
+            // Follow-up reload to catch any late-arriving data
+            setTimeout(() => refresh(), 5000);
         } catch (err) {
             console.error('Stock feed refresh webhook failed:', err);
-        } finally {
             await refresh();
+        } finally {
             setRefreshing(false);
         }
     };
