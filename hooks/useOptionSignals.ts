@@ -87,6 +87,7 @@ export const useOptionSignals = (strategyFilter?: string | null) => {
             if (signals.length === 0) setLoading(true);
 
             const strategyTable = strategyFilter ? STRATEGY_TABLE_MAP[strategyFilter] : null;
+            console.log('[Refresh Table] Strategy:', strategyFilter, '| Table:', strategyTable || 'swing_trade (default)');
 
             if (strategyTable) {
                 let data: any[], queryError: any;
@@ -125,6 +126,7 @@ export const useOptionSignals = (strategyFilter?: string | null) => {
                 }
 
                 if (queryError) throw queryError;
+                console.log('[Refresh Table] Fetched from', strategyTable, ':', data.length, 'rows');
 
                 // day_trade table uses different column names (target1, target2, stop_loss)
                 // swing_trade table columns already match OptionSignal directly
@@ -163,6 +165,7 @@ export const useOptionSignals = (strategyFilter?: string | null) => {
                     .order('analyzed_at', { ascending: false });
 
                 if (error) throw error;
+                console.log('[Refresh Table] Fetched from swing_trade (default):', data?.length, 'rows');
                 setSignals(data as OptionSignal[]);
             }
 

@@ -28,7 +28,7 @@ const DataDelayBanner: React.FC<DataDelayBannerProps> = ({ onRefresh, loading, i
                         className="px-3 py-1.5 rounded-lg bg-amber-900/30 hover:bg-amber-900/50 text-amber-300 text-[11px] font-bold border border-amber-800/40 transition-colors flex items-center gap-1.5"
                     >
                         <span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : ''}`}>refresh</span>
-                        Refresh
+                        Refresh Table
                     </button>
                 )}
                 <button
