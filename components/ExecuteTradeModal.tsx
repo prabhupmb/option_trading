@@ -297,7 +297,7 @@ type TPSLMode = 'percent' | 'dollar' | 'off';
 type OrderMode = 'bracket' | 'limit';
 
 const SL_PRESETS = [10, 20, 30, 50];
-const TP_PRESETS = [25, 50, 100, 200];
+const TP_PRESETS = [12, 25, 50, 100];
 
 // ─── STEP INDICATOR ───────────────────────────────────────────
 
