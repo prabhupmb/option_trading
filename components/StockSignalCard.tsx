@@ -92,7 +92,14 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, o
             <span className="text-2xl font-mono font-bold text-slate-900 dark:text-white tracking-tight">{formatCurrency(signal.current_price)}</span>
             <span className="text-[10px] font-bold text-gray-500">Tier {signal.tier}</span>
           </div>
-          <span className="text-[9px] font-bold text-gray-400 dark:text-gray-600 uppercase tracking-wider">{new Date(signal.analyzed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          <div className="text-right">
+            <span className="block text-[9px] font-bold text-gray-400 dark:text-gray-600 uppercase tracking-wider">
+              {new Date(signal.analyzed_at).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+            </span>
+            <span className="block text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+              {new Date(signal.analyzed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -122,17 +129,9 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, o
               </div>
             )}
           </div>
-          <div className="flex-1 max-w-[140px] text-right">
-            <div className="flex justify-between items-end mb-1">
-              <span className="text-[9px] text-gray-500 uppercase font-black tracking-widest">Confirmation Gates</span>
-              <span className="text-[10px] text-slate-900 dark:text-white font-mono font-bold">{signal.gates_passed}</span>
-            </div>
-            <div className="h-2 w-full bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${getGatesProgress(signal.gates_passed).color}`}
-                style={{ width: getGatesProgress(signal.gates_passed).width }}
-              ></div>
-            </div>
+          <div className="text-right">
+            <span className="text-[9px] text-gray-500 uppercase font-black tracking-widest block mb-0.5">Gates</span>
+            <span className="text-[10px] text-slate-900 dark:text-white font-mono font-bold">{signal.gates_passed}</span>
           </div>
         </div>
 
@@ -256,6 +255,48 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, o
         </div>
       )}
 
+      {/* Footer - Execute Button */}
+      <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-[#0f1219]/50 flex gap-2">
+        <button
+          onClick={() => onViewAnalysis && onViewAnalysis(signal)}
+          className="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-[#1a1f2e] border border-gray-300 dark:border-gray-700 text-gray-400 hover:text-slate-900 dark:hover:text-white hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
+          title="View Chart"
+        >
+          <span className="material-symbols-outlined text-lg">show_chart</span>
+        </button>
+
+        {!isNoTrade ? (
+          accessLevel === 'trade' ? (
+            <button
+              onClick={() => onExecute && onExecute(signal)}
+              className={`flex-1 rounded-lg text-xs font-black uppercase tracking-wide shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2
+                ${signal.option_type === 'CALL'
+                  ? 'bg-green-600 hover:bg-green-500 text-white shadow-green-900/20'
+                  : 'bg-transparent border border-red-500 text-red-500 hover:bg-red-500 hover:text-white'}`}
+            >
+              <span className="material-symbols-outlined text-sm">bolt</span>
+              Execute {signal.option_type}
+            </button>
+          ) : accessLevel === 'paper' ? (
+            <button
+              onClick={() => onExecute && onExecute(signal)}
+              className="flex-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-black uppercase tracking-wide flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
+            >
+              <span className="material-symbols-outlined text-sm">description</span>
+              Paper Trade {signal.option_type}
+            </button>
+          ) : (
+            <button className="flex-1 bg-gray-100 dark:bg-[#1a1f2e] border border-gray-300 dark:border-gray-700 text-gray-400 rounded-lg text-[10px] font-bold uppercase tracking-wide cursor-not-allowed flex items-center justify-center gap-2">
+              <span className="material-symbols-outlined text-sm">lock</span>
+              Signal Only
+            </button>
+          )
+        ) : (
+          <button disabled className="flex-1 bg-transparent border border-gray-300 dark:border-gray-800 text-gray-400 dark:text-gray-600 rounded-lg text-[10px] font-bold uppercase tracking-wide cursor-not-allowed flex items-center justify-center gap-2">
+            No Trade setup
+          </button>
+        )}
+      </div>
     </div>
   );
 };
