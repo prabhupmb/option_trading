@@ -79,31 +79,36 @@ const mapMpSignalToOptionSignal = (row: any): OptionSignal => {
 
 const mapIronGateToSignal = (row: any): OptionSignal => {
     const optionType = (row.option_type || '').toUpperCase();
-    const pnl = row.pnl_pct || 0;
-    const recommendation = pnl > 5 ? 'STRONG BUY'
-        : pnl > 0 ? 'BUY'
-            : pnl < -5 ? 'STRONG SELL'
-                : pnl < 0 ? 'SELL'
-                    : 'HOLD';
+    const isCall = optionType === 'CALL';
+    const entry = Number(row.entry_price) || 0;
+    const current = Number(row.current_price) || 0;
+    const pnl = entry > 0 ? (isCall ? ((current - entry) / entry) * 100 : ((entry - current) / entry) * 100) : 0;
+    const recommendation = row.tier?.includes('+') ? 'STRONG BUY'
+        : row.tier === 'A' ? 'BUY'
+            : pnl > 0 ? 'BUY' : 'SELL';
+
+    // Parse ADX from g6_adx text like "ADX:28.5(MODERATE) +DI:15.2 -DI:32.1 ✓"
+    const adxMatch = (row.g6_adx || '').match(/ADX:([\d.]+)/);
+    const adxValue = adxMatch ? parseFloat(adxMatch[1]) : 0;
 
     return {
         id: String(row.id),
         symbol: row.symbol,
-        current_price: Number(row.current_price) || 0,
+        current_price: current,
         option_type: (optionType === 'CALL' || optionType === 'PUT' ? optionType : 'NO_TRADE') as OptionSignal['option_type'],
         tier: row.tier || 'NO_TRADE',
         trading_recommendation: recommendation,
-        gates_passed: row.gates_passed ? `${row.gates_passed}/6` : '0/6',
-        adx_value: 0,
-        adx_trend: 'NO_TREND',
-        sma_direction: undefined,
-        fib_target1: Number(row.target_price) || 0,
-        fib_target2: 0,
-        fib_profit_zone_label: row.progress_pct != null ? `Progress: ${Number(row.progress_pct).toFixed(1)}%` : undefined,
+        gates_passed: row.gates_passed || '0/6',
+        adx_value: adxValue,
+        adx_trend: getAdxTrend(adxValue),
+        sma_direction: row.sma_direction || undefined,
+        fib_target1: Number(row.fib_target1 || row.target_price) || 0,
+        fib_target2: Number(row.fib_target2) || 0,
+        fib_profit_zone_label: row.profit_zone_low && row.profit_zone_high
+            ? `$${Number(row.profit_zone_low).toFixed(2)} → $${Number(row.profit_zone_high).toFixed(2)}`
+            : row.progress_pct != null ? `Progress: ${Number(row.progress_pct).toFixed(1)}%` : undefined,
         fib_stop_loss: Number(row.stop_loss) || 0,
-        risk_reward_ratio: row.target_price && row.stop_loss && row.entry_price
-            ? ((row.target_price - row.entry_price) / (row.entry_price - row.stop_loss)).toFixed(1)
-            : '-',
+        risk_reward_ratio: row.risk_reward_ratio || '-',
         analyzed_at: row.opened_at || row.created_at,
     };
 };
