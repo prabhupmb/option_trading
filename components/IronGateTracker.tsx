@@ -379,13 +379,18 @@ const PositionCard: React.FC<{
             ? 'text-gray-200 bg-gray-800/80 border-gray-600'
             : 'text-gray-500 bg-gray-900 border-gray-700';
 
-    // Signal badge — read from `signal` column directly
-    const signalText = position.signal || position.trading_recommendation || '';
-    const isStrong = signalText.includes('STRONG');
-    const isSell = signalText.includes('SELL');
+    // Signal badge — derive from trading_recommendation, fallback to tier + option_type
+    // Never show "WEAK SIGNAL" — Iron Gate only locks A+ and A signals
+    let rec = position.trading_recommendation;
+    if (!rec || rec.toUpperCase().includes('WEAK')) {
+        if (position.tier === 'A+') rec = isCall ? 'STRONG BUY' : 'STRONG SELL';
+        else if (position.tier === 'A') rec = isCall ? 'BUY' : 'SELL';
+        else rec = isCall ? 'BUY' : 'SELL';
+    }
+    const isStrong = rec.includes('STRONG');
     const signalBadge = {
-        text: `${isStrong ? '🔥' : '✅'} ${position.trading_recommendation || signalText} (LOCKED)`,
-        color: isSell
+        text: `${isStrong ? '🔥' : '✅'} ${rec} (LOCKED)`,
+        color: !isCall
             ? (isStrong ? 'bg-red-900/30 border-red-600/50 text-red-400' : 'bg-red-900/20 border-red-700/40 text-red-400')
             : (isStrong ? 'bg-green-900/30 border-green-600/50 text-green-400' : 'bg-green-900/20 border-green-700/40 text-green-400'),
     };
@@ -406,8 +411,8 @@ const PositionCard: React.FC<{
                         <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black border ${tierColor}`}>
                             {position.tier}
                         </span>
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-blue-400 bg-blue-900/20 border border-blue-800/40">
-                            {position.gates_passed || '0/6'}
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-green-400 bg-green-900/20 border border-green-800/40">
+                            {position.gates_passed || '0/6'} GATES ✅
                         </span>
                         {position.consensus_vote && (
                             <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-purple-400 bg-purple-900/20 border border-purple-800/40">
@@ -502,7 +507,7 @@ const PositionCard: React.FC<{
                 </div>
 
                 {/* ── Actions Row ── */}
-                <div className="flex justify-between items-center pt-1">
+                <div className="flex items-center gap-2 pt-1">
                     <button
                         onClick={() => setExpanded(!expanded)}
                         className="text-[10px] font-bold text-gray-400 hover:text-white transition-colors flex items-center gap-1 uppercase tracking-wider"
@@ -510,13 +515,22 @@ const PositionCard: React.FC<{
                         <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}>expand_more</span>
                         Gate Details ({position.gates_passed || '0/6'})
                     </button>
-                    <button
-                        onClick={() => onManualClose(position)}
-                        className="px-3 py-1.5 rounded-lg bg-[#ff4757]/10 border border-[#ff4757]/30 text-[#ff4757] text-[10px] font-bold uppercase tracking-wider hover:bg-[#ff4757]/20 hover:border-[#ff4757]/50 transition-all flex items-center gap-1"
-                    >
-                        <span className="material-symbols-outlined text-sm">close</span>
-                        Manual Close
-                    </button>
+                    <div className="ml-auto flex items-center gap-2">
+                        <button
+                            onClick={() => onManualClose(position)}
+                            className="px-3 py-1.5 rounded-lg bg-[#21262d] border border-[#30363d] text-gray-400 text-[10px] font-bold uppercase tracking-wider hover:bg-[#30363d] hover:text-white transition-all flex items-center gap-1"
+                        >
+                            <span className="material-symbols-outlined text-sm">close</span>
+                            Close
+                        </button>
+                        <button
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 ${isCall
+                                ? 'bg-[#00d97e]/10 border border-[#00d97e]/30 text-[#00d97e] hover:bg-[#00d97e]/20 hover:border-[#00d97e]/50'
+                                : 'bg-[#ff4757]/10 border border-[#ff4757]/30 text-[#ff4757] hover:bg-[#ff4757]/20 hover:border-[#ff4757]/50'}`}
+                        >
+                            ⚡ EXECUTE {position.option_type?.toUpperCase()}
+                        </button>
+                    </div>
                 </div>
 
                 {/* ── Gate Details (Expandable) ── */}
@@ -886,10 +900,45 @@ const IronGateTracker: React.FC = () => {
                                 </div>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                                {positions.map(p => (
-                                    <PositionCard key={p.id} position={p} onManualClose={setClosingPosition} />
-                                ))}
+                            <div className="space-y-5">
+                                {/* ── Signal Summary Counts ── */}
+                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                                    {[
+                                        {
+                                            label: 'STRONG BUY', icon: '🔥',
+                                            count: positions.filter(p => p.option_type?.toUpperCase() === 'CALL' && p.tier === 'A+').length,
+                                            color: 'text-[#00d97e] border-[#00d97e]/30 bg-[#00d97e]/5',
+                                        },
+                                        {
+                                            label: 'BUY', icon: '✅',
+                                            count: positions.filter(p => p.option_type?.toUpperCase() === 'CALL' && p.tier === 'A').length,
+                                            color: 'text-green-400 border-green-800/40 bg-green-900/10',
+                                        },
+                                        {
+                                            label: 'STRONG SELL', icon: '🔥',
+                                            count: positions.filter(p => p.option_type?.toUpperCase() === 'PUT' && p.tier === 'A+').length,
+                                            color: 'text-[#ff4757] border-[#ff4757]/30 bg-[#ff4757]/5',
+                                        },
+                                        {
+                                            label: 'SELL', icon: '✅',
+                                            count: positions.filter(p => p.option_type?.toUpperCase() === 'PUT' && p.tier === 'A').length,
+                                            color: 'text-red-400 border-red-800/40 bg-red-900/10',
+                                        },
+                                    ].map(s => (
+                                        <div key={s.label} className={`rounded-xl border p-4 flex items-center justify-between ${s.color}`}>
+                                            <div>
+                                                <span className={`block text-[9px] font-black uppercase tracking-widest mb-1 ${s.color.split(' ')[0]}`}>{s.label}</span>
+                                                <span className="block text-3xl font-black text-white">{s.count}</span>
+                                            </div>
+                                            <span className="text-2xl">{s.icon}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                                    {positions.map(p => (
+                                        <PositionCard key={p.id} position={p} onManualClose={setClosingPosition} />
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </div>

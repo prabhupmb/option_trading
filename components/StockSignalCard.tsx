@@ -81,15 +81,6 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, o
             </span>
           </div>
           <div className="flex items-center gap-2">
-            {onQuickTrade && !isNoTrade && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onQuickTrade(signal); }}
-                className="px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded text-[10px] font-bold text-white uppercase tracking-wider transition-colors flex items-center gap-1 shadow-lg shadow-purple-600/20"
-              >
-                <span className="material-symbols-outlined text-xs">bolt</span>
-                Trade
-              </button>
-            )}
             <div className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest border ${getSignalBadgeStyle(signalText)}`}>
               {signalText}
             </div>
@@ -178,6 +169,46 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, o
                 <span className="font-mono text-xs font-bold text-red-500">{formatCurrency(signal.fib_stop_loss)}</span>
               </div>
             </div>
+
+            {/* ── Price Progress Bar ── */}
+            {signal.fib_target1 > 0 && signal.fib_stop_loss > 0 && signal.current_price > 0 && (() => {
+              const isCall = signal.option_type === 'CALL';
+              const sl = signal.fib_stop_loss;
+              const target = signal.fib_target1;
+              const current = signal.current_price;
+              const range = Math.abs(target - sl);
+              if (range === 0) return null;
+              const rawPct = isCall
+                ? ((current - sl) / (target - sl)) * 100
+                : ((sl - current) / (sl - target)) * 100;
+              const pct = Math.max(0, Math.min(100, rawPct));
+              const barColor = pct >= 75 ? '#00c853' : pct >= 50 ? '#69f0ae' : pct >= 25 ? '#ffd740' : '#ff5252';
+
+              return (
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">Progress to Target</span>
+                    <span className="text-[11px] font-black font-mono" style={{ color: barColor }}>{pct.toFixed(1)}%</span>
+                  </div>
+                  <div className="relative h-3 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${pct}%`, background: `linear-gradient(90deg, #ff5252, #ffd740 40%, #69f0ae 70%, #00c853)` }}
+                    />
+                    {/* Current price tick */}
+                    <div
+                      className="absolute top-0 bottom-0 w-0.5 bg-white/90"
+                      style={{ left: `${pct}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[9px] font-mono font-bold">
+                    <span className="text-red-400">🛑 {formatCurrency(sl)}</span>
+                    <span className="text-gray-400">{formatCurrency(current)}</span>
+                    <span className="text-green-400">🎯 {formatCurrency(target)}</span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -225,48 +256,6 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, o
         </div>
       )}
 
-      {/* Footer - Execute Button */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-[#0f1219]/50 flex gap-2">
-        <button
-          onClick={() => onViewAnalysis && onViewAnalysis(signal)}
-          className="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-[#1a1f2e] border border-gray-300 dark:border-gray-700 text-gray-400 hover:text-slate-900 dark:hover:text-white hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
-          title="View Chart"
-        >
-          <span className="material-symbols-outlined text-lg">show_chart</span>
-        </button>
-
-        {!isNoTrade ? (
-          accessLevel === 'trade' ? (
-            <button
-              onClick={() => onExecute && onExecute(signal)}
-              className={`flex-1 rounded-lg text-xs font-black uppercase tracking-wide shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2
-                            ${signal.option_type === 'CALL'
-                  ? 'bg-green-600 hover:bg-green-500 text-white shadow-green-900/20'
-                  : 'bg-transparent border border-red-500 text-red-500 hover:bg-red-500 hover:text-white'}`}
-            >
-              <span className="material-symbols-outlined text-sm">bolt</span>
-              Execute {signal.option_type}
-            </button>
-          ) : accessLevel === 'paper' ? (
-            <button
-              onClick={() => onExecute && onExecute(signal)}
-              className="flex-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-black uppercase tracking-wide flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
-            >
-              <span className="material-symbols-outlined text-sm">description</span>
-              Paper Trade {signal.option_type}
-            </button>
-          ) : (
-            <button className="flex-1 bg-gray-100 dark:bg-[#1a1f2e] border border-gray-300 dark:border-gray-700 text-gray-400 rounded-lg text-[10px] font-bold uppercase tracking-wide cursor-not-allowed flex items-center justify-center gap-2">
-              <span className="material-symbols-outlined text-sm">lock</span>
-              Signal Only
-            </button>
-          )
-        ) : (
-          <button disabled className="flex-1 bg-transparent border border-gray-300 dark:border-gray-800 text-gray-400 dark:text-gray-600 rounded-lg text-[10px] font-bold uppercase tracking-wide cursor-not-allowed flex items-center justify-center gap-2">
-            No Trade setup
-          </button>
-        )}
-      </div>
     </div>
   );
 };

@@ -83,13 +83,19 @@ const mapIronGateToSignal = (row: any): OptionSignal => {
     const entry = Number(row.entry_price) || 0;
     const current = Number(row.current_price) || 0;
     const pnl = entry > 0 ? (isCall ? ((current - entry) / entry) * 100 : ((entry - current) / entry) * 100) : 0;
-    const recommendation = row.tier?.includes('+') ? 'STRONG BUY'
-        : row.tier === 'A' ? 'BUY'
-            : pnl > 0 ? 'BUY' : 'SELL';
+    // Respect option_type: use stored recommendation if valid, else derive from tier + option_type
+    let recommendation = row.trading_recommendation;
+    if (!recommendation || (recommendation as string).toUpperCase().includes('WEAK')) {
+        if (row.tier?.includes('+')) recommendation = isCall ? 'STRONG BUY' : 'STRONG SELL';
+        else if (row.tier === 'A') recommendation = isCall ? 'BUY' : 'SELL';
+        else recommendation = isCall ? 'BUY' : 'SELL';
+    }
 
-    // Parse ADX from g6_adx text like "ADX:28.5(MODERATE) +DI:15.2 -DI:32.1 ✓"
-    const adxMatch = (row.g6_adx || '').match(/ADX:([\d.]+)/);
-    const adxValue = adxMatch ? parseFloat(adxMatch[1]) : 0;
+    // Use adx_value column directly, fall back to parsing g6_adx text
+    const adxValue = row.adx_value ? Number(row.adx_value) : (() => {
+        const m = (row.g6_adx || '').match(/ADX:([\d.]+)/);
+        return m ? parseFloat(m[1]) : 0;
+    })();
 
     return {
         id: String(row.id),
