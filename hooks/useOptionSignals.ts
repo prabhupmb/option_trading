@@ -7,6 +7,7 @@ const STRATEGY_TABLE_MAP: Record<string, string> = {
     day_trade: 'day_trade',
     swing_trade: 'swing_trade',
     market_profile: 'mp_signals',
+    iron_gate: 'iron_gate_positions',
 };
 
 const getAdxTrend = (adx?: number): OptionSignal['adx_trend'] => {
@@ -76,6 +77,37 @@ const mapMpSignalToOptionSignal = (row: any): OptionSignal => {
     };
 };
 
+const mapIronGateToSignal = (row: any): OptionSignal => {
+    const optionType = (row.option_type || '').toUpperCase();
+    const pnl = row.pnl_pct || 0;
+    const recommendation = pnl > 5 ? 'STRONG BUY'
+        : pnl > 0 ? 'BUY'
+            : pnl < -5 ? 'STRONG SELL'
+                : pnl < 0 ? 'SELL'
+                    : 'HOLD';
+
+    return {
+        id: String(row.id),
+        symbol: row.symbol,
+        current_price: Number(row.current_price) || 0,
+        option_type: (optionType === 'CALL' || optionType === 'PUT' ? optionType : 'NO_TRADE') as OptionSignal['option_type'],
+        tier: row.tier || 'NO_TRADE',
+        trading_recommendation: recommendation,
+        gates_passed: row.gates_passed ? `${row.gates_passed}/6` : '0/6',
+        adx_value: 0,
+        adx_trend: 'NO_TREND',
+        sma_direction: undefined,
+        fib_target1: Number(row.target_price) || 0,
+        fib_target2: 0,
+        fib_profit_zone_label: row.progress_pct != null ? `Progress: ${Number(row.progress_pct).toFixed(1)}%` : undefined,
+        fib_stop_loss: Number(row.stop_loss) || 0,
+        risk_reward_ratio: row.target_price && row.stop_loss && row.entry_price
+            ? ((row.target_price - row.entry_price) / (row.entry_price - row.stop_loss)).toFixed(1)
+            : '-',
+        analyzed_at: row.opened_at || row.created_at,
+    };
+};
+
 export const useOptionSignals = (strategyFilter?: string | null) => {
     const [signals, setSignals] = useState<OptionSignal[]>([]);
     const [loading, setLoading] = useState(true);
@@ -114,6 +146,16 @@ export const useOptionSignals = (strategyFilter?: string | null) => {
                     data = result.data || [];
                     queryError = result.error;
                     console.log('MP Signals fetched:', data.length, 'rows', queryError);
+                } else if (strategyFilter === 'iron_gate') {
+                    // iron_gate_positions: fetch OPEN positions
+                    const result = await supabase
+                        .from(strategyTable)
+                        .select('*')
+                        .eq('status', 'OPEN')
+                        .order('opened_at', { ascending: false });
+                    data = result.data || [];
+                    queryError = result.error;
+                    console.log('[IronGate] Option Feed fetched:', data.length, 'rows', queryError);
                 } else {
                     // Other strategies: filter by is_latest, order by analyzed_at
                     const result = await supabase
@@ -128,14 +170,14 @@ export const useOptionSignals = (strategyFilter?: string | null) => {
                 if (queryError) throw queryError;
                 console.log('[Refresh Table] Fetched from', strategyTable, ':', data.length, 'rows');
 
-                // day_trade table uses different column names (target1, target2, stop_loss)
-                // swing_trade table columns already match OptionSignal directly
-                // mp_signals table uses ticker, entry_price, target, stop, poc etc.
+                // Map to OptionSignal based on strategy
                 const mapped = strategyFilter === 'day_trade'
                     ? (data || []).map(mapDayTradeToSignal)
                     : strategyFilter === 'market_profile'
                         ? (data || []).map(mapMpSignalToOptionSignal)
-                        : (data as OptionSignal[]);
+                        : strategyFilter === 'iron_gate'
+                            ? (data || []).map(mapIronGateToSignal)
+                            : (data as OptionSignal[]);
                 setSignals(mapped);
             } else if (strategyFilter) {
                 // Strategy exists but has no dedicated table — filter swing_trade by watchlist

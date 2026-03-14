@@ -17,6 +17,7 @@ import SignalFeed from './components/SignalFeed';
 import UserProfilePage from './components/UserProfilePage';
 import QuickTradePage from './components/QuickTradePage';
 import AutoTradeSettings from './components/AutoTradeSettings';
+import IronGateTracker from './components/IronGateTracker';
 import QuickTradeModal from './components/quicktrade/QuickTradeModal';
 import { useAuth } from './services/useAuth';
 import { OptionSignal } from './types';
@@ -374,6 +375,10 @@ const App: React.FC = () => {
             </div>
           ) : currentView === 'auto-trade' ? (
             <AutoTradeSettings />
+          ) : currentView === 'iron-gate' ? (
+            <div className="flex-1 overflow-y-auto">
+              <IronGateTracker />
+            </div>
           ) : currentView === 'settings' ? (
             <div className="flex-1 overflow-y-auto">
               <UserProfilePage />
