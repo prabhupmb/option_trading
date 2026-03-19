@@ -653,7 +653,24 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                 signal_id: signal.id || null,
                 tier: signal.tier,
                 gates_passed: signal.gates_passed,
-                user_id: user?.id
+                user_id: user?.id,
+
+                // Iron Gate linkage (only set when executing from Iron Gate cards)
+                ...(signal.signal_source ? {
+                    signal_source: signal.signal_source,
+                    signal_position_id: signal.signal_position_id,
+                    signal_entry_price: signal.entry_price,
+                    signal_target_price: signal.target_price,
+                    signal_stop_loss: signal.stop_loss,
+                    signal_profit_zone_low: signal.profit_zone_low,
+                    signal_profit_zone_high: signal.profit_zone_high,
+                    signal_option_type: signal.option_type,
+                    signal_tier: signal.tier,
+                    signal_gates_passed: signal.gates_passed,
+                    signal_opened_at: signal.opened_at,
+                    signal_risk_reward: signal.risk_reward_ratio,
+                    signal_text: signal.signal_text,
+                } : {}),
             };
 
             console.log('Execute Payload:', payload);
@@ -856,6 +873,32 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                         {/* ═══ STEP 1: Configure ═══ */}
                         {step === 1 && !searching && !budgetError && (
                             <>
+                                {/* Iron Gate Signal Context Banner */}
+                                {signal?.signal_source && (
+                                    <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 rounded-xl border border-blue-700/30 p-4 space-y-2 mb-1">
+                                        <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-wider">
+                                            <span className="material-symbols-outlined text-sm">link</span>
+                                            {signal.signal_source === 'iron_gate_day' ? '⚡ Iron Gate Day Signal' : '🔒 Iron Gate Signal'}
+                                        </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px]">
+                                            {signal.entry_price != null && (
+                                                <div className="flex flex-col"><span className="text-gray-500 font-bold">ENTRY</span><span className="text-yellow-400 font-mono font-black">${signal.entry_price.toFixed(2)}</span></div>
+                                            )}
+                                            {signal.target_price != null && (
+                                                <div className="flex flex-col"><span className="text-gray-500 font-bold">TARGET</span><span className="text-green-400 font-mono font-black">${signal.target_price.toFixed(2)}</span></div>
+                                            )}
+                                            {signal.stop_loss != null && (
+                                                <div className="flex flex-col"><span className="text-gray-500 font-bold">STOP LOSS</span><span className="text-red-400 font-mono font-black">${signal.stop_loss.toFixed(2)}</span></div>
+                                            )}
+                                            <div className="flex flex-col"><span className="text-gray-500 font-bold">R:R</span><span className="text-white font-mono font-black">{signal.risk_reward_ratio || '—'}</span></div>
+                                        </div>
+                                        {(signal.profit_zone_low != null && signal.profit_zone_high != null) && (
+                                            <div className="text-[10px] text-gray-400">
+                                                💰 Profit Zone: <span className="text-green-400 font-mono font-bold">${signal.profit_zone_low.toFixed(2)}</span> — <span className="text-green-400 font-mono font-bold">${signal.profit_zone_high.toFixed(2)}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 {/* Option Type */}
                                 <div>
                                     <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Option Type</label>

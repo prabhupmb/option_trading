@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useBrokerContext } from '../context/BrokerContext';
 import { useAuth } from '../services/useAuth';
+import { supabase } from '../services/supabase';
 import SellPositionModal from './SellPositionModal';
 
 // --- TYPES ---
@@ -65,6 +66,29 @@ interface PortfolioData {
         count: any;
     };
     timestamp: string;
+}
+
+interface IronGateOrder {
+    id: string;
+    user_id: string;
+    signal_source: string;
+    signal_position_id: string;
+    option_symbol: string;
+    stock_symbol: string;
+    signal_entry_price: number;
+    signal_target_price: number;
+    signal_stop_loss: number;
+    signal_profit_zone_low: number | null;
+    signal_profit_zone_high: number | null;
+    signal_tier: string;
+    signal_gates_passed: string;
+    signal_option_type: string;
+    signal_risk_reward: string;
+    signal_opened_at: string;
+    current_stock_price: number | null;
+    signal_progress_pct: number | null;
+    position_status: string;
+    created_at: string;
 }
 
 // --- HELPERS ---
@@ -152,6 +176,8 @@ const Portfolio: React.FC = () => {
     const [orderFilter, setOrderFilter] = useState('all');
     const [refreshing, setRefreshing] = useState(false);
     const [sellPosition, setSellPosition] = useState<Position | null>(null);
+    const [ironGateOrders, setIronGateOrders] = useState<IronGateOrder[]>([]);
+    const [expandedSignal, setExpandedSignal] = useState<string | null>(null);
 
     const fetchPortfolio = useCallback(async () => {
         if (!selectedBroker) {
@@ -203,7 +229,21 @@ const Portfolio: React.FC = () => {
     const handleRefresh = () => {
         setRefreshing(true);
         fetchPortfolio();
+        fetchIronGateOrders();
     };
+
+    // Fetch Iron Gate linked orders
+    const fetchIronGateOrders = useCallback(async () => {
+        if (!user?.id) return;
+        const { data: orders, error } = await supabase
+            .from('iron_gate_orders')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('position_status', 'OPEN');
+        if (!error && orders) setIronGateOrders(orders);
+    }, [user]);
+
+    useEffect(() => { fetchIronGateOrders(); }, [fetchIronGateOrders]);
 
     // --- LOADING ---
     if (loading) {
@@ -278,6 +318,13 @@ const Portfolio: React.FC = () => {
         );
     };
 
+    // Match Iron Gate order to position by option_symbol
+    const getLinkedOrder = (pos: Position): IronGateOrder | null => {
+        return ironGateOrders.find(o => o.option_symbol === pos.symbol) || null;
+    };
+
+    const linkedCount = positions.all.filter(p => getLinkedOrder(p)).length;
+
     return (
         <div className="p-6 max-w-[1200px] mx-auto space-y-6 animate-in fade-in duration-300">
 
@@ -339,6 +386,17 @@ const Portfolio: React.FC = () => {
                     </span>
                 </div>
             </div>
+
+            {/* Iron Gate Linked Summary – only show when we have linked orders */}
+            {linkedCount > 0 && (
+                <div className="bg-gradient-to-r from-blue-900/10 to-purple-900/10 rounded-xl border border-blue-800/30 px-5 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                        <span className="material-symbols-outlined text-blue-400 text-lg">link</span>
+                        <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Iron Gate Linked Positions</span>
+                    </div>
+                    <span className="text-sm font-black text-white font-mono">{linkedCount} / {positions.optionCount}</span>
+                </div>
+            )}
 
             {/* Tabs */}
             <div className="flex gap-1 border-b border-[#1e2a36]">
@@ -415,10 +473,14 @@ const Portfolio: React.FC = () => {
                                                 : 'bg-slate-700/60 text-slate-300 border border-slate-600/30'
                                     : '';
 
-                                return (
+                                const row = (
                                     <div
                                         key={i}
-                                        className={`group grid grid-cols-[2fr_0.7fr_0.7fr_1fr_0.6fr_0.6fr_0.7fr_0.9fr_1fr_0.8fr] items-center px-4 py-3 hover:bg-white/[0.03] transition-colors ${i < filteredPositions.length - 1 ? 'border-b border-slate-800/50' : ''}`}
+                                        className={`group grid grid-cols-[2fr_0.7fr_0.7fr_1fr_0.6fr_0.6fr_0.7fr_0.9fr_1fr_0.8fr] items-center px-4 py-3 hover:bg-white/[0.03] transition-colors cursor-pointer ${i < filteredPositions.length - 1 ? 'border-b border-slate-800/50' : ''} ${getLinkedOrder(p) ? 'border-l-2 border-l-blue-500/50' : ''}`}
+                                        onClick={() => {
+                                            const linked = getLinkedOrder(p);
+                                            if (linked) setExpandedSignal(expandedSignal === p.symbol ? null : p.symbol);
+                                        }}
                                     >
                                         {/* Symbol */}
                                         <span className="flex items-center gap-2.5 min-w-0">
@@ -426,7 +488,10 @@ const Portfolio: React.FC = () => {
                                                 {(parsed?.underlying || p.underlying)?.charAt(0) || '?'}
                                             </span>
                                             <span className="min-w-0">
-                                                <span className="text-white font-bold text-sm block truncate">{parsed?.underlying || p.underlying}</span>
+                                                <span className="text-white font-bold text-sm block truncate">
+                                                    {parsed?.underlying || p.underlying}
+                                                    {getLinkedOrder(p) && <span className="ml-1.5 text-blue-400 text-[9px] font-bold">🔗</span>}
+                                                </span>
                                                 <span className="text-gray-500 text-[10px] block truncate font-mono">{p.symbol}</span>
                                             </span>
                                         </span>
@@ -496,6 +561,58 @@ const Portfolio: React.FC = () => {
                                             </span>
                                         </span>
                                     </div>
+                                );
+
+                                const linked = getLinkedOrder(p);
+                                const signalRow = linked && expandedSignal === p.symbol ? (
+                                    <div key={`sig-${i}`} className="grid grid-cols-[1fr] px-4 py-3 bg-gradient-to-r from-blue-900/10 to-purple-900/10 border-b border-blue-800/20">
+                                        <div className="space-y-2">
+                                            <div className="flex items-center gap-2 text-[10px] font-bold text-blue-400 uppercase tracking-wider">
+                                                <span className="material-symbols-outlined text-sm">link</span>
+                                                {linked.signal_source === 'iron_gate_day' ? '⚡ Day Signal' : '🔒 Iron Gate Signal'} • {linked.stock_symbol} • {linked.signal_tier} • Gates: {linked.signal_gates_passed}
+                                            </div>
+                                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+                                                <div><span className="text-gray-500 font-bold block text-[9px] uppercase">Stock Entry</span><span className="text-yellow-400 font-mono font-black">${linked.signal_entry_price?.toFixed(2)}</span></div>
+                                                <div><span className="text-gray-500 font-bold block text-[9px] uppercase">Current</span><span className={`font-mono font-black ${(linked.current_stock_price || 0) >= linked.signal_entry_price ? 'text-green-400' : 'text-red-400'}`}>${linked.current_stock_price?.toFixed(2) || '—'}</span></div>
+                                                <div><span className="text-gray-500 font-bold block text-[9px] uppercase">Target</span><span className="text-green-400 font-mono font-black">${linked.signal_target_price?.toFixed(2)}</span></div>
+                                                <div><span className="text-gray-500 font-bold block text-[9px] uppercase">Stop Loss</span><span className="text-red-400 font-mono font-black">${linked.signal_stop_loss?.toFixed(2)}</span></div>
+                                                <div><span className="text-gray-500 font-bold block text-[9px] uppercase">R:R</span><span className="text-white font-mono font-black">{linked.signal_risk_reward || '—'}</span></div>
+                                            </div>
+                                            {/* Progress bar */}
+                                            {linked.signal_progress_pct != null && (
+                                                <div className="space-y-1">
+                                                    <div className="relative h-5 rounded-md overflow-hidden bg-[#1e2430] border border-[#30363d]">
+                                                        <div
+                                                            className="absolute top-0 bottom-0 left-0 rounded-l-md transition-all duration-700"
+                                                            style={{
+                                                                width: `${Math.max(0, Math.min(100, linked.signal_progress_pct))}%`,
+                                                                background: 'linear-gradient(90deg, #ff4757 0%, #ff9f43 25%, #ffd32a 45%, #7bed9f 70%, #00d97e 100%)',
+                                                            }}
+                                                        />
+                                                        <div className="absolute inset-0 flex items-center justify-center">
+                                                            <span className="text-[10px] font-black text-white" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>{linked.signal_progress_pct.toFixed(1)}%</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex justify-between text-[9px] font-bold">
+                                                        <span className="text-red-400">🛑 SL ${linked.signal_stop_loss?.toFixed(2)}</span>
+                                                        <span className="text-green-400">🎯 Target ${linked.signal_target_price?.toFixed(2)}</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {(linked.signal_profit_zone_low != null && linked.signal_profit_zone_high != null) && (
+                                                <div className="text-[10px] text-gray-400">
+                                                    💰 Profit Zone: <span className="text-green-400 font-mono font-bold">${linked.signal_profit_zone_low.toFixed(2)}</span> — <span className="text-green-400 font-mono font-bold">${linked.signal_profit_zone_high.toFixed(2)}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : null;
+
+                                return (
+                                    <React.Fragment key={`row-${i}`}>
+                                        {row}
+                                        {signalRow}
+                                    </React.Fragment>
                                 );
                             })}
                             {/* Footer Totals */}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
+import { OptionSignal } from '../types';
 
 // ─── TYPES ────────────────────────────────────────────────────
 
@@ -134,6 +135,14 @@ const durationSince = (dateStr: string | null | undefined): string => {
     if (!dateStr) return '—';
     const ms = Date.now() - new Date(dateStr).getTime();
     return formatDuration(Math.floor(ms / 60000));
+};
+
+const formatOpenedAt = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    const datePart = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
+    const timePart = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    return `${datePart} ${timePart} (${timeSince(dateStr)})`;
 };
 
 // Check if a gate string contains a checkmark
@@ -349,10 +358,10 @@ const SuperTrendRow: React.FC<{ p: IronGatePosition }> = ({ p }) => {
         <div className="flex gap-2">
             {items.map(({ label, dir, val }) => (
                 <div key={label} className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border text-[10px] font-bold ${(dir || '').toUpperCase() === 'BULLISH'
-                        ? 'bg-green-950/20 border-green-800/40 text-green-400'
-                        : (dir || '').toUpperCase() === 'BEARISH'
-                            ? 'bg-red-950/15 border-red-800/30 text-red-400'
-                            : 'bg-[#21262d] border-[#30363d] text-gray-500'
+                    ? 'bg-green-950/20 border-green-800/40 text-green-400'
+                    : (dir || '').toUpperCase() === 'BEARISH'
+                        ? 'bg-red-950/15 border-red-800/30 text-red-400'
+                        : 'bg-[#21262d] border-[#30363d] text-gray-500'
                     }`}>
                     <span className="uppercase">ST {label}</span>
                     <span className={`${dirColor(dir)}`}>{dir ? (dir === 'BULLISH' ? '▲' : '▼') : '—'}</span>
@@ -368,7 +377,8 @@ const SuperTrendRow: React.FC<{ p: IronGatePosition }> = ({ p }) => {
 const PositionCard: React.FC<{
     position: IronGatePosition;
     onManualClose: (p: IronGatePosition) => void;
-}> = ({ position, onManualClose }) => {
+    onExecute?: (signal: OptionSignal) => void;
+}> = ({ position, onManualClose, onExecute }) => {
     const [expanded, setExpanded] = useState(false);
     const isCall = position.option_type?.toUpperCase() === 'CALL';
     const pnl = calcPnl(position);
@@ -421,7 +431,7 @@ const PositionCard: React.FC<{
                         )}
                     </div>
                     <div className="text-right flex-shrink-0">
-                        <span className="text-[10px] text-gray-500 block">{timeSince(position.opened_at)}</span>
+                        <span className="text-[10px] text-gray-500 block">{formatOpenedAt(position.opened_at)}</span>
                         {position.version && (
                             <span className="text-[9px] text-gray-600 font-mono block">v{position.version.replace('v', '')}</span>
                         )}
@@ -524,6 +534,32 @@ const PositionCard: React.FC<{
                             Close
                         </button>
                         <button
+                            onClick={() => onExecute?.({
+                                id: position.id,
+                                symbol: position.symbol,
+                                current_price: position.current_price,
+                                option_type: position.option_type?.toUpperCase() as 'CALL' | 'PUT',
+                                tier: position.tier as 'A+' | 'A' | 'B+' | 'NO_TRADE',
+                                trading_recommendation: position.trading_recommendation || '',
+                                gates_passed: position.gates_passed || '',
+                                adx_value: position.adx_value || 0,
+                                adx_trend: 'MODERATE',
+                                fib_target1: position.fib_target1 || position.target_price || 0,
+                                fib_target2: position.fib_target2 || 0,
+                                fib_stop_loss: position.stop_loss || 0,
+                                risk_reward_ratio: position.risk_reward_ratio || '',
+                                analyzed_at: position.opened_at || '',
+                                // Iron Gate linkage
+                                signal_source: 'iron_gate',
+                                signal_position_id: position.id,
+                                entry_price: position.entry_price,
+                                target_price: position.target_price,
+                                stop_loss: position.stop_loss,
+                                profit_zone_low: position.profit_zone_low,
+                                profit_zone_high: position.profit_zone_high,
+                                signal_text: position.signal || '',
+                                opened_at: position.opened_at,
+                            })}
                             className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 ${isCall
                                 ? 'bg-[#00d97e]/10 border border-[#00d97e]/30 text-[#00d97e] hover:bg-[#00d97e]/20 hover:border-[#00d97e]/50'
                                 : 'bg-[#ff4757]/10 border border-[#ff4757]/30 text-[#ff4757] hover:bg-[#ff4757]/20 hover:border-[#ff4757]/50'}`}
@@ -569,8 +605,8 @@ const ManualCloseModal: React.FC<{
                         <div className="flex justify-between items-center mb-3">
                             <span className="text-xl font-black text-white">{position.symbol}</span>
                             <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${position.option_type?.toUpperCase() === 'CALL'
-                                    ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/40'
-                                    : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/40'}`}>
+                                ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/40'
+                                : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/40'}`}>
                                 {position.option_type?.toUpperCase()}
                             </span>
                         </div>
@@ -673,7 +709,7 @@ const HistorySummaryStats: React.FC<{ history: IronGateHistory[] }> = ({ history
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
 
-const IronGateTracker: React.FC = () => {
+const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> = ({ onExecute }) => {
     const [config, setConfig] = useState<StrategyConfig | null>(null);
     const [positions, setPositions] = useState<IronGatePosition[]>([]);
     const [history, setHistory] = useState<IronGateHistory[]>([]);
@@ -936,7 +972,7 @@ const IronGateTracker: React.FC = () => {
                                 </div>
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                                     {positions.map(p => (
-                                        <PositionCard key={p.id} position={p} onManualClose={setClosingPosition} />
+                                        <PositionCard key={p.id} position={p} onManualClose={setClosingPosition} onExecute={onExecute} />
                                     ))}
                                 </div>
                             </div>
@@ -980,8 +1016,8 @@ const IronGateTracker: React.FC = () => {
                                                             <td className="px-4 py-3 font-black text-white">{h.symbol}</td>
                                                             <td className="px-4 py-3">
                                                                 <span className={`px-1.5 py-0.5 rounded text-[9px] font-black border ${h.option_type?.toUpperCase() === 'CALL'
-                                                                        ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/40'
-                                                                        : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/40'}`}>
+                                                                    ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/40'
+                                                                    : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/40'}`}>
                                                                     {h.option_type?.toUpperCase()}
                                                                 </span>
                                                             </td>

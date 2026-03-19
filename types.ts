@@ -100,4 +100,14 @@ export interface OptionSignal {
   analyzed_at: string;
   ai_entry_hint?: string;
   ai_reason?: string;
+  // Iron Gate linkage (optional — set when executing from Iron Gate cards)
+  signal_source?: 'iron_gate' | 'iron_gate_day';
+  signal_position_id?: string;
+  entry_price?: number;
+  target_price?: number;
+  stop_loss?: number;
+  profit_zone_low?: number;
+  profit_zone_high?: number;
+  signal_text?: string;
+  opened_at?: string;
 }

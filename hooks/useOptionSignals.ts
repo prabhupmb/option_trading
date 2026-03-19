@@ -8,6 +8,7 @@ const STRATEGY_TABLE_MAP: Record<string, string> = {
     swing_trade: 'swing_trade',
     market_profile: 'mp_signals',
     iron_gate: 'iron_gate_positions',
+    iron_gate_day: 'iron_gate_day_positions',
 };
 
 const getAdxTrend = (adx?: number): OptionSignal['adx_trend'] => {
@@ -157,8 +158,8 @@ export const useOptionSignals = (strategyFilter?: string | null) => {
                     data = result.data || [];
                     queryError = result.error;
                     console.log('MP Signals fetched:', data.length, 'rows', queryError);
-                } else if (strategyFilter === 'iron_gate') {
-                    // iron_gate_positions: fetch OPEN positions
+                } else if (strategyFilter === 'iron_gate' || strategyFilter === 'iron_gate_day') {
+                    // iron_gate / iron_gate_day: fetch OPEN positions
                     const result = await supabase
                         .from(strategyTable)
                         .select('*')
@@ -166,7 +167,7 @@ export const useOptionSignals = (strategyFilter?: string | null) => {
                         .order('opened_at', { ascending: false });
                     data = result.data || [];
                     queryError = result.error;
-                    console.log('[IronGate] Option Feed fetched:', data.length, 'rows', queryError);
+                    console.log(`[${strategyFilter}] Option Feed fetched:`, data.length, 'rows', queryError);
                 } else {
                     // Other strategies: filter by is_latest, order by analyzed_at
                     const result = await supabase
@@ -186,7 +187,7 @@ export const useOptionSignals = (strategyFilter?: string | null) => {
                     ? (data || []).map(mapDayTradeToSignal)
                     : strategyFilter === 'market_profile'
                         ? (data || []).map(mapMpSignalToOptionSignal)
-                        : strategyFilter === 'iron_gate'
+                        : (strategyFilter === 'iron_gate' || strategyFilter === 'iron_gate_day')
                             ? (data || []).map(mapIronGateToSignal)
                             : (data as OptionSignal[]);
                 setSignals(mapped);
