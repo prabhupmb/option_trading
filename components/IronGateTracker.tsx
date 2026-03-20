@@ -25,7 +25,6 @@ interface IronGatePosition {
     option_type: string;
     tier: string;
     status: string;
-    // Frozen fields
     signal: string;
     trading_recommendation: string;
     entry_price: number;
@@ -40,28 +39,23 @@ interface IronGatePosition {
     fib_target2: number;
     fib_direction: string;
     gates_passed: string;
-    // ADX numeric columns
     adx_value: number;
     adx_trend: string;
     plus_di: number;
     minus_di: number;
-    // VWAP numeric columns
     vwap_value: number;
     vwap_trend: string;
     vwap_position: string;
     vwap_distance: number;
-    // SMA numeric columns
     sma20: number;
     sma50: number;
     sma_spread: number;
-    // SuperTrend columns
     st_1h_direction: string;
     st_1h_value: number;
     st_15m_direction: string;
     st_15m_value: number;
     st_5m_direction: string;
     st_5m_value: number;
-    // Gate text details
     g1_sma: string;
     g2_1h: string;
     g3_15m: string;
@@ -75,7 +69,6 @@ interface IronGatePosition {
     opened_at: string;
     source: string;
     version: string;
-    // Live fields
     current_price: number;
     progress_pct: number;
     high_water_mark: number;
@@ -119,8 +112,7 @@ const formatDuration = (minutes: number | null | undefined): string => {
     const m = Math.round(minutes % 60);
     if (h < 24) return `${h}h ${m}m`;
     const d = Math.floor(h / 24);
-    const rh = h % 24;
-    return `${d}d ${rh}h`;
+    return `${d}d ${h % 24}h`;
 };
 
 const timeSince = (dateStr: string | null | undefined): string => {
@@ -133,8 +125,7 @@ const timeSince = (dateStr: string | null | undefined): string => {
 
 const durationSince = (dateStr: string | null | undefined): string => {
     if (!dateStr) return '—';
-    const ms = Date.now() - new Date(dateStr).getTime();
-    return formatDuration(Math.floor(ms / 60000));
+    return formatDuration(Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000));
 };
 
 const formatOpenedAt = (dateStr: string | null | undefined): string => {
@@ -145,116 +136,88 @@ const formatOpenedAt = (dateStr: string | null | undefined): string => {
     return `${datePart} ${timePart} (${timeSince(dateStr)})`;
 };
 
-// Check if a gate string contains a checkmark
 const gateIsPassed = (g: string | null | undefined): boolean => {
     if (!g) return false;
     return g.includes('✓') || g.includes('✅') || g.includes('PASS');
 };
 
-// Calculate live P&L based on direction
 const calcPnl = (pos: IronGatePosition): number => {
     if (pos.pnl_pct != null && pos.pnl_pct !== 0) return pos.pnl_pct;
     if (!pos.entry_price || !pos.current_price) return 0;
     const isCall = pos.option_type?.toUpperCase() === 'CALL';
-    if (isCall) return ((pos.current_price - pos.entry_price) / pos.entry_price) * 100;
-    return ((pos.entry_price - pos.current_price) / pos.entry_price) * 100;
+    return isCall
+        ? ((pos.current_price - pos.entry_price) / pos.entry_price) * 100
+        : ((pos.entry_price - pos.current_price) / pos.entry_price) * 100;
 };
 
-// Is the current price moving favorably?
 const isProfitable = (pos: IronGatePosition): boolean => {
     const isCall = pos.option_type?.toUpperCase() === 'CALL';
     return isCall ? pos.current_price > pos.entry_price : pos.current_price < pos.entry_price;
 };
 
-// ADX color based on value
 const adxColor = (v: number | null | undefined): string => {
     if (!v) return 'text-red-400';
-    if (v >= 25) return 'text-green-400';
+    if (v >= 25) return 'text-emerald-400';
     if (v >= 20) return 'text-yellow-400';
     return 'text-red-400';
 };
 
-// Direction color helper
 const dirColor = (d: string | null | undefined): string => {
     const u = (d || '').toUpperCase();
-    if (u === 'BULLISH' || u === 'RISING' || u === 'ABOVE') return 'text-green-400';
+    if (u === 'BULLISH' || u === 'RISING' || u === 'ABOVE') return 'text-emerald-400';
     if (u === 'BEARISH' || u === 'FALLING' || u === 'BELOW') return 'text-red-400';
-    return 'text-gray-400';
+    return 'text-slate-400';
 };
 
-// ─── PROGRESS BAR COMPONENT ─────────────────────────────────
+// ─── PROGRESS BAR ────────────────────────────────────────────
 
 const IronGateProgressBar: React.FC<{ position: IronGatePosition }> = ({ position }) => {
     const { entry_price, target_price, stop_loss, progress_pct, high_water_mark, low_water_mark } = position;
-    const pct = Math.max(-5, Math.min(105, progress_pct || 0));
+    const pct = Math.max(0, Math.min(100, progress_pct || 0));
     const hwm = Math.max(0, Math.min(100, high_water_mark || 0));
     const lwm = Math.max(0, Math.min(100, low_water_mark || 0));
-
-    // Calculate entry position on bar (where entry falls between SL and target)
     const range = Math.abs(target_price - stop_loss);
-    const entryPct = range > 0 ? (Math.abs(entry_price - stop_loss) / range) * 100 : 50;
+    const entryPct = range > 0 ? Math.max(0, Math.min(100, (Math.abs(entry_price - stop_loss) / range) * 100)) : 50;
+
+    const zoneColor = pct >= 80 ? '#00d97e' : pct >= 60 ? '#7bed9f' : pct >= 40 ? '#ffd32a' : pct >= 20 ? '#ff9f43' : '#ff4757';
 
     return (
-        <div className="space-y-2">
-            {/* Bar container */}
-            <div className="relative h-8 rounded-lg overflow-visible bg-[#1e2430] border border-[#30363d]">
-                {/* Gradient fill */}
-                <div
-                    className="absolute top-0 bottom-0 left-0 rounded-l-lg transition-all duration-700 ease-out"
-                    style={{
-                        width: `${Math.max(0, Math.min(100, pct))}%`,
-                        background: 'linear-gradient(90deg, #ff4757 0%, #ff9f43 25%, #ffd32a 45%, #7bed9f 70%, #00d97e 100%)',
-                        borderRadius: pct >= 100 ? '0.5rem' : '0.5rem 0 0 0.5rem',
-                    }}
-                />
-
-                {/* Entry price marker (dashed line) */}
-                <div
-                    className="absolute top-0 bottom-0 w-px z-10"
-                    style={{ left: `${entryPct}%`, borderLeft: '2px dashed rgba(255, 211, 42, 0.6)' }}
-                />
-                <div
-                    className="absolute -top-1 w-3 h-3 bg-[#ffd32a] rounded-full border-2 border-[#1e2430] z-10"
-                    style={{ left: `calc(${entryPct}% - 6px)` }}
-                />
-
-                {/* High water mark triangle ▲ */}
-                {hwm > 0 && (
-                    <div className="absolute -top-3 z-10 text-[9px] text-green-400 font-black"
-                        style={{ left: `calc(${hwm}% - 4px)` }} title={`HWM: ${hwm.toFixed(1)}%`}>▲</div>
-                )}
-
-                {/* Low water mark triangle ▼ */}
-                {lwm > 0 && lwm < 100 && (
-                    <div className="absolute -bottom-3 z-10 text-[9px] text-red-400 font-black"
-                        style={{ left: `calc(${lwm}% - 4px)` }} title={`LWM: ${lwm.toFixed(1)}%`}>▼</div>
-                )}
-
-                {/* Current position indicator (white line) */}
-                <div
-                    className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] z-20 transition-all duration-700 ease-out"
-                    style={{ left: `${Math.max(0, Math.min(100, pct))}%` }}
-                />
-
-                {/* % label overlay */}
-                <div className="absolute inset-0 flex items-center justify-center z-30">
-                    <span className="text-xs font-black text-white" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}>
-                        {pct.toFixed(1)}%
-                    </span>
-                </div>
+        <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-[9px] font-bold text-slate-500 mb-0.5">
+                <span>SL → Target Progress</span>
+                <span className="font-mono" style={{ color: zoneColor }}>{pct.toFixed(1)}%</span>
             </div>
-
-            {/* Labels below bar */}
-            <div className="flex justify-between items-center text-[10px] font-bold px-0.5">
-                <span className="text-red-400">🛑 SL {fmt(stop_loss)}</span>
-                <span className="text-yellow-400">🔒 Entry {fmt(entry_price)}</span>
-                <span className="text-green-400">🎯 Target {fmt(target_price)}</span>
+            <div className="relative h-5 rounded-full overflow-visible bg-[#0d1117] border border-[#1e2430]">
+                {/* Track gradient background */}
+                <div className="absolute inset-0 rounded-full opacity-20"
+                    style={{ background: 'linear-gradient(90deg, #ff4757 0%, #ff9f43 25%, #ffd32a 50%, #7bed9f 75%, #00d97e 100%)' }} />
+                {/* Fill */}
+                <div className="absolute top-0 bottom-0 left-0 rounded-full transition-all duration-700 ease-out"
+                    style={{
+                        width: `${pct}%`,
+                        background: `linear-gradient(90deg, #ff475720 0%, ${zoneColor}80 100%)`,
+                        borderRight: `2px solid ${zoneColor}`,
+                    }} />
+                {/* Entry marker */}
+                <div className="absolute top-0 bottom-0 w-px z-10" style={{ left: `${entryPct}%`, background: 'rgba(255,211,42,0.5)', borderLeft: '1px dashed rgba(255,211,42,0.7)' }} />
+                {/* HWM */}
+                {hwm > 0 && <div className="absolute -top-2.5 text-[8px] text-emerald-400 font-black z-10" style={{ left: `calc(${hwm}% - 3px)` }} title={`HWM ${hwm.toFixed(1)}%`}>▲</div>}
+                {/* LWM */}
+                {lwm > 0 && lwm < 100 && <div className="absolute -bottom-2.5 text-[8px] text-red-400 font-black z-10" style={{ left: `calc(${lwm}% - 3px)` }} title={`LWM ${lwm.toFixed(1)}%`}>▼</div>}
+                {/* Current dot */}
+                <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-[#0d1117] z-20 transition-all duration-700 ease-out shadow-lg"
+                    style={{ left: `calc(${pct}% - 6px)`, background: zoneColor, boxShadow: `0 0 8px ${zoneColor}80` }} />
+            </div>
+            <div className="flex justify-between text-[9px] font-bold mt-0.5">
+                <span className="text-red-400">⛔ {fmt(stop_loss)}</span>
+                <span className="text-yellow-400/70">Entry {fmt(entry_price)}</span>
+                <span className="text-emerald-400">🎯 {fmt(target_price)}</span>
             </div>
         </div>
     );
 };
 
-// ─── GATE DETAILS COMPONENT ─────────────────────────────────
+// ─── GATE DETAILS (EXPANDABLE) ───────────────────────────────
 
 const GATE_INFO = [
     { key: 'g1_sma', label: 'G1 SMA' },
@@ -266,113 +229,25 @@ const GATE_INFO = [
 ];
 
 const GateDetails: React.FC<{ position: IronGatePosition }> = ({ position }) => (
-    <div className="mt-3 pt-3 border-t border-[#30363d] space-y-1.5">
+    <div className="pt-3 border-t border-[#1e2430] space-y-1.5">
+        <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest block mb-2">Gate Conditions</span>
         {GATE_INFO.map(({ key, label }) => {
             const value = (position as any)[key] as string || '—';
             const passed = gateIsPassed(value);
             return (
-                <div key={key} className={`flex items-start gap-2 px-3 py-2 rounded-lg text-[11px] font-mono border ${passed
-                    ? 'bg-green-950/20 border-green-800/40 text-green-300'
-                    : 'bg-red-950/15 border-red-800/30 text-red-300/70'}`}>
-                    <span className="flex-shrink-0 mt-0.5">{passed ? '✅' : '❌'}</span>
-                    <span className="font-bold text-gray-400 flex-shrink-0 w-16">{label}:</span>
-                    <span className="break-all">{value}</span>
+                <div key={key} className={`flex items-start gap-2 px-3 py-2 rounded-lg text-[10px] font-mono border ${passed ? 'bg-emerald-950/25 border-emerald-800/30 text-emerald-300' : 'bg-red-950/15 border-red-900/20 text-red-400/60'}`}>
+                    <span className="flex-shrink-0 text-[11px]">{passed ? '✅' : '❌'}</span>
+                    <span className="font-bold text-slate-500 flex-shrink-0 w-14">{label}:</span>
+                    <span className="break-all leading-relaxed">{value}</span>
                 </div>
             );
         })}
     </div>
 );
 
-// ─── INDICATOR PANELS ───────────────────────────────────────
+// ─── POSITION CARD ────────────────────────────────────────────
 
-const IndicatorPanels: React.FC<{ p: IronGatePosition }> = ({ p }) => (
-    <div className="grid grid-cols-3 gap-2">
-        {/* ADX Panel */}
-        <div className="bg-[#0d1117] rounded-lg p-2.5 border border-[#21262d] text-center">
-            <span className="block text-[8px] text-gray-500 font-bold uppercase tracking-widest mb-1">ADX</span>
-            <span className={`block text-lg font-black font-mono ${adxColor(p.adx_value)}`}>
-                {(p.adx_value || 0).toFixed(1)}
-            </span>
-            <span className={`text-[9px] font-bold uppercase ${adxColor(p.adx_value)}`}>
-                {p.adx_trend || '—'}
-            </span>
-            <div className="mt-1 flex justify-center gap-2 text-[9px] font-mono text-gray-500">
-                <span>+DI:<span className="text-green-400 font-bold">{(p.plus_di || 0).toFixed(1)}</span></span>
-                <span>-DI:<span className="text-red-400 font-bold">{(p.minus_di || 0).toFixed(1)}</span></span>
-            </div>
-        </div>
-
-        {/* VWAP Panel */}
-        <div className="bg-[#0d1117] rounded-lg p-2.5 border border-[#21262d] text-center">
-            <span className="block text-[8px] text-gray-500 font-bold uppercase tracking-widest mb-1">VWAP</span>
-            <span className="block text-sm font-black font-mono text-white">
-                {p.vwap_value ? fmt(p.vwap_value) : '—'}
-            </span>
-            <div className="flex items-center justify-center gap-1.5 mt-1">
-                <span className={`text-[9px] font-bold uppercase ${dirColor(p.vwap_trend)}`}>
-                    {p.vwap_trend || '—'}
-                </span>
-                <span className="text-gray-600">|</span>
-                <span className={`text-[9px] font-bold uppercase ${dirColor(p.vwap_position)}`}>
-                    {p.vwap_position || '—'}
-                </span>
-            </div>
-            {p.vwap_distance != null && (
-                <span className={`text-[9px] font-mono font-bold ${p.vwap_distance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {p.vwap_distance >= 0 ? '+' : ''}{p.vwap_distance.toFixed(1)}%
-                </span>
-            )}
-        </div>
-
-        {/* SMA Panel */}
-        <div className="bg-[#0d1117] rounded-lg p-2.5 border border-[#21262d] text-center">
-            <span className="block text-[8px] text-gray-500 font-bold uppercase tracking-widest mb-1">SMA</span>
-            <div className="flex justify-center gap-2 text-[10px] font-mono">
-                <span className="text-gray-400">20:<span className="text-white font-bold">{p.sma20 ? p.sma20.toFixed(1) : '—'}</span></span>
-                <span className="text-gray-400">50:<span className="text-white font-bold">{p.sma50 ? p.sma50.toFixed(1) : '—'}</span></span>
-            </div>
-            <div className={`mt-1 text-[9px] font-bold uppercase ${dirColor(p.sma_direction)}`}>
-                {p.sma_direction || '—'}
-            </div>
-            {p.sma_spread != null && (
-                <span className={`text-[9px] font-mono font-bold ${p.sma_spread >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    Spread: {p.sma_spread >= 0 ? '+' : ''}{p.sma_spread.toFixed(1)}%
-                </span>
-            )}
-        </div>
-    </div>
-);
-
-// ─── SUPERTREND ROW ─────────────────────────────────────────
-
-const SuperTrendRow: React.FC<{ p: IronGatePosition }> = ({ p }) => {
-    const items = [
-        { label: '1H', dir: p.st_1h_direction, val: p.st_1h_value },
-        { label: '15M', dir: p.st_15m_direction, val: p.st_15m_value },
-        { label: '5M', dir: p.st_5m_direction, val: p.st_5m_value },
-    ];
-    const hasAny = items.some(i => i.dir || i.val);
-    if (!hasAny) return null;
-
-    return (
-        <div className="flex gap-2">
-            {items.map(({ label, dir, val }) => (
-                <div key={label} className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border text-[10px] font-bold ${(dir || '').toUpperCase() === 'BULLISH'
-                    ? 'bg-green-950/20 border-green-800/40 text-green-400'
-                    : (dir || '').toUpperCase() === 'BEARISH'
-                        ? 'bg-red-950/15 border-red-800/30 text-red-400'
-                        : 'bg-[#21262d] border-[#30363d] text-gray-500'
-                    }`}>
-                    <span className="uppercase">ST {label}</span>
-                    <span className={`${dirColor(dir)}`}>{dir ? (dir === 'BULLISH' ? '▲' : '▼') : '—'}</span>
-                    {val ? <span className="font-mono text-gray-300">{val.toFixed(1)}</span> : null}
-                </div>
-            ))}
-        </div>
-    );
-};
-
-// ─── POSITION CARD COMPONENT ────────────────────────────────
+const GATE_KEYS = ['g1_sma', 'g2_1h', 'g3_15m', 'g4_5m', 'g5_vwap', 'g6_adx'];
 
 const PositionCard: React.FC<{
     position: IronGatePosition;
@@ -383,153 +258,185 @@ const PositionCard: React.FC<{
     const isCall = position.option_type?.toUpperCase() === 'CALL';
     const pnl = calcPnl(position);
     const profitable = isProfitable(position);
-    const tierColor = position.tier?.includes('+')
-        ? 'text-amber-400 bg-amber-950/40 border-amber-600'
-        : position.tier === 'A'
-            ? 'text-gray-200 bg-gray-800/80 border-gray-600'
-            : 'text-gray-500 bg-gray-900 border-gray-700';
 
-    // Signal badge — derive from trading_recommendation, fallback to tier + option_type
-    // Never show "WEAK SIGNAL" — Iron Gate only locks A+ and A signals
     let rec = position.trading_recommendation;
     if (!rec || rec.toUpperCase().includes('WEAK')) {
         if (position.tier === 'A+') rec = isCall ? 'STRONG BUY' : 'STRONG SELL';
-        else if (position.tier === 'A') rec = isCall ? 'BUY' : 'SELL';
         else rec = isCall ? 'BUY' : 'SELL';
     }
     const isStrong = rec.includes('STRONG');
-    const signalBadge = {
-        text: `${isStrong ? '🔥' : '✅'} ${rec} (LOCKED)`,
-        color: !isCall
-            ? (isStrong ? 'bg-red-900/30 border-red-600/50 text-red-400' : 'bg-red-900/20 border-red-700/40 text-red-400')
-            : (isStrong ? 'bg-green-900/30 border-green-600/50 text-green-400' : 'bg-green-900/20 border-green-700/40 text-green-400'),
-    };
+
+    const accentColor = isCall ? '#00d97e' : '#ff4757';
+    const pnlPositive = pnl >= 0;
 
     return (
-        <div className="bg-[#161b22] rounded-xl border border-[#30363d] hover:border-[#484f58] transition-all overflow-hidden">
-            <div className="p-5 space-y-4">
+        <div className="relative bg-[#0d1117] rounded-2xl overflow-hidden border border-[#1e2430] hover:border-[#2a3142] transition-all duration-200 group">
+            {/* Direction accent bar */}
+            <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-2xl" style={{ background: accentColor }} />
 
-                {/* ── Header Row ── */}
-                <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                        <span className="text-2xl font-black text-white tracking-tight">{position.symbol}</span>
-                        <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black border ${isCall
-                            ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/40'
-                            : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/40'}`}>
+            {/* Top glow line based on P&L */}
+            <div className="h-px w-full" style={{ background: pnlPositive ? 'linear-gradient(90deg,transparent,rgba(0,217,126,0.3),transparent)' : 'linear-gradient(90deg,transparent,rgba(255,71,87,0.2),transparent)' }} />
+
+            <div className="pl-5 pr-4 pt-4 pb-4 space-y-3">
+
+                {/* ── Row 1: Symbol + Badges + P&L ── */}
+                <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[22px] font-black text-white tracking-tight leading-none">{position.symbol}</span>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border ${isCall ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/30' : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/30'}`}>
                             {position.option_type?.toUpperCase()}
                         </span>
-                        <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black border ${tierColor}`}>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border ${position.tier?.includes('+') ? 'text-amber-300 bg-amber-900/30 border-amber-600/40' : 'text-slate-300 bg-slate-800/60 border-slate-600/60'}`}>
                             {position.tier}
                         </span>
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-green-400 bg-green-900/20 border border-green-800/40">
-                            {position.gates_passed || '0/6'} GATES ✅
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-emerald-400 bg-emerald-900/20 border border-emerald-800/30">
+                            {position.gates_passed || '0/6'} ✅
                         </span>
                         {position.consensus_vote && (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-purple-400 bg-purple-900/20 border border-purple-800/40">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-violet-400 bg-violet-900/20 border border-violet-800/30">
                                 {position.consensus_vote}
                             </span>
                         )}
                     </div>
-                    <div className="text-right flex-shrink-0">
-                        <span className="text-[10px] text-gray-500 block">{formatOpenedAt(position.opened_at)}</span>
-                        {position.version && (
-                            <span className="text-[9px] text-gray-600 font-mono block">v{position.version.replace('v', '')}</span>
-                        )}
-                    </div>
-                </div>
-
-                {/* ── Signal Badge ── */}
-                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${signalBadge.color}`}>
-                    {signalBadge.text}
-                </div>
-
-                {/* ── Price Levels Section ── */}
-                <div className="bg-[#0d1117] rounded-xl p-4 border border-[#21262d] space-y-2">
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-2.5 text-xs">
-                        <div className="flex justify-between items-center">
-                            <span className="text-gray-500 font-bold">🔒 ENTRY (Locked)</span>
-                            <span className="font-mono font-black text-yellow-400">{fmt(position.entry_price)}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-gray-500 font-bold">📍 CURRENT</span>
-                            <span className={`font-mono font-black ${profitable ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>
-                                {fmt(position.current_price)}
+                    {/* P&L — prominent top right */}
+                    <div className="flex-shrink-0 text-right">
+                        <span className={`block text-xl font-black font-mono tabular-nums leading-tight ${pnlPositive ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>
+                            {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}%
+                        </span>
+                        {position.pnl_dollars != null && position.pnl_dollars !== 0 && (
+                            <span className={`block text-[11px] font-bold font-mono ${position.pnl_dollars >= 0 ? 'text-[#00d97e]/60' : 'text-[#ff4757]/60'}`}>
+                                {position.pnl_dollars >= 0 ? '+' : ''}{fmt(position.pnl_dollars)}
                             </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-gray-500 font-bold">🎯 TARGET</span>
-                            <span className="font-mono font-black text-green-400">{fmt(position.target_price)}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-gray-500 font-bold">🛑 STOP LOSS</span>
-                            <span className="font-mono font-black text-red-400">{fmt(position.stop_loss)}</span>
-                        </div>
-                        {(position.profit_zone_low || position.profit_zone_high) && (
-                            <div className="flex justify-between items-center">
-                                <span className="text-gray-500 font-bold">💰 PROFIT ZONE</span>
-                                <span className="font-mono font-bold text-emerald-400">
-                                    {fmt(position.profit_zone_low)} → {fmt(position.profit_zone_high)}
-                                </span>
-                            </div>
                         )}
-                        <div className="flex justify-between items-center">
-                            <span className="text-gray-500 font-bold">📊 R:R</span>
-                            <span className="font-mono font-bold text-white">{position.risk_reward_ratio || '—'}</span>
-                        </div>
-                    </div>
-
-                    {/* Live P&L */}
-                    <div className="mt-3 pt-3 border-t border-[#21262d] flex justify-between items-center">
-                        <span className="text-gray-500 text-xs font-bold">P&L</span>
-                        <div className="flex items-center gap-3">
-                            <span className={`text-lg font-black font-mono ${pnl >= 0 ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>
-                                {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}%
-                            </span>
-                            {position.pnl_dollars != null && position.pnl_dollars !== 0 && (
-                                <span className={`text-sm font-bold font-mono ${position.pnl_dollars >= 0 ? 'text-[#00d97e]/70' : 'text-[#ff4757]/70'}`}>
-                                    {position.pnl_dollars >= 0 ? '+' : ''}{fmt(position.pnl_dollars)}
-                                </span>
-                            )}
-                        </div>
+                        <span className="block text-[9px] text-slate-600 font-mono mt-0.5">{timeSince(position.opened_at)}</span>
                     </div>
                 </div>
 
-                {/* ── Progress Bar ── */}
+                {/* ── Row 2: Signal Badge ── */}
+                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${isCall
+                    ? (isStrong ? 'text-emerald-300 bg-emerald-950/40 border-emerald-700/40' : 'text-green-400 bg-green-950/30 border-green-800/30')
+                    : (isStrong ? 'text-red-300 bg-red-950/40 border-red-700/40' : 'text-red-400 bg-red-950/30 border-red-800/30')}`}>
+                    {isStrong ? '🔥' : '✅'} {rec} (LOCKED)
+                </div>
+
+                {/* ── Row 3: Price Trio ── */}
+                <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-[#111620] rounded-xl p-2.5 border border-[#1e2430]">
+                        <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">🔒 Entry</span>
+                        <span className="block text-sm font-black font-mono text-amber-300">{fmt(position.entry_price)}</span>
+                    </div>
+                    <div className={`rounded-xl p-2.5 border ${profitable ? 'bg-emerald-950/20 border-emerald-900/30' : 'bg-red-950/15 border-red-900/20'}`}>
+                        <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">📍 Current</span>
+                        <span className={`block text-sm font-black font-mono ${profitable ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>{fmt(position.current_price)}</span>
+                        <span className={`block text-[8px] font-mono font-bold ${profitable ? 'text-[#00d97e]/60' : 'text-[#ff4757]/60'}`}>{profitable ? '▲' : '▼'} {Math.abs(pnl).toFixed(2)}%</span>
+                    </div>
+                    <div className="bg-[#111620] rounded-xl p-2.5 border border-[#1e2430]">
+                        <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">🎯 Target</span>
+                        <span className="block text-sm font-black font-mono text-emerald-400">{fmt(position.target_price)}</span>
+                    </div>
+                </div>
+
+                {/* ── Row 4: SL + Profit Zone + R:R ── */}
+                <div className="flex items-center justify-between text-[10px] px-0.5">
+                    <span className="text-slate-500 font-bold">⛔ SL <span className="text-red-400 font-mono">{fmt(position.stop_loss)}</span></span>
+                    {(position.profit_zone_low || position.profit_zone_high) && (
+                        <span className="text-slate-500 font-bold">💰 <span className="text-emerald-400 font-mono">{fmt(position.profit_zone_low)}–{fmt(position.profit_zone_high)}</span></span>
+                    )}
+                    <span className="text-slate-500 font-bold">R:R <span className="text-white font-mono">{position.risk_reward_ratio || '—'}</span></span>
+                </div>
+
+                {/* ── Row 5: Progress Bar ── */}
                 <IronGateProgressBar position={position} />
 
-                {/* ── Indicator Panels (ADX, VWAP, SMA) ── */}
-                <IndicatorPanels p={position} />
-
-                {/* ── SuperTrend Row ── */}
-                <SuperTrendRow p={position} />
-
-                {/* ── Monitor Status Footer ── */}
-                <div className="bg-[#0d1117] rounded-lg p-3 border border-[#21262d]">
-                    <div className="flex flex-wrap justify-between gap-2 text-[10px] text-gray-500 font-bold">
-                        <span>Last checked: <span className="text-gray-300">{timeSince(position.last_checked_at)}</span></span>
-                        <span>Checks: <span className="text-gray-300 font-mono">{position.check_count || 0}</span></span>
-                        <span>Duration: <span className="text-gray-300">{durationSince(position.opened_at)}</span></span>
+                {/* ── Row 6: Gate Dots ── */}
+                <div className="flex items-center gap-1.5">
+                    <span className="text-[8px] text-slate-600 font-bold uppercase tracking-widest shrink-0">Gates</span>
+                    <div className="flex items-center gap-1">
+                        {GATE_KEYS.map((key, i) => {
+                            const val = (position as any)[key] as string || '';
+                            const passed = gateIsPassed(val);
+                            return (
+                                <div key={key} title={`G${i + 1}: ${val || '—'}`}
+                                    className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black border cursor-help transition-colors ${passed
+                                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
+                                        : 'bg-red-500/10 border-red-500/20 text-red-500/50'}`}>
+                                    {i + 1}
+                                </div>
+                            );
+                        })}
                     </div>
-                    <div className="flex gap-4 mt-1.5 text-[10px] font-bold">
-                        <span className="text-green-400">HWM: {(position.high_water_mark || 0).toFixed(1)}% ▲</span>
-                        <span className="text-red-400">LWM: {(position.low_water_mark || 0).toFixed(1)}% ▼</span>
+                    <div className="ml-auto flex items-center gap-1">
+                        <span className="text-emerald-400 text-[9px] font-bold">▲{(position.high_water_mark || 0).toFixed(1)}%</span>
+                        <span className="text-slate-700">·</span>
+                        <span className="text-red-400 text-[9px] font-bold">▼{(position.low_water_mark || 0).toFixed(1)}%</span>
                     </div>
                 </div>
 
-                {/* ── Actions Row ── */}
-                <div className="flex items-center gap-2 pt-1">
-                    <button
-                        onClick={() => setExpanded(!expanded)}
-                        className="text-[10px] font-bold text-gray-400 hover:text-white transition-colors flex items-center gap-1 uppercase tracking-wider"
-                    >
+                {/* ── Row 7: Indicator Chips ── */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                    {/* ADX */}
+                    <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[#111620] border border-[#1e2430] text-[10px] font-bold">
+                        <span className="text-slate-500">ADX</span>
+                        <span className={`font-mono font-black ${adxColor(position.adx_value)}`}>{(position.adx_value || 0).toFixed(1)}</span>
+                        <span className="text-slate-700">|</span>
+                        <span className="text-emerald-400 font-mono">+{(position.plus_di || 0).toFixed(0)}</span>
+                        <span className="text-slate-700">/</span>
+                        <span className="text-red-400 font-mono">-{(position.minus_di || 0).toFixed(0)}</span>
+                    </div>
+                    {/* VWAP */}
+                    <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[#111620] border border-[#1e2430] text-[10px] font-bold">
+                        <span className="text-slate-500">VWAP</span>
+                        <span className={`font-bold uppercase ${dirColor(position.vwap_position)}`}>{position.vwap_position || '—'}</span>
+                        {position.vwap_distance != null && (
+                            <span className={`font-mono text-[9px] ${position.vwap_distance >= 0 ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
+                                {position.vwap_distance >= 0 ? '+' : ''}{position.vwap_distance.toFixed(1)}%
+                            </span>
+                        )}
+                    </div>
+                    {/* SMA */}
+                    {position.sma_direction && (
+                        <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[#111620] border border-[#1e2430] text-[10px] font-bold">
+                            <span className="text-slate-500">SMA</span>
+                            <span className={`font-bold uppercase ${dirColor(position.sma_direction)}`}>{position.sma_direction}</span>
+                        </div>
+                    )}
+                    {/* SuperTrend chips */}
+                    {[
+                        { label: '1H', dir: position.st_1h_direction },
+                        { label: '15M', dir: position.st_15m_direction },
+                        { label: '5M', dir: position.st_5m_direction },
+                    ].map(({ label, dir }) => dir ? (
+                        <div key={label} className={`flex items-center gap-0.5 px-2 py-1 rounded-lg border text-[10px] font-bold ${(dir || '').toUpperCase() === 'BULLISH'
+                            ? 'bg-emerald-950/20 border-emerald-800/30 text-emerald-400'
+                            : 'bg-red-950/15 border-red-800/20 text-red-400'}`}>
+                            <span className="uppercase">{label}</span>
+                            <span>{dir.toUpperCase() === 'BULLISH' ? '▲' : '▼'}</span>
+                        </div>
+                    ) : null)}
+                </div>
+
+                {/* ── Row 8: Monitor Footer ── */}
+                <div className="flex items-center justify-between text-[9px] text-slate-600 font-bold pt-2 border-t border-[#1a1f2e]">
+                    <span className="text-slate-700">{formatOpenedAt(position.opened_at)}</span>
+                    <div className="flex items-center gap-2 text-slate-600">
+                        <span>⟳ {timeSince(position.last_checked_at)}</span>
+                        <span className="text-slate-800">·</span>
+                        <span>{position.check_count || 0} checks</span>
+                        <span className="text-slate-800">·</span>
+                        <span>{durationSince(position.opened_at)}</span>
+                    </div>
+                </div>
+
+                {/* ── Row 9: Actions ── */}
+                <div className="flex items-center gap-2 pt-0.5">
+                    <button onClick={() => setExpanded(!expanded)}
+                        className="flex items-center gap-1 text-[10px] font-bold text-slate-500 hover:text-white transition-colors uppercase tracking-wide">
                         <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}>expand_more</span>
-                        Gate Details ({position.gates_passed || '0/6'})
+                        Gates ({position.gates_passed || '0/6'})
                     </button>
                     <div className="ml-auto flex items-center gap-2">
-                        <button
-                            onClick={() => onManualClose(position)}
-                            className="px-3 py-1.5 rounded-lg bg-[#21262d] border border-[#30363d] text-gray-400 text-[10px] font-bold uppercase tracking-wider hover:bg-[#30363d] hover:text-white transition-all flex items-center gap-1"
-                        >
+                        <button onClick={() => onManualClose(position)}
+                            className="px-3 py-1.5 rounded-lg bg-[#1a1f2e] border border-[#252c3b] text-slate-400 text-[10px] font-bold hover:text-white hover:border-slate-500 transition-all flex items-center gap-1.5">
                             <span className="material-symbols-outlined text-sm">close</span>
                             Close
                         </button>
@@ -549,7 +456,6 @@ const PositionCard: React.FC<{
                                 fib_stop_loss: position.stop_loss || 0,
                                 risk_reward_ratio: position.risk_reward_ratio || '',
                                 analyzed_at: position.opened_at || '',
-                                // Iron Gate linkage
                                 signal_source: 'iron_gate',
                                 signal_position_id: position.id,
                                 entry_price: position.entry_price,
@@ -560,23 +466,21 @@ const PositionCard: React.FC<{
                                 signal_text: position.signal || '',
                                 opened_at: position.opened_at,
                             })}
-                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 ${isCall
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all flex items-center gap-1.5 ${isCall
                                 ? 'bg-[#00d97e]/10 border border-[#00d97e]/30 text-[#00d97e] hover:bg-[#00d97e]/20 hover:border-[#00d97e]/50'
-                                : 'bg-[#ff4757]/10 border border-[#ff4757]/30 text-[#ff4757] hover:bg-[#ff4757]/20 hover:border-[#ff4757]/50'}`}
-                        >
-                            ⚡ EXECUTE {position.option_type?.toUpperCase()}
+                                : 'bg-[#ff4757]/10 border border-[#ff4757]/30 text-[#ff4757] hover:bg-[#ff4757]/20 hover:border-[#ff4757]/50'}`}>
+                            ⚡ Execute {position.option_type?.toUpperCase()}
                         </button>
                     </div>
                 </div>
 
-                {/* ── Gate Details (Expandable) ── */}
                 {expanded && <GateDetails position={position} />}
             </div>
         </div>
     );
 };
 
-// ─── MANUAL CLOSE MODAL ─────────────────────────────────────
+// ─── MANUAL CLOSE MODAL ──────────────────────────────────────
 
 const ManualCloseModal: React.FC<{
     position: IronGatePosition | null;
@@ -586,90 +490,78 @@ const ManualCloseModal: React.FC<{
 }> = ({ position, onClose, onConfirm, closing }) => {
     if (!position) return null;
     const pnl = calcPnl(position);
+    const isCall = position.option_type?.toUpperCase() === 'CALL';
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm" onClick={onClose}>
-            <div className="w-full max-w-md bg-[#161b22] border border-[#30363d] rounded-2xl shadow-2xl overflow-hidden"
-                onClick={e => e.stopPropagation()}
-                style={{ animation: 'igSlideUp 0.25s ease' }}>
-                <div className="p-4 border-b border-[#ff4757]/20 bg-[#ff4757]/5 flex justify-between items-center">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={onClose}>
+            <div className="w-full max-w-md bg-[#0d1117] border border-[#ff4757]/30 rounded-2xl shadow-2xl overflow-hidden"
+                onClick={e => e.stopPropagation()} style={{ animation: 'igSlideUp 0.2s ease' }}>
+                <div className="h-px bg-gradient-to-r from-transparent via-[#ff4757]/50 to-transparent" />
+                <div className="p-4 flex justify-between items-center border-b border-[#ff4757]/10">
                     <h2 className="text-sm font-black uppercase tracking-tight text-[#ff4757] flex items-center gap-2">
-                        <span className="material-symbols-outlined text-lg">warning</span>
-                        Manual Close Position
+                        <span className="material-symbols-outlined text-lg">warning</span> Close Position
                     </h2>
-                    <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+                    <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
                         <span className="material-symbols-outlined">close</span>
                     </button>
                 </div>
                 <div className="p-5 space-y-4">
-                    <div className="bg-[#0d1117] rounded-xl p-4 border border-[#21262d]">
+                    <div className="bg-[#111620] rounded-xl p-4 border border-[#1e2430]">
                         <div className="flex justify-between items-center mb-3">
-                            <span className="text-xl font-black text-white">{position.symbol}</span>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${position.option_type?.toUpperCase() === 'CALL'
-                                ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/40'
-                                : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/40'}`}>
-                                {position.option_type?.toUpperCase()}
-                            </span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xl font-black text-white">{position.symbol}</span>
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${isCall ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/30' : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/30'}`}>
+                                    {position.option_type?.toUpperCase()}
+                                </span>
+                                <span className="text-[10px] font-black text-amber-300 bg-amber-900/20 border border-amber-700/30 px-2 py-0.5 rounded">{position.tier}</span>
+                            </div>
+                            <span className={`text-lg font-black font-mono ${pnl >= 0 ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>{pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}%</span>
                         </div>
                         <div className="grid grid-cols-3 gap-3 text-center text-xs">
                             <div>
-                                <span className="block text-[9px] text-gray-500 font-bold uppercase">Entry</span>
-                                <span className="text-yellow-400 font-mono font-bold">{fmt(position.entry_price)}</span>
+                                <span className="block text-[9px] text-slate-600 font-bold uppercase mb-1">Entry</span>
+                                <span className="text-amber-300 font-mono font-bold">{fmt(position.entry_price)}</span>
                             </div>
                             <div>
-                                <span className="block text-[9px] text-gray-500 font-bold uppercase">Current</span>
-                                <span className={`font-mono font-bold ${isProfitable(position) ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>
-                                    {fmt(position.current_price)}
-                                </span>
+                                <span className="block text-[9px] text-slate-600 font-bold uppercase mb-1">Current</span>
+                                <span className={`font-mono font-bold ${isProfitable(position) ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>{fmt(position.current_price)}</span>
                             </div>
                             <div>
-                                <span className="block text-[9px] text-gray-500 font-bold uppercase">P&L</span>
-                                <span className={`font-mono font-bold ${pnl >= 0 ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>
-                                    {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}%
-                                </span>
+                                <span className="block text-[9px] text-slate-600 font-bold uppercase mb-1">P&L</span>
+                                <span className={`font-mono font-bold ${pnl >= 0 ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>{pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}%</span>
                             </div>
                         </div>
                     </div>
-                    <div className="bg-amber-900/10 border border-amber-500/20 rounded-lg p-3 flex items-start gap-2">
-                        <span className="text-lg">⚠️</span>
-                        <p className="text-amber-200 text-xs leading-relaxed">
-                            This will manually close the position and record it in trade history. This action cannot be undone.
-                        </p>
+                    <div className="bg-amber-950/20 border border-amber-800/30 rounded-xl p-3 flex items-start gap-2.5">
+                        <span className="text-lg shrink-0">⚠️</span>
+                        <p className="text-amber-200/80 text-xs leading-relaxed">This will manually close the position and record it in trade history. This action cannot be undone.</p>
                     </div>
                     <div className="flex gap-3">
-                        <button onClick={onClose}
-                            className="flex-1 py-3 border border-[#30363d] text-gray-400 font-bold rounded-xl hover:bg-[#21262d] transition-colors text-xs uppercase tracking-wide">
-                            Cancel
-                        </button>
+                        <button onClick={onClose} className="flex-1 py-3 border border-[#1e2430] text-slate-400 font-bold rounded-xl hover:bg-[#1a1f2e] transition-colors text-xs uppercase tracking-wide">Cancel</button>
                         <button onClick={() => onConfirm(position)} disabled={closing}
                             className="flex-[2] py-3 bg-[#ff4757] hover:bg-[#ff4757]/80 text-white font-black rounded-xl transition-all text-xs uppercase tracking-wide flex items-center justify-center gap-2 disabled:opacity-50">
-                            {closing
-                                ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Closing...</>
-                                : <><span className="material-symbols-outlined text-sm">close</span> Confirm Close</>}
+                            {closing ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Closing...</> : <><span className="material-symbols-outlined text-sm">close</span>Confirm Close</>}
                         </button>
                     </div>
                 </div>
             </div>
-            <style>{`@keyframes igSlideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }`}</style>
+            <style>{`@keyframes igSlideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }`}</style>
         </div>
     );
 };
 
-// ─── SKELETON LOADER ─────────────────────────────────────────
+// ─── SKELETON ─────────────────────────────────────────────────
 
 const PositionSkeleton: React.FC = () => (
-    <div className="bg-[#161b22] rounded-xl border border-[#30363d] p-5 space-y-4 animate-pulse">
-        <div className="flex justify-between">
-            <div className="flex gap-2"><div className="h-7 w-20 bg-[#21262d] rounded" /><div className="h-5 w-14 bg-[#21262d] rounded" /></div>
-            <div className="h-4 w-16 bg-[#21262d] rounded" />
-        </div>
-        <div className="h-5 w-40 bg-[#21262d] rounded-full" />
-        <div className="h-24 bg-[#0d1117] rounded-xl border border-[#21262d]" />
-        <div className="h-8 bg-[#21262d] rounded-lg" />
-        <div className="h-16 bg-[#0d1117] rounded-lg border border-[#21262d]" />
+    <div className="bg-[#0d1117] rounded-2xl border border-[#1e2430] p-5 space-y-3 animate-pulse">
+        <div className="flex justify-between"><div className="flex gap-2"><div className="h-6 w-16 bg-[#1e2430] rounded" /><div className="h-5 w-12 bg-[#1e2430] rounded" /></div><div className="h-6 w-14 bg-[#1e2430] rounded" /></div>
+        <div className="h-5 w-36 bg-[#1e2430] rounded-full" />
+        <div className="grid grid-cols-3 gap-2"><div className="h-14 bg-[#111620] rounded-xl" /><div className="h-14 bg-[#111620] rounded-xl" /><div className="h-14 bg-[#111620] rounded-xl" /></div>
+        <div className="h-5 bg-[#1e2430] rounded-full" />
+        <div className="h-10 bg-[#111620] rounded-lg" />
     </div>
 );
 
-// ─── HISTORY SUMMARY STATS ──────────────────────────────────
+// ─── HISTORY SUMMARY ─────────────────────────────────────────
 
 const HistorySummaryStats: React.FC<{ history: IronGateHistory[] }> = ({ history }) => {
     if (history.length === 0) return null;
@@ -677,27 +569,24 @@ const HistorySummaryStats: React.FC<{ history: IronGateHistory[] }> = ({ history
     const winRate = (wins.length / history.length) * 100;
     const avgPnl = history.reduce((a, h) => a + (h.pnl_pct || 0), 0) / history.length;
     const totalPnl = history.reduce((a, h) => a + (h.pnl_dollars || 0), 0);
-    const bestTrade = history.reduce((best, h) => (h.pnl_pct || 0) > (best.pnl_pct || 0) ? h : best, history[0]);
-    const worstTrade = history.reduce((worst, h) => (h.pnl_pct || 0) < (worst.pnl_pct || 0) ? h : worst, history[0]);
-    const avgDuration = history.reduce((a, h) => a + (h.duration_minutes || 0), 0) / history.length;
-    const avgHWM = wins.length > 0 ? wins.reduce((a, h) => a + (h.high_water_mark || 0), 0) / wins.length : 0;
-
-    const stats = [
-        { label: 'Total Trades', value: String(history.length), color: 'text-white' },
-        { label: 'Win Rate', value: `${winRate.toFixed(1)}%`, color: winRate >= 50 ? 'text-[#00d97e]' : 'text-[#ff4757]' },
-        { label: 'Avg P&L', value: `${avgPnl >= 0 ? '+' : ''}${avgPnl.toFixed(1)}%`, color: avgPnl >= 0 ? 'text-[#00d97e]' : 'text-[#ff4757]' },
-        { label: 'Total P&L', value: `${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(0)}`, color: totalPnl >= 0 ? 'text-[#00d97e]' : 'text-[#ff4757]' },
-        { label: 'Best Trade', value: `${bestTrade.symbol} +${(bestTrade.pnl_pct || 0).toFixed(1)}%`, color: 'text-[#00d97e]' },
-        { label: 'Worst Trade', value: `${worstTrade.symbol} ${(worstTrade.pnl_pct || 0).toFixed(1)}%`, color: 'text-[#ff4757]' },
-        { label: 'Avg Duration', value: formatDuration(avgDuration), color: 'text-white' },
-        { label: 'Avg HWM', value: `${avgHWM.toFixed(1)}%`, color: 'text-amber-400' },
-    ];
+    const best = history.reduce((b, h) => (h.pnl_pct || 0) > (b.pnl_pct || 0) ? h : b, history[0]);
+    const worst = history.reduce((w, h) => (h.pnl_pct || 0) < (w.pnl_pct || 0) ? h : w, history[0]);
+    const avgDur = history.reduce((a, h) => a + (h.duration_minutes || 0), 0) / history.length;
 
     return (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-            {stats.map(s => (
-                <div key={s.label} className="bg-[#161b22] rounded-xl border border-[#30363d] p-3 text-center">
-                    <span className="block text-[9px] text-gray-500 font-bold uppercase tracking-wider mb-1">{s.label}</span>
+            {[
+                { label: 'Total Trades', value: String(history.length), color: 'text-white' },
+                { label: 'Win Rate', value: `${winRate.toFixed(1)}%`, color: winRate >= 50 ? 'text-[#00d97e]' : 'text-[#ff4757]' },
+                { label: 'Avg P&L', value: `${avgPnl >= 0 ? '+' : ''}${avgPnl.toFixed(1)}%`, color: avgPnl >= 0 ? 'text-[#00d97e]' : 'text-[#ff4757]' },
+                { label: 'Total P&L', value: `${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(0)}`, color: totalPnl >= 0 ? 'text-[#00d97e]' : 'text-[#ff4757]' },
+                { label: 'Best Trade', value: `${best.symbol} +${(best.pnl_pct || 0).toFixed(1)}%`, color: 'text-[#00d97e]' },
+                { label: 'Worst Trade', value: `${worst.symbol} ${(worst.pnl_pct || 0).toFixed(1)}%`, color: 'text-[#ff4757]' },
+                { label: 'Avg Duration', value: formatDuration(avgDur), color: 'text-white' },
+                { label: 'Wins / Losses', value: `${wins.length}W / ${history.length - wins.length}L`, color: 'text-amber-400' },
+            ].map(s => (
+                <div key={s.label} className="bg-[#0d1117] rounded-xl border border-[#1e2430] p-3 text-center">
+                    <span className="block text-[9px] text-slate-600 font-bold uppercase tracking-wider mb-1">{s.label}</span>
                     <span className={`block text-sm font-black font-mono ${s.color}`}>{s.value}</span>
                 </div>
             ))}
@@ -718,293 +607,232 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
     const [closingPosition, setClosingPosition] = useState<IronGatePosition | null>(null);
     const [isClosing, setIsClosing] = useState(false);
     const [activeSection, setActiveSection] = useState<'positions' | 'history'>('positions');
-
-    // ─── Data Fetching ────────────────────────────────────
+    const [signalFilter, setSignalFilter] = useState<string | null>(null);
 
     const fetchConfig = async () => {
-        const { data, error } = await supabase
-            .from('strategy_configs')
-            .select('*')
-            .eq('strategy', 'iron_gate')
-            .limit(1)
-            .single();
-        console.log('[IronGate] fetchConfig:', { data, error });
+        const { data } = await supabase.from('strategy_configs').select('*').eq('strategy', 'iron_gate').limit(1).single();
         if (data) setConfig(data);
     };
 
     const fetchPositions = async () => {
-        const { data, error } = await supabase
-            .from('iron_gate_positions')
-            .select('*')
-            .eq('status', 'OPEN')
-            .order('opened_at', { ascending: false });
-        console.log('[IronGate] fetchPositions:', { count: data?.length, error });
+        const { data, error } = await supabase.from('iron_gate_positions').select('*').eq('status', 'OPEN').order('opened_at', { ascending: false });
         if (!error && data) setPositions(data);
         setLoadingPositions(false);
     };
 
     const fetchHistory = async () => {
-        const { data, error } = await supabase
-            .from('iron_gate_history')
-            .select('*')
-            .order('closed_at', { ascending: false })
-            .limit(50);
-        console.log('[IronGate] fetchHistory:', { count: data?.length, error });
+        const { data, error } = await supabase.from('iron_gate_history').select('*').order('closed_at', { ascending: false }).limit(50);
         if (!error && data) setHistory(data);
         setLoadingHistory(false);
     };
 
-    useEffect(() => {
-        fetchConfig();
-        fetchPositions();
-        fetchHistory();
-    }, []);
-
-    // Poll every 30s
-    useEffect(() => {
-        const interval = setInterval(fetchPositions, 30000);
-        return () => clearInterval(interval);
-    }, []);
-
-    // ─── Manual Close ─────────────────────────────────────
+    useEffect(() => { fetchConfig(); fetchPositions(); fetchHistory(); }, []);
+    useEffect(() => { const i = setInterval(fetchPositions, 30000); return () => clearInterval(i); }, []);
 
     const handleManualClose = async (position: IronGatePosition) => {
         setIsClosing(true);
         try {
             const pnl = calcPnl(position);
-            const durationMs = Date.now() - new Date(position.opened_at).getTime();
-            const durationMinutes = Math.floor(durationMs / 60000);
-
-            await supabase
-                .from('iron_gate_positions')
-                .update({
-                    status: 'MANUAL_CLOSE',
-                    closed_at: new Date().toISOString(),
-                    close_reason: 'MANUAL',
-                    pnl_pct: pnl,
-                })
-                .eq('id', position.id);
-
-            await supabase
-                .from('iron_gate_history')
-                .insert({
-                    position_id: position.id,
-                    symbol: position.symbol,
-                    option_type: position.option_type,
-                    tier: position.tier,
-                    entry_price: position.entry_price,
-                    exit_price: position.current_price,
-                    pnl_pct: pnl,
-                    pnl_dollars: position.pnl_dollars || 0,
-                    result: pnl >= 0 ? 'WIN' : 'LOSS',
-                    exit_reason: 'MANUAL',
-                    duration_minutes: durationMinutes,
-                    high_water_mark: position.high_water_mark,
-                    low_water_mark: position.low_water_mark,
-                    opened_at: position.opened_at,
-                    closed_at: new Date().toISOString(),
-                    gates_passed: position.gates_passed,
-                });
-
+            const durationMinutes = Math.floor((Date.now() - new Date(position.opened_at).getTime()) / 60000);
+            await supabase.from('iron_gate_positions').update({ status: 'MANUAL_CLOSE', closed_at: new Date().toISOString(), close_reason: 'MANUAL', pnl_pct: pnl }).eq('id', position.id);
+            await supabase.from('iron_gate_history').insert({
+                position_id: position.id, symbol: position.symbol, option_type: position.option_type, tier: position.tier,
+                entry_price: position.entry_price, exit_price: position.current_price, pnl_pct: pnl,
+                pnl_dollars: position.pnl_dollars || 0, result: pnl >= 0 ? 'WIN' : 'LOSS', exit_reason: 'MANUAL',
+                duration_minutes: durationMinutes, high_water_mark: position.high_water_mark,
+                low_water_mark: position.low_water_mark, opened_at: position.opened_at,
+                closed_at: new Date().toISOString(), gates_passed: position.gates_passed,
+            });
             await Promise.all([fetchPositions(), fetchHistory()]);
             setClosingPosition(null);
-        } catch (err) {
-            console.error('Manual close failed:', err);
-        } finally {
-            setIsClosing(false);
-        }
+        } catch (err) { console.error('Manual close failed:', err); }
+        finally { setIsClosing(false); }
     };
-
-    // ═══════════════════════════════════════════════════════
-    // RENDER
-    // ═══════════════════════════════════════════════════════
 
     const scanTimes = config?.params?.scan_times || [];
 
-    return (
-        <div className="flex-1 overflow-y-auto bg-[#0d1117] min-h-screen text-white font-sans">
-            <div className="max-w-[1600px] mx-auto p-6 lg:p-8 space-y-6">
+    // Live stats for header
+    const totalPnl = positions.reduce((a, p) => a + calcPnl(p), 0) / Math.max(positions.length, 1);
+    const profitCount = positions.filter(p => isProfitable(p)).length;
+    const filters = [
+        { label: 'STRONG BUY', icon: '🔥', test: (p: IronGatePosition) => p.option_type?.toUpperCase() === 'CALL' && p.tier === 'A+', color: 'text-[#00d97e]', ring: 'ring-[#00d97e]', bg: 'bg-[#00d97e]/5 border-[#00d97e]/20', activeBg: 'bg-[#00d97e]/15 border-[#00d97e]/40' },
+        { label: 'BUY', icon: '✅', test: (p: IronGatePosition) => p.option_type?.toUpperCase() === 'CALL' && p.tier === 'A', color: 'text-emerald-400', ring: 'ring-emerald-500', bg: 'bg-emerald-900/10 border-emerald-800/20', activeBg: 'bg-emerald-900/25 border-emerald-700/40' },
+        { label: 'STRONG SELL', icon: '🔥', test: (p: IronGatePosition) => p.option_type?.toUpperCase() === 'PUT' && p.tier === 'A+', color: 'text-[#ff4757]', ring: 'ring-[#ff4757]', bg: 'bg-[#ff4757]/5 border-[#ff4757]/20', activeBg: 'bg-[#ff4757]/15 border-[#ff4757]/40' },
+        { label: 'SELL', icon: '✅', test: (p: IronGatePosition) => p.option_type?.toUpperCase() === 'PUT' && p.tier === 'A', color: 'text-red-400', ring: 'ring-red-500', bg: 'bg-red-900/10 border-red-800/20', activeBg: 'bg-red-900/25 border-red-700/40' },
+    ];
 
-                {/* ── Section 1: Strategy Header ── */}
-                <div className="bg-gradient-to-r from-[#161b22] to-[#1c2333] rounded-2xl border border-[#30363d] overflow-hidden">
-                    <div className="p-6">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <div className="flex items-center gap-4">
-                                <div className="w-14 h-14 rounded-2xl bg-amber-900/20 border border-amber-700/40 flex items-center justify-center text-3xl">
-                                    🔒
+    const filteredPositions = signalFilter
+        ? positions.filter(p => filters.find(f => f.label === signalFilter)?.test(p))
+        : positions;
+
+    return (
+        <div className="flex-1 overflow-y-auto bg-[#080b10] min-h-screen text-white font-sans">
+            <div className="max-w-[1600px] mx-auto p-5 lg:p-7 space-y-5">
+
+                {/* ── HEADER ── */}
+                <div className="relative bg-gradient-to-br from-[#0d1117] to-[#0a0e16] rounded-2xl border border-[#1e2430] overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-amber-900/5 via-transparent to-transparent pointer-events-none" />
+                    <div className="relative p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-amber-900/20 border border-amber-700/30 flex items-center justify-center text-2xl shrink-0">🔒</div>
+                            <div>
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                    <h1 className="text-xl font-black tracking-tight uppercase text-white">{config?.display_name || 'Iron Gate Tracker'}</h1>
+                                    {config?.is_active ? (
+                                        <span className="flex items-center gap-1 text-[9px] font-bold text-[#00d97e] bg-[#00d97e]/10 border border-[#00d97e]/25 px-2 py-0.5 rounded-full">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-[#00d97e] animate-pulse" />ACTIVE
+                                        </span>
+                                    ) : config ? (
+                                        <span className="text-[9px] font-bold text-slate-500 bg-slate-800/60 border border-slate-700/40 px-2 py-0.5 rounded-full">INACTIVE</span>
+                                    ) : null}
                                 </div>
-                                <div>
-                                    <h1 className="text-2xl font-black tracking-tighter uppercase flex items-center gap-3">
-                                        {config?.display_name || 'Iron Gate Tracker'}
-                                        {config?.is_active ? (
-                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-[#00d97e] bg-[#00d97e]/10 border border-[#00d97e]/30 px-2.5 py-1 rounded-full">
-                                                <span className="w-2 h-2 rounded-full bg-[#00d97e] animate-pulse" />
-                                                ACTIVE
-                                            </span>
-                                        ) : config ? (
-                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 bg-gray-800 border border-gray-700 px-2.5 py-1 rounded-full">
-                                                <span className="w-2 h-2 rounded-full bg-gray-500" />
-                                                INACTIVE
-                                            </span>
-                                        ) : null}
-                                    </h1>
-                                    <p className="text-gray-500 text-sm font-medium mt-1">
-                                        Automated position tracking for A+/A tier signals
-                                    </p>
-                                </div>
+                                <p className="text-slate-500 text-xs font-medium mt-0.5">Automated swing trade tracking · A+/A tier locked positions</p>
                             </div>
-                            {config?.params && (
-                                <div className="flex flex-wrap gap-2">
-                                    {config.params.min_gates && (
-                                        <span className="px-3 py-1.5 rounded-lg bg-blue-900/20 border border-blue-800/40 text-blue-400 text-[10px] font-bold uppercase tracking-wider">
-                                            Min Gates: {config.params.min_gates}
-                                        </span>
-                                    )}
-                                    {config.params.min_tier && (
-                                        <span className="px-3 py-1.5 rounded-lg bg-amber-900/20 border border-amber-800/40 text-amber-400 text-[10px] font-bold uppercase tracking-wider">
-                                            Min Tier: {config.params.min_tier}
-                                        </span>
-                                    )}
-                                    {config.params.monitor_interval && (
-                                        <span className="px-3 py-1.5 rounded-lg bg-purple-900/20 border border-purple-800/40 text-purple-400 text-[10px] font-bold uppercase tracking-wider">
-                                            Monitor: {config.params.monitor_interval}
-                                        </span>
-                                    )}
-                                </div>
-                            )}
                         </div>
-                        {scanTimes.length > 0 && (
-                            <div className="mt-4 flex items-center gap-2 flex-wrap">
-                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Scan Times:</span>
-                                {scanTimes.map((t: string, i: number) => (
-                                    <span key={i} className="px-2 py-1 rounded-md bg-[#21262d] border border-[#30363d] text-gray-300 text-[10px] font-mono font-bold">{t}</span>
-                                ))}
+
+                        {/* Live position stats */}
+                        {positions.length > 0 && (
+                            <div className="flex items-center gap-3 flex-wrap">
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#111620] border border-[#1e2430] text-xs font-bold">
+                                    <span className="text-slate-500">Locked</span>
+                                    <span className="text-white font-black text-sm">{positions.length}</span>
+                                </div>
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#111620] border border-[#1e2430] text-xs font-bold">
+                                    <span className="text-slate-500">In Profit</span>
+                                    <span className={`font-black text-sm ${profitCount > 0 ? 'text-[#00d97e]' : 'text-slate-400'}`}>{profitCount}/{positions.length}</span>
+                                </div>
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#111620] border border-[#1e2430] text-xs font-bold">
+                                    <span className="text-slate-500">Avg P&L</span>
+                                    <span className={`font-black text-sm font-mono ${totalPnl >= 0 ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>{totalPnl >= 0 ? '+' : ''}{totalPnl.toFixed(2)}%</span>
+                                </div>
+                                {config?.params && (
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        {config.params.min_gates && <span className="px-2 py-1 rounded-lg bg-blue-900/20 border border-blue-800/30 text-blue-400 text-[9px] font-bold">Gates ≥{config.params.min_gates}</span>}
+                                        {config.params.min_tier && <span className="px-2 py-1 rounded-lg bg-amber-900/20 border border-amber-800/30 text-amber-400 text-[9px] font-bold">Tier ≥{config.params.min_tier}</span>}
+                                        {config.params.monitor_interval && <span className="px-2 py-1 rounded-lg bg-purple-900/20 border border-purple-800/30 text-purple-400 text-[9px] font-bold">⟳ {config.params.monitor_interval}</span>}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
+
+                    {scanTimes.length > 0 && (
+                        <div className="px-5 pb-4 flex items-center gap-2 flex-wrap border-t border-[#1a1f2e] pt-3">
+                            <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Scan Times:</span>
+                            {scanTimes.map((t: string, i: number) => (
+                                <span key={i} className="px-2 py-0.5 rounded bg-[#111620] border border-[#1e2430] text-slate-400 text-[10px] font-mono font-bold">{t}</span>
+                            ))}
+                            <span className="ml-auto flex items-center gap-1 text-[9px] text-slate-600 font-bold">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#00d97e] animate-pulse" />polling every 30s
+                            </span>
+                        </div>
+                    )}
                 </div>
 
-                {/* ── Section Toggle ── */}
-                <div className="flex bg-[#161b22] rounded-lg border border-[#30363d] p-0.5 w-fit">
-                    <button
-                        onClick={() => setActiveSection('positions')}
-                        className={`px-5 py-2 rounded-md text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${activeSection === 'positions'
-                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                            : 'text-gray-500 hover:text-white'}`}
-                    >
-                        <span className="material-symbols-outlined text-sm">radar</span>
-                        Open Positions ({positions.length})
-                    </button>
-                    <button
-                        onClick={() => setActiveSection('history')}
-                        className={`px-5 py-2 rounded-md text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${activeSection === 'history'
-                            ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20'
-                            : 'text-gray-500 hover:text-white'}`}
-                    >
-                        <span className="material-symbols-outlined text-sm">history</span>
-                        Trade History ({history.length})
-                    </button>
+                {/* ── SECTION TOGGLE ── */}
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex bg-[#0d1117] rounded-xl border border-[#1e2430] p-1 gap-1">
+                        {[
+                            { id: 'positions', label: `Positions (${positions.length})`, icon: 'radar', color: 'bg-blue-600 shadow-blue-600/25' },
+                            { id: 'history', label: `History (${history.length})`, icon: 'history', color: 'bg-violet-600 shadow-violet-600/25' },
+                        ].map(tab => (
+                            <button key={tab.id} onClick={() => setActiveSection(tab.id as any)}
+                                className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${activeSection === tab.id ? `${tab.color} text-white shadow-lg` : 'text-slate-500 hover:text-slate-300'}`}>
+                                <span className="material-symbols-outlined text-sm">{tab.icon}</span>
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
-                {/* ── Section 2: Open Positions ── */}
+                {/* ── OPEN POSITIONS ── */}
                 {activeSection === 'positions' && (
-                    <div>
+                    <div className="space-y-4">
                         {loadingPositions ? (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 {[1, 2, 3, 4].map(i => <PositionSkeleton key={i} />)}
                             </div>
                         ) : positions.length === 0 ? (
-                            <div className="text-center py-20 bg-[#161b22] rounded-2xl border border-[#30363d]">
-                                <div className="text-6xl mb-4">🔒</div>
-                                <h3 className="text-lg font-black text-white uppercase tracking-tight mb-2">
-                                    Iron Gate is Watching
-                                </h3>
-                                <p className="text-gray-500 text-sm max-w-md mx-auto mb-6">
-                                    Waiting for A+ or A signals to lock positions. When a qualifying signal is detected, it will appear here with live tracking.
-                                </p>
+                            <div className="text-center py-24 bg-[#0d1117] rounded-2xl border border-[#1e2430]">
+                                <div className="w-16 h-16 rounded-2xl bg-amber-900/15 border border-amber-800/20 flex items-center justify-center text-3xl mx-auto mb-4">🔒</div>
+                                <h3 className="text-base font-black text-white uppercase tracking-tight mb-2">Iron Gate is Watching</h3>
+                                <p className="text-slate-600 text-sm max-w-sm mx-auto mb-5">Waiting for A+ or A tier signals to lock. Qualifying positions will appear here with live tracking.</p>
                                 {scanTimes.length > 0 && (
-                                    <div className="flex items-center justify-center gap-2 flex-wrap text-xs text-gray-600">
+                                    <div className="flex items-center justify-center gap-2 flex-wrap text-xs text-slate-700">
                                         <span className="font-bold">Next scans:</span>
                                         {scanTimes.map((t: string, i: number) => (
-                                            <span key={i} className="px-2 py-0.5 bg-[#21262d] rounded border border-[#30363d] font-mono text-gray-400">{t}</span>
+                                            <span key={i} className="px-2 py-0.5 bg-[#111620] rounded border border-[#1e2430] font-mono text-slate-500">{t}</span>
                                         ))}
                                     </div>
                                 )}
-                                <div className="mt-4 flex items-center justify-center gap-2 text-[10px] text-gray-600">
-                                    <div className="w-2 h-2 rounded-full bg-[#00d97e] animate-pulse" />
-                                    Auto-polling every 30 seconds
-                                </div>
                             </div>
                         ) : (
-                            <div className="space-y-5">
-                                {/* ── Signal Summary Counts ── */}
-                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                                    {[
-                                        {
-                                            label: 'STRONG BUY', icon: '🔥',
-                                            count: positions.filter(p => p.option_type?.toUpperCase() === 'CALL' && p.tier === 'A+').length,
-                                            color: 'text-[#00d97e] border-[#00d97e]/30 bg-[#00d97e]/5',
-                                        },
-                                        {
-                                            label: 'BUY', icon: '✅',
-                                            count: positions.filter(p => p.option_type?.toUpperCase() === 'CALL' && p.tier === 'A').length,
-                                            color: 'text-green-400 border-green-800/40 bg-green-900/10',
-                                        },
-                                        {
-                                            label: 'STRONG SELL', icon: '🔥',
-                                            count: positions.filter(p => p.option_type?.toUpperCase() === 'PUT' && p.tier === 'A+').length,
-                                            color: 'text-[#ff4757] border-[#ff4757]/30 bg-[#ff4757]/5',
-                                        },
-                                        {
-                                            label: 'SELL', icon: '✅',
-                                            count: positions.filter(p => p.option_type?.toUpperCase() === 'PUT' && p.tier === 'A').length,
-                                            color: 'text-red-400 border-red-800/40 bg-red-900/10',
-                                        },
-                                    ].map(s => (
-                                        <div key={s.label} className={`rounded-xl border p-4 flex items-center justify-between ${s.color}`}>
-                                            <div>
-                                                <span className={`block text-[9px] font-black uppercase tracking-widest mb-1 ${s.color.split(' ')[0]}`}>{s.label}</span>
-                                                <span className="block text-3xl font-black text-white">{s.count}</span>
-                                            </div>
-                                            <span className="text-2xl">{s.icon}</span>
-                                        </div>
-                                    ))}
+                            <>
+                                {/* Filter chips */}
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Filter:</span>
+                                    {filters.map(f => {
+                                        const count = positions.filter(f.test).length;
+                                        const isActive = signalFilter === f.label;
+                                        return (
+                                            <button key={f.label} onClick={() => setSignalFilter(isActive ? null : f.label)}
+                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all ${f.color} ${isActive ? `${f.activeBg} ${f.ring} ring-1` : f.bg} ${count === 0 ? 'opacity-40 cursor-default' : 'hover:opacity-80 cursor-pointer'}`}>
+                                                <span>{f.icon}</span>
+                                                <span className="uppercase tracking-wide">{f.label}</span>
+                                                <span className="font-black bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{count}</span>
+                                            </button>
+                                        );
+                                    })}
+                                    {signalFilter && (
+                                        <button onClick={() => setSignalFilter(null)} className="text-[10px] text-slate-500 hover:text-white font-bold underline transition-colors">
+                                            clear
+                                        </button>
+                                    )}
+                                    <span className="ml-auto text-[9px] text-slate-700 font-bold">
+                                        {filteredPositions.length} of {positions.length} shown
+                                    </span>
                                 </div>
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                                    {positions.map(p => (
+
+                                {/* Position grid */}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    {filteredPositions.map(p => (
                                         <PositionCard key={p.id} position={p} onManualClose={setClosingPosition} onExecute={onExecute} />
                                     ))}
                                 </div>
-                            </div>
+
+                                {filteredPositions.length === 0 && signalFilter && (
+                                    <div className="text-center py-12 bg-[#0d1117] rounded-2xl border border-[#1e2430]">
+                                        <p className="text-slate-500 text-sm">No <span className="text-white font-bold">{signalFilter}</span> positions open</p>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 )}
 
-                {/* ── Section 3: Trade History ── */}
+                {/* ── TRADE HISTORY ── */}
                 {activeSection === 'history' && (
                     <div>
                         {loadingHistory ? (
-                            <div className="space-y-3">
-                                {[1, 2, 3].map(i => (
-                                    <div key={i} className="h-12 bg-[#161b22] rounded-lg border border-[#30363d] animate-pulse" />
-                                ))}
+                            <div className="space-y-2">
+                                {[1, 2, 3].map(i => <div key={i} className="h-11 bg-[#0d1117] rounded-lg border border-[#1e2430] animate-pulse" />)}
                             </div>
                         ) : history.length === 0 ? (
-                            <div className="text-center py-20 bg-[#161b22] rounded-2xl border border-[#30363d]">
-                                <div className="text-6xl mb-4">📊</div>
-                                <h3 className="text-lg font-black text-white uppercase tracking-tight mb-2">No Trade History Yet</h3>
-                                <p className="text-gray-500 text-sm">Closed positions will appear here with full performance data.</p>
+                            <div className="text-center py-24 bg-[#0d1117] rounded-2xl border border-[#1e2430]">
+                                <div className="text-5xl mb-4">📊</div>
+                                <h3 className="text-base font-black text-white uppercase tracking-tight mb-2">No Trade History</h3>
+                                <p className="text-slate-600 text-sm">Closed positions will appear here.</p>
                             </div>
                         ) : (
                             <>
                                 <HistorySummaryStats history={history} />
-                                <div className="bg-[#161b22] rounded-xl border border-[#30363d] overflow-hidden">
+                                <div className="bg-[#0d1117] rounded-2xl border border-[#1e2430] overflow-hidden">
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-xs">
                                             <thead>
-                                                <tr className="border-b border-[#30363d] bg-[#0d1117]">
+                                                <tr className="border-b border-[#1e2430] bg-[#080b10]">
                                                     {['Symbol', 'Type', 'Tier', 'Entry', 'Exit', 'P&L%', 'P&L$', 'Result', 'Duration', 'Exit Reason', 'Date'].map(col => (
-                                                        <th key={col} className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">{col}</th>
+                                                        <th key={col} className="px-4 py-3 text-left text-[9px] font-bold text-slate-600 uppercase tracking-wider">{col}</th>
                                                     ))}
                                                 </tr>
                                             </thead>
@@ -1012,36 +840,24 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                                 {history.map(h => {
                                                     const isWin = h.result === 'WIN';
                                                     return (
-                                                        <tr key={h.id} className={`border-b border-[#21262d] ${isWin ? 'bg-[#00d97e]/[0.03]' : 'bg-[#ff4757]/[0.03]'}`}>
+                                                        <tr key={h.id} className={`border-b border-[#111620] transition-colors hover:bg-[#111620] ${isWin ? 'bg-[#00d97e]/[0.02]' : 'bg-[#ff4757]/[0.02]'}`}>
                                                             <td className="px-4 py-3 font-black text-white">{h.symbol}</td>
                                                             <td className="px-4 py-3">
-                                                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-black border ${h.option_type?.toUpperCase() === 'CALL'
-                                                                    ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/40'
-                                                                    : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/40'}`}>
+                                                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-black border ${h.option_type?.toUpperCase() === 'CALL' ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/30' : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/30'}`}>
                                                                     {h.option_type?.toUpperCase()}
                                                                 </span>
                                                             </td>
-                                                            <td className="px-4 py-3 text-gray-400 font-bold">{h.tier}</td>
-                                                            <td className="px-4 py-3 text-gray-300 font-mono">{fmt(h.entry_price)}</td>
-                                                            <td className="px-4 py-3 text-gray-300 font-mono">{fmt(h.exit_price)}</td>
-                                                            <td className={`px-4 py-3 font-mono font-bold ${isWin ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>
-                                                                {(h.pnl_pct || 0) >= 0 ? '+' : ''}{(h.pnl_pct || 0).toFixed(2)}%
-                                                            </td>
-                                                            <td className={`px-4 py-3 font-mono font-bold ${isWin ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>
-                                                                {fmt(h.pnl_dollars)}
-                                                            </td>
+                                                            <td className="px-4 py-3 text-slate-400 font-bold">{h.tier}</td>
+                                                            <td className="px-4 py-3 text-slate-300 font-mono">{fmt(h.entry_price)}</td>
+                                                            <td className="px-4 py-3 text-slate-300 font-mono">{fmt(h.exit_price)}</td>
+                                                            <td className={`px-4 py-3 font-mono font-bold ${isWin ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>{(h.pnl_pct || 0) >= 0 ? '+' : ''}{(h.pnl_pct || 0).toFixed(2)}%</td>
+                                                            <td className={`px-4 py-3 font-mono font-bold ${isWin ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>{fmt(h.pnl_dollars)}</td>
                                                             <td className="px-4 py-3">
-                                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${isWin
-                                                                    ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/40'
-                                                                    : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/40'}`}>
-                                                                    {h.result}
-                                                                </span>
+                                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${isWin ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/30' : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/30'}`}>{h.result}</span>
                                                             </td>
-                                                            <td className="px-4 py-3 text-gray-400">{formatDuration(h.duration_minutes)}</td>
-                                                            <td className="px-4 py-3 text-gray-500 uppercase text-[10px] font-bold">{h.exit_reason}</td>
-                                                            <td className="px-4 py-3 text-gray-500 font-mono">
-                                                                {h.closed_at ? new Date(h.closed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
-                                                            </td>
+                                                            <td className="px-4 py-3 text-slate-400 font-mono">{formatDuration(h.duration_minutes)}</td>
+                                                            <td className="px-4 py-3 text-slate-500 uppercase text-[9px] font-bold">{h.exit_reason}</td>
+                                                            <td className="px-4 py-3 text-slate-600 font-mono">{h.closed_at ? new Date(h.closed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</td>
                                                         </tr>
                                                     );
                                                 })}
@@ -1055,13 +871,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                 )}
             </div>
 
-            {/* Manual Close Modal */}
-            <ManualCloseModal
-                position={closingPosition}
-                onClose={() => setClosingPosition(null)}
-                onConfirm={handleManualClose}
-                closing={isClosing}
-            />
+            <ManualCloseModal position={closingPosition} onClose={() => setClosingPosition(null)} onConfirm={handleManualClose} closing={isClosing} />
         </div>
     );
 };

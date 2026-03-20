@@ -22,8 +22,6 @@ const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, o
     { id: 'portfolio', label: 'Portfolio', icon: 'analytics' },
     { id: 'quick-trade', label: 'Quick Trade', icon: 'bolt' },
     { id: 'auto-trade', label: 'Auto-Trade', icon: 'smart_toy' },
-    { id: 'iron-gate', label: 'Iron Gate', icon: 'lock' },
-    { id: 'iron-gate-day', label: 'Iron Gate Day', icon: 'bolt' },
     { id: 'ai-hub', label: 'AI Hub', icon: 'auto_awesome' },
     { id: 'chat', label: 'Group Chat', icon: 'forum' },
     { id: 'settings', label: 'Settings', icon: 'settings' }

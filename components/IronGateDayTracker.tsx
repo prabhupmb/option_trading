@@ -636,7 +636,8 @@ const IronGateDayTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void 
         };
     }, [positions]);
 
-    const scanTimes = config?.params?.scan_times || [];
+    const scanTimes = Array.isArray(config?.params?.scan_times) ? config!.params.scan_times : [];
+
 
     return (
         <div className="flex-1 overflow-y-auto bg-[#0d1117] min-h-screen text-white font-sans">

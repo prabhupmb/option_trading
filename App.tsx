@@ -43,6 +43,7 @@ const App: React.FC = () => {
   const [quickTradeSignal, setQuickTradeSignal] = useState<OptionSignal | null>(null);
 
   const [currentView, setCurrentView] = useState<View>('signals');
+  const [optionFeedTab, setOptionFeedTab] = useState<'feed' | 'iron-gate' | 'iron-gate-day'>('feed');
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState('Tier');
   const [searchQuery, setSearchQuery] = useState('');
@@ -276,90 +277,123 @@ const App: React.FC = () => {
           />
 
           {currentView === 'signals' ? (
-            <main className="flex-1 p-8 overflow-y-auto">
-              {/* Data Delay Banner */}
-              <DataDelayBanner onRefresh={refresh} loading={loading} isAdmin={role === 'admin'} />
-
-              {/* Stats Bar */}
-              <OptionSignalStats signals={signals} onFilterClick={setActiveFilter} />
-
-              {/* Header / Filter Section */}
-              <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6">
-                <div>
-                  <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                    Option Feed
-                    <span className="text-xs font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-1 rounded-md align-middle">{processedSignals.length} Active</span>
-                  </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
-                    {lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString()}` : 'Real-time data stream'} • Connected to Supabase
-                  </p>
-                </div>
-
-                {/* Filters */}
-                <div className="flex-1 md:flex-none">
-                  <OptionSignalFilters
-                    activeFilter={activeFilter}
-                    onFilterChange={setActiveFilter}
-                    sortBy={sortBy}
-                    onSortChange={setSortBy}
-                    onStrategyChange={setSelectedStrategy}
-                    searchQuery={searchQuery}
-                    onSearchChange={setSearchQuery}
-                  />
-                </div>
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* ── Sub-tab bar ── */}
+              <div className="flex items-center gap-1 px-8 pt-5 pb-0 border-b border-gray-100 dark:border-white/5 bg-white dark:bg-transparent">
+                {([
+                  { id: 'feed', label: 'Option Feed', icon: 'dashboard' },
+                  { id: 'iron-gate', label: 'Iron Gate', icon: 'lock' },
+                  { id: 'iron-gate-day', label: 'Iron Gate Day', icon: 'bolt' },
+                ] as const).map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setOptionFeedTab(tab.id)}
+                    className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${optionFeedTab === tab.id
+                        ? 'border-rh-green text-rh-green'
+                        : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-white'
+                      }`}
+                  >
+                    <span className="material-symbols-outlined text-base">{tab.icon}</span>
+                    {tab.label}
+                  </button>
+                ))}
               </div>
 
-              {/* Error State */}
-              {error && (
-                <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 mb-6 flex items-center gap-3">
-                  <span className="material-symbols-outlined text-red-500 text-xl">error</span>
-                  <div className="flex-1">
-                    <p className="text-sm font-bold text-red-600 dark:text-red-400">Connection Failed</p>
-                    <p className="text-xs text-red-600/70 dark:text-red-400/70">{error}</p>
-                  </div>
-                  <button onClick={refresh} className="text-xs font-bold text-red-500 hover:text-red-600 uppercase tracking-wide">Retry</button>
-                </div>
-              )}
+              {/* ── Tab content ── */}
+              {optionFeedTab === 'feed' && (
+                <main className="flex-1 p-8 overflow-y-auto">
+                  {/* Data Delay Banner */}
+                  <DataDelayBanner onRefresh={refresh} loading={loading} isAdmin={role === 'admin'} />
 
-              {/* Loading State */}
-              {loading && signals.length === 0 && (
-                <div className="flex items-center justify-center h-64">
-                  <div className="text-center">
-                    <span className="material-symbols-outlined text-4xl text-rh-green animate-spin-slow">refresh</span>
-                    <p className="text-slate-400 mt-4 font-medium animate-pulse">Syncing OptionChain Data...</p>
-                  </div>
-                </div>
-              )}
+                  {/* Stats Bar */}
+                  <OptionSignalStats signals={signals} onFilterClick={setActiveFilter} />
 
-              {/* Signals Grid */}
-              {!loading && (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {processedSignals.map((signal) => (
-                    <StockSignalCard
-                      key={signal.id || signal.symbol}
-                      signal={signal}
-                      onViewAnalysis={handleViewAnalysis}
-                      onExecute={handleExecute}
-                      onQuickTrade={setQuickTradeSignal}
-                      accessLevel={accessLevel}
-                    />
-                  ))}
-                  {processedSignals.length === 0 && (
-                    <div className="col-span-full py-20 text-center opacity-50">
-                      <span className="material-symbols-outlined text-6xl text-slate-300 dark:text-white/10 mb-4">filter_list_off</span>
-                      <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">No signals match your filter</p>
-                      <button onClick={() => setActiveFilter('ALL')} className="mt-4 text-rh-green font-bold text-xs uppercase hover:underline">Clear Filters</button>
+                  {/* Header / Filter Section */}
+                  <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6">
+                    <div>
+                      <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                        Option Feed
+                        <span className="text-xs font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-1 rounded-md align-middle">{processedSignals.length} Active</span>
+                      </h2>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+                        {lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString()}` : 'Real-time data stream'} • Connected to Supabase
+                      </p>
+                    </div>
+                    <div className="flex-1 md:flex-none">
+                      <OptionSignalFilters
+                        activeFilter={activeFilter}
+                        onFilterChange={setActiveFilter}
+                        sortBy={sortBy}
+                        onSortChange={setSortBy}
+                        onStrategyChange={setSelectedStrategy}
+                        searchQuery={searchQuery}
+                        onSearchChange={setSearchQuery}
+                      />
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 mb-6 flex items-center gap-3">
+                      <span className="material-symbols-outlined text-red-500 text-xl">error</span>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-red-600 dark:text-red-400">Connection Failed</p>
+                        <p className="text-xs text-red-600/70 dark:text-red-400/70">{error}</p>
+                      </div>
+                      <button onClick={refresh} className="text-xs font-bold text-red-500 hover:text-red-600 uppercase tracking-wide">Retry</button>
                     </div>
                   )}
+
+                  {loading && signals.length === 0 && (
+                    <div className="flex items-center justify-center h-64">
+                      <div className="text-center">
+                        <span className="material-symbols-outlined text-4xl text-rh-green animate-spin-slow">refresh</span>
+                        <p className="text-slate-400 mt-4 font-medium animate-pulse">Syncing OptionChain Data...</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {!loading && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                      {processedSignals.map((signal) => (
+                        <StockSignalCard
+                          key={signal.id || signal.symbol}
+                          signal={signal}
+                          onViewAnalysis={handleViewAnalysis}
+                          onExecute={handleExecute}
+                          onQuickTrade={setQuickTradeSignal}
+                          accessLevel={accessLevel}
+                        />
+                      ))}
+                      {processedSignals.length === 0 && (
+                        <div className="col-span-full py-20 text-center opacity-50">
+                          <span className="material-symbols-outlined text-6xl text-slate-300 dark:text-white/10 mb-4">filter_list_off</span>
+                          <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">No signals match your filter</p>
+                          <button onClick={() => setActiveFilter('ALL')} className="mt-4 text-rh-green font-bold text-xs uppercase hover:underline">Clear Filters</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="mt-12 text-center border-t border-gray-100 dark:border-white/5 pt-8">
+                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest opacity-60">
+                      Option Feed AI • v2.1.0 • Connected to Supabase
+                    </p>
+                  </div>
+                </main>
+              )}
+
+              {optionFeedTab === 'iron-gate' && (
+                <div className="flex-1 overflow-y-auto">
+                  <IronGateTracker onExecute={setExecutingSignal} />
                 </div>
               )}
 
-              <div className="mt-12 text-center border-t border-gray-100 dark:border-white/5 pt-8">
-                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest opacity-60">
-                  Option Feed AI • v2.1.0 • Connected to Supabase
-                </p>
-              </div>
-            </main>
+              {optionFeedTab === 'iron-gate-day' && (
+                <div className="flex-1 overflow-y-auto">
+                  <IronGateDayTracker onExecute={setExecutingSignal} />
+                </div>
+              )}
+            </div>
           ) : currentView === 'portfolio' ? (
             <div className="flex-1 overflow-y-auto">
               <Portfolio />
@@ -376,14 +410,6 @@ const App: React.FC = () => {
             </div>
           ) : currentView === 'auto-trade' ? (
             <AutoTradeSettings />
-          ) : currentView === 'iron-gate' ? (
-            <div className="flex-1 overflow-y-auto">
-              <IronGateTracker onExecute={setExecutingSignal} />
-            </div>
-          ) : currentView === 'iron-gate-day' ? (
-            <div className="flex-1 overflow-y-auto">
-              <IronGateDayTracker onExecute={setExecutingSignal} />
-            </div>
           ) : currentView === 'settings' ? (
             <div className="flex-1 overflow-y-auto">
               <UserProfilePage />
