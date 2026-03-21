@@ -562,6 +562,7 @@ const IronGateDayTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void 
     const [closingPos, setClosingPos] = useState<DayPosition | null>(null);
     const [isClosing, setIsClosing] = useState(false);
     const [activeSection, setActiveSection] = useState<'positions' | 'history'>('positions');
+    const [activeFilter, setActiveFilter] = useState<string>('ALL');
     const [marketTime, setMarketTime] = useState(getETNow());
     const marketStatus = useMemo(() => getMarketStatus(), [marketTime]);
 
@@ -636,6 +637,15 @@ const IronGateDayTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void 
         };
     }, [positions]);
 
+    const filteredPositions = useMemo(() => {
+        const open = positions.filter(p => p.status === 'OPEN');
+        if (activeFilter === 'STRONG_BUY') return open.filter(p => p.action === 'BUY' && p.tier === 'A+');
+        if (activeFilter === 'BUY') return open.filter(p => p.action === 'BUY' && p.tier !== 'A+');
+        if (activeFilter === 'STRONG_SELL') return open.filter(p => p.action === 'SELL' && p.tier === 'A+');
+        if (activeFilter === 'SELL') return open.filter(p => p.action === 'SELL' && p.tier !== 'A+');
+        return open;
+    }, [positions, activeFilter]);
+
     const scanTimes = Array.isArray(config?.params?.scan_times) ? config!.params.scan_times : [];
 
 
@@ -669,18 +679,19 @@ const IronGateDayTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void 
                         </div>
                     </div>
 
-                    {/* Summary counts */}
+                    {/* Summary counts / filter buttons */}
                     <div className="grid grid-cols-4 gap-3 mt-5">
                         {[
-                            { label: 'STRONG BUY', count: counts.strongBuy, color: 'text-[#00d97e] border-[#00d97e]/30 bg-[#00d97e]/5' },
-                            { label: 'BUY', count: counts.buy, color: 'text-green-400 border-green-700/30 bg-green-900/10' },
-                            { label: 'STRONG SELL', count: counts.strongSell, color: 'text-[#ff4757] border-[#ff4757]/30 bg-[#ff4757]/5' },
-                            { label: 'SELL', count: counts.sell, color: 'text-red-400 border-red-700/30 bg-red-900/10' },
+                            { id: 'STRONG_BUY', label: 'STRONG BUY', count: counts.strongBuy, color: 'text-[#00d97e] border-[#00d97e]/30 bg-[#00d97e]/5', activeColor: 'ring-2 ring-[#00d97e]' },
+                            { id: 'BUY', label: 'BUY', count: counts.buy, color: 'text-green-400 border-green-700/30 bg-green-900/10', activeColor: 'ring-2 ring-green-400' },
+                            { id: 'STRONG_SELL', label: 'STRONG SELL', count: counts.strongSell, color: 'text-[#ff4757] border-[#ff4757]/30 bg-[#ff4757]/5', activeColor: 'ring-2 ring-[#ff4757]' },
+                            { id: 'SELL', label: 'SELL', count: counts.sell, color: 'text-red-400 border-red-700/30 bg-red-900/10', activeColor: 'ring-2 ring-red-400' },
                         ].map(s => (
-                            <div key={s.label} className={`rounded-xl border p-3 text-center ${s.color}`}>
+                            <button key={s.id} onClick={() => setActiveFilter(activeFilter === s.id ? 'ALL' : s.id)}
+                                className={`rounded-xl border p-3 text-center transition-all ${s.color} ${activeFilter === s.id ? s.activeColor : 'opacity-80 hover:opacity-100'}`}>
                                 <span className="block text-2xl font-black font-mono">{s.count}</span>
                                 <span className="block text-[9px] font-bold uppercase tracking-wider opacity-70">{s.label}</span>
-                            </div>
+                            </button>
                         ))}
                     </div>
                 </div>
@@ -726,7 +737,7 @@ const IronGateDayTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void 
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                                {positions.map(p => <DayPositionCard key={p.id} pos={p} onClose={setClosingPos} onExecute={onExecute} />)}
+                                {filteredPositions.map(p => <DayPositionCard key={p.id} pos={p} onClose={setClosingPos} onExecute={onExecute} />)}
                             </div>
                         )}
                     </div>

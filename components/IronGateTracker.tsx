@@ -348,72 +348,7 @@ const PositionCard: React.FC<{
                 {/* ── Row 5: Progress Bar ── */}
                 <IronGateProgressBar position={position} />
 
-                {/* ── Row 6: Gate Dots ── */}
-                <div className="flex items-center gap-1.5">
-                    <span className="text-[8px] text-slate-600 font-bold uppercase tracking-widest shrink-0">Gates</span>
-                    <div className="flex items-center gap-1">
-                        {GATE_KEYS.map((key, i) => {
-                            const val = (position as any)[key] as string || '';
-                            const passed = gateIsPassed(val);
-                            return (
-                                <div key={key} title={`G${i + 1}: ${val || '—'}`}
-                                    className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black border cursor-help transition-colors ${passed
-                                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
-                                        : 'bg-red-500/10 border-red-500/20 text-red-500/50'}`}>
-                                    {i + 1}
-                                </div>
-                            );
-                        })}
-                    </div>
-                    <div className="ml-auto flex items-center gap-1">
-                        <span className="text-emerald-400 text-[9px] font-bold">▲{(position.high_water_mark || 0).toFixed(1)}%</span>
-                        <span className="text-slate-700">·</span>
-                        <span className="text-red-400 text-[9px] font-bold">▼{(position.low_water_mark || 0).toFixed(1)}%</span>
-                    </div>
-                </div>
 
-                {/* ── Row 7: Indicator Chips ── */}
-                <div className="flex flex-wrap items-center gap-1.5">
-                    {/* ADX */}
-                    <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[#111620] border border-[#1e2430] text-[10px] font-bold">
-                        <span className="text-slate-500">ADX</span>
-                        <span className={`font-mono font-black ${adxColor(position.adx_value)}`}>{(position.adx_value || 0).toFixed(1)}</span>
-                        <span className="text-slate-700">|</span>
-                        <span className="text-emerald-400 font-mono">+{(position.plus_di || 0).toFixed(0)}</span>
-                        <span className="text-slate-700">/</span>
-                        <span className="text-red-400 font-mono">-{(position.minus_di || 0).toFixed(0)}</span>
-                    </div>
-                    {/* VWAP */}
-                    <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[#111620] border border-[#1e2430] text-[10px] font-bold">
-                        <span className="text-slate-500">VWAP</span>
-                        <span className={`font-bold uppercase ${dirColor(position.vwap_position)}`}>{position.vwap_position || '—'}</span>
-                        {position.vwap_distance != null && (
-                            <span className={`font-mono text-[9px] ${position.vwap_distance >= 0 ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
-                                {position.vwap_distance >= 0 ? '+' : ''}{position.vwap_distance.toFixed(1)}%
-                            </span>
-                        )}
-                    </div>
-                    {/* SMA */}
-                    {position.sma_direction && (
-                        <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[#111620] border border-[#1e2430] text-[10px] font-bold">
-                            <span className="text-slate-500">SMA</span>
-                            <span className={`font-bold uppercase ${dirColor(position.sma_direction)}`}>{position.sma_direction}</span>
-                        </div>
-                    )}
-                    {/* SuperTrend chips */}
-                    {[
-                        { label: '1H', dir: position.st_1h_direction },
-                        { label: '15M', dir: position.st_15m_direction },
-                        { label: '5M', dir: position.st_5m_direction },
-                    ].map(({ label, dir }) => dir ? (
-                        <div key={label} className={`flex items-center gap-0.5 px-2 py-1 rounded-lg border text-[10px] font-bold ${(dir || '').toUpperCase() === 'BULLISH'
-                            ? 'bg-emerald-950/20 border-emerald-800/30 text-emerald-400'
-                            : 'bg-red-950/15 border-red-800/20 text-red-400'}`}>
-                            <span className="uppercase">{label}</span>
-                            <span>{dir.toUpperCase() === 'BULLISH' ? '▲' : '▼'}</span>
-                        </div>
-                    ) : null)}
-                </div>
 
                 {/* ── Row 8: Monitor Footer ── */}
                 <div className="flex items-center justify-between text-[9px] text-slate-600 font-bold pt-2 border-t border-[#1a1f2e]">
@@ -429,11 +364,6 @@ const PositionCard: React.FC<{
 
                 {/* ── Row 9: Actions ── */}
                 <div className="flex items-center gap-2 pt-0.5">
-                    <button onClick={() => setExpanded(!expanded)}
-                        className="flex items-center gap-1 text-[10px] font-bold text-slate-500 hover:text-white transition-colors uppercase tracking-wide">
-                        <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}>expand_more</span>
-                        Gates ({position.gates_passed || '0/6'})
-                    </button>
                     <div className="ml-auto flex items-center gap-2">
                         <button onClick={() => onManualClose(position)}
                             className="px-3 py-1.5 rounded-lg bg-[#1a1f2e] border border-[#252c3b] text-slate-400 text-[10px] font-bold hover:text-white hover:border-slate-500 transition-all flex items-center gap-1.5">
@@ -474,7 +404,6 @@ const PositionCard: React.FC<{
                     </div>
                 </div>
 
-                {expanded && <GateDetails position={position} />}
             </div>
         </div>
     );

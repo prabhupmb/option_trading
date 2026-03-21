@@ -6,6 +6,10 @@ export interface StrategyConfig {
     strategy: string;
     display_name: string;
     icon: string;
+    params?: {
+        scan_times?: string[];
+        [key: string]: any;
+    };
 }
 
 export const useStrategyConfigs = () => {
@@ -17,7 +21,7 @@ export const useStrategyConfigs = () => {
             try {
                 const { data, error } = await supabase
                     .from('strategy_configs')
-                    .select('id, strategy, display_name, icon')
+                    .select('id, strategy, display_name, icon, params')
                     .eq('is_active', true);
 
                 if (error) throw error;

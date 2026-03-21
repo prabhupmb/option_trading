@@ -27,6 +27,97 @@ import { useStrategyConfigs } from './hooks/useStrategyConfigs';
 import { useScanProgress } from './hooks/useScanProgress';
 import DataDelayBanner from './components/DataDelayBanner';
 
+// ─── SCAN TIMES BAR ───────────────────────────────────────────
+
+const SCAN_TIMES = ['08:31', '08:45', '09:00', '09:10', '09:20', '09:35', '09:50', '10:15', '10:45', '12:10', '13:30', '14:15', '14:50'];
+
+const STRATEGY_WEBHOOKS: Record<string, string> = {
+  swing_trade: 'https://prabhupadala01.app.n8n.cloud/webhook/scan-options',
+  day_trade: 'https://prabhupadala01.app.n8n.cloud/webhook/refresh-daytrade',
+};
+
+const isCSTWeekday = () => {
+  const cst = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+  const day = cst.getDay();
+  return day !== 0 && day !== 6;
+};
+
+const getNextScanTime = () => {
+  const cst = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+  const hhmm = cst.toTimeString().slice(0, 5);
+  return SCAN_TIMES.find(t => t > hhmm) || null;
+};
+
+const ScanTimesBar: React.FC<{ activeTab: string }> = ({ activeTab }) => {
+  const [triggering, setTriggering] = React.useState(false);
+  const [triggerStatus, setTriggerStatus] = React.useState<'idle' | 'ok' | 'err'>('idle');
+  const webhookUrl = STRATEGY_WEBHOOKS[activeTab];
+  const canTrigger = !!webhookUrl && isCSTWeekday();
+  const nextScan = getNextScanTime();
+
+  const handleTrigger = async () => {
+    if (!webhookUrl || !isCSTWeekday()) return;
+    setTriggering(true);
+    setTriggerStatus('idle');
+    try {
+      await fetch(webhookUrl, { method: 'POST' });
+      setTriggerStatus('ok');
+    } catch {
+      setTriggerStatus('err');
+    } finally {
+      setTriggering(false);
+      setTimeout(() => setTriggerStatus('idle'), 3000);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap mb-4 px-1 py-2 border-b border-gray-100 dark:border-white/5">
+      <span className="text-[9px] font-bold text-slate-500 dark:text-slate-600 uppercase tracking-widest">Scan Times:</span>
+      {SCAN_TIMES.map((t, i) => {
+        const cst = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+        const hhmm = cst.toTimeString().slice(0, 5);
+        const isNext = t === nextScan;
+        const isPast = t < hhmm;
+        return (
+          <span key={i} className={`px-2 py-0.5 rounded border text-[10px] font-mono font-bold transition-colors ${
+            isNext
+              ? 'bg-rh-green/10 border-rh-green/40 text-rh-green'
+              : isPast
+                ? 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-300 dark:text-slate-600'
+                : 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400'
+          }`}>{t}</span>
+        );
+      })}
+      <div className="ml-auto flex items-center gap-2">
+        <span className="flex items-center gap-1 text-[9px] text-slate-400 dark:text-slate-600 font-bold">
+          <span className="w-1.5 h-1.5 rounded-full bg-rh-green animate-pulse" />polling every 30s
+        </span>
+        {webhookUrl && (
+          <button
+            onClick={handleTrigger}
+            disabled={!canTrigger || triggering}
+            title={!isCSTWeekday() ? 'Only available on weekdays (CST)' : 'Trigger scan now'}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all border ${
+              triggerStatus === 'ok'
+                ? 'bg-rh-green/10 border-rh-green/30 text-rh-green'
+                : triggerStatus === 'err'
+                  ? 'bg-red-500/10 border-red-500/30 text-red-400'
+                  : canTrigger
+                    ? 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400 hover:text-rh-green hover:border-rh-green/40'
+                    : 'bg-slate-50 dark:bg-[#0d1117] border-gray-100 dark:border-[#1a1f2e] text-slate-300 dark:text-slate-700 cursor-not-allowed'
+            }`}
+          >
+            <span className={`material-symbols-outlined text-sm ${triggering ? 'animate-spin' : ''}`}>
+              {triggerStatus === 'ok' ? 'check_circle' : triggerStatus === 'err' ? 'error' : 'play_arrow'}
+            </span>
+            {triggerStatus === 'ok' ? 'Triggered!' : triggerStatus === 'err' ? 'Failed' : triggering ? 'Triggering...' : 'Scan Now'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const App: React.FC = () => {
   const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut, role, accessLevel, trialDaysLeft, isTrialUser } = useAuth();
 
@@ -313,6 +404,9 @@ const App: React.FC = () => {
                 <main className="flex-1 p-8 overflow-y-auto">
                   {/* Data Delay Banner */}
                   <DataDelayBanner onRefresh={refresh} loading={loading} isAdmin={role === 'admin'} />
+
+                  {/* Scan Times + Webhook Trigger */}
+                  <ScanTimesBar activeTab={activeTab} />
 
                   {/* Stats Bar */}
                   <OptionSignalStats signals={signals} onFilterClick={setActiveFilter} />
