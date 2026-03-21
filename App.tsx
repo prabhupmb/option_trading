@@ -31,7 +31,8 @@ const App: React.FC = () => {
   const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut, role, accessLevel, trialDaysLeft, isTrialUser } = useAuth();
 
   // Strategy filter
-  const [selectedStrategy, setSelectedStrategy] = useState<string | null>('swing_trade');
+  const [activeTab, setActiveTab] = useState<string>('iron-gate');
+  const selectedStrategy = ['iron-gate', 'iron-gate-day'].includes(activeTab) ? null : activeTab;
   const { strategies } = useStrategyConfigs();
 
   // New Hook
@@ -43,7 +44,6 @@ const App: React.FC = () => {
   const [quickTradeSignal, setQuickTradeSignal] = useState<OptionSignal | null>(null);
 
   const [currentView, setCurrentView] = useState<View>('signals');
-  const [optionFeedTab, setOptionFeedTab] = useState<'feed' | 'iron-gate' | 'iron-gate-day'>('feed');
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState('Tier');
   const [searchQuery, setSearchQuery] = useState('');
@@ -270,9 +270,6 @@ const App: React.FC = () => {
             onBrokerageChange={setSelectedBrokerage}
             onNavigate={setCurrentView}
             scanProgress={scanProgress}
-            strategies={strategies}
-            selectedStrategy={selectedStrategy}
-            onStrategyChange={setSelectedStrategy}
             isAdmin={role === 'admin'}
           />
 
@@ -281,14 +278,13 @@ const App: React.FC = () => {
               {/* ── Sub-tab bar ── */}
               <div className="flex items-center gap-1 px-8 pt-5 pb-0 border-b border-gray-100 dark:border-white/5 bg-white dark:bg-transparent">
                 {([
-                  { id: 'feed', label: 'Option Feed', icon: 'dashboard' },
                   { id: 'iron-gate', label: 'Iron Gate', icon: 'lock' },
                   { id: 'iron-gate-day', label: 'Iron Gate Day', icon: 'bolt' },
                 ] as const).map(tab => (
                   <button
                     key={tab.id}
-                    onClick={() => setOptionFeedTab(tab.id)}
-                    className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${optionFeedTab === tab.id
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${activeTab === tab.id
                         ? 'border-rh-green text-rh-green'
                         : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-white'
                       }`}
@@ -297,10 +293,23 @@ const App: React.FC = () => {
                     {tab.label}
                   </button>
                 ))}
+                {strategies.filter(s => !['iron_gate', 'iron_gate_day'].includes(s.strategy)).map(strategy => (
+                  <button
+                    key={strategy.strategy}
+                    onClick={() => setActiveTab(strategy.strategy)}
+                    className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${activeTab === strategy.strategy
+                        ? 'border-rh-green text-rh-green'
+                        : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-white'
+                      }`}
+                  >
+                    <span className="material-symbols-outlined text-base">{strategy.icon}</span>
+                    {strategy.display_name}
+                  </button>
+                ))}
               </div>
 
               {/* ── Tab content ── */}
-              {optionFeedTab === 'feed' && (
+              {!['iron-gate', 'iron-gate-day'].includes(activeTab) && (
                 <main className="flex-1 p-8 overflow-y-auto">
                   {/* Data Delay Banner */}
                   <DataDelayBanner onRefresh={refresh} loading={loading} isAdmin={role === 'admin'} />
@@ -325,7 +334,6 @@ const App: React.FC = () => {
                         onFilterChange={setActiveFilter}
                         sortBy={sortBy}
                         onSortChange={setSortBy}
-                        onStrategyChange={setSelectedStrategy}
                         searchQuery={searchQuery}
                         onSearchChange={setSearchQuery}
                       />
@@ -382,13 +390,13 @@ const App: React.FC = () => {
                 </main>
               )}
 
-              {optionFeedTab === 'iron-gate' && (
+              {activeTab === 'iron-gate' && (
                 <div className="flex-1 overflow-y-auto">
                   <IronGateTracker onExecute={setExecutingSignal} />
                 </div>
               )}
 
-              {optionFeedTab === 'iron-gate-day' && (
+              {activeTab === 'iron-gate-day' && (
                 <div className="flex-1 overflow-y-auto">
                   <IronGateDayTracker onExecute={setExecutingSignal} />
                 </div>

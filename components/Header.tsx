@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import BrokerSelector from './layout/BrokerSelector';
-import StrategyDropdown from './signals/StrategyDropdown';
-import type { StrategyConfig } from '../hooks/useStrategyConfigs';
 import type { ScanStatus } from '../hooks/useScanProgress';
 
 interface ScanProgressData {
@@ -23,13 +21,10 @@ interface HeaderProps {
   onBrokerageChange?: (brokerage: string) => void;
   onNavigate?: (view: string) => void;
   scanProgress?: ScanProgressData;
-  strategies?: StrategyConfig[];
-  selectedStrategy?: string | null;
-  onStrategyChange?: (strategy: string | null) => void;
   isAdmin?: boolean;
 }
 
-const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading, user, onSignOut, selectedBrokerage, onBrokerageChange, onNavigate, scanProgress, strategies, selectedStrategy, onStrategyChange, isAdmin }) => {
+const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading, user, onSignOut, selectedBrokerage, onBrokerageChange, onNavigate, scanProgress, isAdmin }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const userAvatar = user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
@@ -54,16 +49,6 @@ const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading, user, 
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {/* Strategy Filter */}
-          {strategies && onStrategyChange && (
-            <div className="relative z-50">
-              <StrategyDropdown
-                strategies={strategies}
-                selectedStrategy={selectedStrategy ?? null}
-                onStrategyChange={onStrategyChange}
-              />
-            </div>
-          )}
           {/* Brokerage Selector */}
           <div className="relative z-50">
             <BrokerSelector onNavigate={onNavigate} />
