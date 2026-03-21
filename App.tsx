@@ -19,6 +19,7 @@ import QuickTradePage from './components/QuickTradePage';
 import AutoTradeSettings from './components/AutoTradeSettings';
 import IronGateTracker from './components/IronGateTracker';
 import IronGateDayTracker from './components/IronGateDayTracker';
+import StockGateTracker from './components/StockGateTracker';
 import QuickTradeModal from './components/quicktrade/QuickTradeModal';
 import { useAuth } from './services/useAuth';
 import { OptionSignal } from './types';
@@ -26,6 +27,44 @@ import { useOptionSignals } from './hooks/useOptionSignals';
 import { useStrategyConfigs } from './hooks/useStrategyConfigs';
 import { useScanProgress } from './hooks/useScanProgress';
 import DataDelayBanner from './components/DataDelayBanner';
+
+// ─── STOCK FEED VIEW (sub-tabs: Signal Feed + Stock Gate) ─────
+
+const StockFeedView: React.FC<{ onExecute: (s: any) => void }> = ({ onExecute }) => {
+  const [stockTab, setStockTab] = React.useState<'signal-feed' | 'stock-gate'>('stock-gate');
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex items-center gap-1 px-8 pt-5 pb-0 border-b border-gray-100 dark:border-white/5 bg-white dark:bg-transparent">
+        {([
+          { id: 'stock-gate', label: 'Stock Gate', icon: 'trending_up' },
+          { id: 'signal-feed', label: 'Signal Feed', icon: 'query_stats' },
+        ] as const).map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setStockTab(tab.id)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${stockTab === tab.id
+              ? 'border-rh-green text-rh-green'
+              : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-white'
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      {stockTab === 'stock-gate' && (
+        <div className="flex-1 overflow-y-auto">
+          <StockGateTracker onExecute={onExecute} />
+        </div>
+      )}
+      {stockTab === 'signal-feed' && (
+        <div className="flex-1 overflow-hidden">
+          <SignalFeed />
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── SCAN TIMES BAR ───────────────────────────────────────────
 
@@ -495,6 +534,7 @@ const App: React.FC = () => {
                   <IronGateDayTracker onExecute={setExecutingSignal} />
                 </div>
               )}
+
             </div>
           ) : currentView === 'portfolio' ? (
             <div className="flex-1 overflow-y-auto">
@@ -505,7 +545,7 @@ const App: React.FC = () => {
               <AIHub />
             </div>
           ) : currentView === 'smart-feed' ? (
-            <SignalFeed />
+            <StockFeedView onExecute={setExecutingSignal} />
           ) : currentView === 'quick-trade' ? (
             <div className="flex-1 overflow-hidden">
               <QuickTradePage />
