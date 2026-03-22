@@ -7,6 +7,13 @@ export const SUMMARY_STATS: SummaryStat[] = [
   { type: SignalType.SELL, count: 5, change: -2 },
 ];
 
+export const BEST_STOCK_LIST = [
+  'SOXL', 'SMH', 'SLV', 'MU', 'NFLX', 'PATH', 'PLTR', 'HOOD', 'QQQ', 'SPY',
+  'NVDA', 'TSLA', 'AMD', 'SOFI', 'IREN', 'GOOGL', 'AAPL', 'CRWV', 'MSFT', 'AMZN',
+  'APLD', 'CIFR', 'NBIS', 'WULF', 'SOUN', 'SERV', 'ORCL', 'MSTR', 'CRCL', 'OKLO',
+  'PL', 'ASTS', 'NVTS', 'SMCI', 'CRWD', 'META', 'AAOI',
+];
+
 export const INITIAL_SIGNALS: StockSignal[] = [
   {
     symbol: 'TSLA',

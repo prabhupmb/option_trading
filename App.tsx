@@ -381,7 +381,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-[#0a0712] transition-colors font-sans text-slate-900 dark:text-white">
+    <div className="flex min-h-screen bg-white dark:bg-[#0a0712] transition-colors font-sans text-slate-900 dark:text-white">
       <Navigation activeView={currentView} onNavigate={setCurrentView} user={user} onSignOut={signOut} role={role} accessLevel={accessLevel} trialDaysLeft={trialDaysLeft} isTrialUser={isTrialUser} />
 
       {currentView === 'chat' ? (

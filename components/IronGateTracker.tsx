@@ -187,7 +187,7 @@ const IronGateProgressBar: React.FC<{ position: IronGatePosition }> = ({ positio
                 <span>SL → Target Progress</span>
                 <span className="font-mono" style={{ color: zoneColor }}>{pct.toFixed(1)}%</span>
             </div>
-            <div className="relative h-5 rounded-full overflow-visible bg-[#0d1117] border border-[#1e2430]">
+            <div className="relative h-5 rounded-full overflow-visible bg-gray-200 dark:bg-[#0d1117] border border-gray-200 dark:border-[#1e2430]">
                 {/* Track gradient background */}
                 <div className="absolute inset-0 rounded-full opacity-20"
                     style={{ background: 'linear-gradient(90deg, #ff4757 0%, #ff9f43 25%, #ffd32a 50%, #7bed9f 75%, #00d97e 100%)' }} />
@@ -205,7 +205,7 @@ const IronGateProgressBar: React.FC<{ position: IronGatePosition }> = ({ positio
                 {/* LWM */}
                 {lwm > 0 && lwm < 100 && <div className="absolute -bottom-2.5 text-[8px] text-red-400 font-black z-10" style={{ left: `calc(${lwm}% - 3px)` }} title={`LWM ${lwm.toFixed(1)}%`}>▼</div>}
                 {/* Current dot */}
-                <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-[#0d1117] z-20 transition-all duration-700 ease-out shadow-lg"
+                <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-white dark:border-[#0d1117] z-20 transition-all duration-700 ease-out shadow-lg"
                     style={{ left: `calc(${pct}% - 6px)`, background: zoneColor, boxShadow: `0 0 8px ${zoneColor}80` }} />
             </div>
             <div className="flex justify-between text-[9px] font-bold mt-0.5">
@@ -229,7 +229,7 @@ const GATE_INFO = [
 ];
 
 const GateDetails: React.FC<{ position: IronGatePosition }> = ({ position }) => (
-    <div className="pt-3 border-t border-[#1e2430] space-y-1.5">
+    <div className="pt-3 border-t border-gray-200 dark:border-[#1e2430] space-y-1.5">
         <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest block mb-2">Gate Conditions</span>
         {GATE_INFO.map(({ key, label }) => {
             const value = (position as any)[key] as string || '—';
@@ -270,7 +270,7 @@ const PositionCard: React.FC<{
     const pnlPositive = pnl >= 0;
 
     return (
-        <div className="relative bg-[#0d1117] rounded-2xl overflow-hidden border border-[#1e2430] hover:border-[#2a3142] transition-all duration-200 group">
+        <div className="relative bg-white dark:bg-[#0d1117] rounded-2xl overflow-hidden border border-gray-200 dark:border-[#1e2430] hover:border-gray-300 dark:hover:border-[#2a3142] transition-all duration-200 group">
             {/* Direction accent bar */}
             <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-2xl" style={{ background: accentColor }} />
 
@@ -282,7 +282,7 @@ const PositionCard: React.FC<{
                 {/* ── Row 1: Symbol + Badges + P&L ── */}
                 <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[22px] font-black text-white tracking-tight leading-none">{position.symbol}</span>
+                        <span className="text-[22px] font-black text-slate-900 dark:text-white tracking-tight leading-none">{position.symbol}</span>
                         <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border ${isCall ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/30' : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/30'}`}>
                             {position.option_type?.toUpperCase()}
                         </span>
@@ -321,7 +321,7 @@ const PositionCard: React.FC<{
 
                 {/* ── Row 3: Price Trio ── */}
                 <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="bg-[#111620] rounded-xl p-2.5 border border-[#1e2430]">
+                    <div className="bg-gray-100 dark:bg-[#111620] rounded-xl p-2.5 border border-gray-200 dark:border-[#1e2430]">
                         <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">🔒 Entry</span>
                         <span className="block text-sm font-black font-mono text-amber-300">{fmt(position.entry_price)}</span>
                     </div>
@@ -330,7 +330,7 @@ const PositionCard: React.FC<{
                         <span className={`block text-sm font-black font-mono ${profitable ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>{fmt(position.current_price)}</span>
                         <span className={`block text-[8px] font-mono font-bold ${profitable ? 'text-[#00d97e]/60' : 'text-[#ff4757]/60'}`}>{profitable ? '▲' : '▼'} {Math.abs(pnl).toFixed(2)}%</span>
                     </div>
-                    <div className="bg-[#111620] rounded-xl p-2.5 border border-[#1e2430]">
+                    <div className="bg-gray-100 dark:bg-[#111620] rounded-xl p-2.5 border border-gray-200 dark:border-[#1e2430]">
                         <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">🎯 Target</span>
                         <span className="block text-sm font-black font-mono text-emerald-400">{fmt(position.target_price)}</span>
                     </div>
@@ -342,7 +342,7 @@ const PositionCard: React.FC<{
                     {(position.profit_zone_low || position.profit_zone_high) && (
                         <span className="text-slate-500 font-bold">💰 <span className="text-emerald-400 font-mono">{fmt(position.profit_zone_low)}–{fmt(position.profit_zone_high)}</span></span>
                     )}
-                    <span className="text-slate-500 font-bold">R:R <span className="text-white font-mono">{position.risk_reward_ratio || '—'}</span></span>
+                    <span className="text-slate-500 font-bold">R:R <span className="text-slate-900 dark:text-white font-mono">{position.risk_reward_ratio || '—'}</span></span>
                 </div>
 
                 {/* ── Row 5: Progress Bar ── */}
@@ -351,7 +351,7 @@ const PositionCard: React.FC<{
 
 
                 {/* ── Row 8: Monitor Footer ── */}
-                <div className="flex items-center justify-between text-[9px] text-slate-600 font-bold pt-2 border-t border-[#1a1f2e]">
+                <div className="flex items-center justify-between text-[9px] text-slate-600 font-bold pt-2 border-t border-gray-200 dark:border-[#1a1f2e]">
                     <span className="text-slate-700">{formatOpenedAt(position.opened_at)}</span>
                     <div className="flex items-center gap-2 text-slate-600">
                         <span>⟳ {timeSince(position.last_checked_at)}</span>
@@ -366,7 +366,7 @@ const PositionCard: React.FC<{
                 <div className="flex items-center gap-2 pt-0.5">
                     <div className="ml-auto flex items-center gap-2">
                         <button onClick={() => onManualClose(position)}
-                            className="px-3 py-1.5 rounded-lg bg-[#1a1f2e] border border-[#252c3b] text-slate-400 text-[10px] font-bold hover:text-white hover:border-slate-500 transition-all flex items-center gap-1.5">
+                            className="px-3 py-1.5 rounded-lg bg-gray-200 dark:bg-[#1a1f2e] border border-gray-300 dark:border-[#252c3b] text-slate-400 text-[10px] font-bold hover:text-white hover:border-slate-500 transition-all flex items-center gap-1.5">
                             <span className="material-symbols-outlined text-sm">close</span>
                             Close
                         </button>
@@ -422,7 +422,7 @@ const ManualCloseModal: React.FC<{
     const isCall = position.option_type?.toUpperCase() === 'CALL';
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={onClose}>
-            <div className="w-full max-w-md bg-[#0d1117] border border-[#ff4757]/30 rounded-2xl shadow-2xl overflow-hidden"
+            <div className="w-full max-w-md bg-white dark:bg-[#0d1117] border border-[#ff4757]/30 rounded-2xl shadow-2xl overflow-hidden"
                 onClick={e => e.stopPropagation()} style={{ animation: 'igSlideUp 0.2s ease' }}>
                 <div className="h-px bg-gradient-to-r from-transparent via-[#ff4757]/50 to-transparent" />
                 <div className="p-4 flex justify-between items-center border-b border-[#ff4757]/10">
@@ -434,10 +434,10 @@ const ManualCloseModal: React.FC<{
                     </button>
                 </div>
                 <div className="p-5 space-y-4">
-                    <div className="bg-[#111620] rounded-xl p-4 border border-[#1e2430]">
+                    <div className="bg-gray-100 dark:bg-[#111620] rounded-xl p-4 border border-gray-200 dark:border-[#1e2430]">
                         <div className="flex justify-between items-center mb-3">
                             <div className="flex items-center gap-2">
-                                <span className="text-xl font-black text-white">{position.symbol}</span>
+                                <span className="text-xl font-black text-slate-900 dark:text-white">{position.symbol}</span>
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${isCall ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/30' : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/30'}`}>
                                     {position.option_type?.toUpperCase()}
                                 </span>
@@ -465,7 +465,7 @@ const ManualCloseModal: React.FC<{
                         <p className="text-amber-200/80 text-xs leading-relaxed">This will manually close the position and record it in trade history. This action cannot be undone.</p>
                     </div>
                     <div className="flex gap-3">
-                        <button onClick={onClose} className="flex-1 py-3 border border-[#1e2430] text-slate-400 font-bold rounded-xl hover:bg-[#1a1f2e] transition-colors text-xs uppercase tracking-wide">Cancel</button>
+                        <button onClick={onClose} className="flex-1 py-3 border border-gray-200 dark:border-[#1e2430] text-slate-400 font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-[#1a1f2e] transition-colors text-xs uppercase tracking-wide">Cancel</button>
                         <button onClick={() => onConfirm(position)} disabled={closing}
                             className="flex-[2] py-3 bg-[#ff4757] hover:bg-[#ff4757]/80 text-white font-black rounded-xl transition-all text-xs uppercase tracking-wide flex items-center justify-center gap-2 disabled:opacity-50">
                             {closing ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Closing...</> : <><span className="material-symbols-outlined text-sm">close</span>Confirm Close</>}
@@ -481,12 +481,12 @@ const ManualCloseModal: React.FC<{
 // ─── SKELETON ─────────────────────────────────────────────────
 
 const PositionSkeleton: React.FC = () => (
-    <div className="bg-[#0d1117] rounded-2xl border border-[#1e2430] p-5 space-y-3 animate-pulse">
-        <div className="flex justify-between"><div className="flex gap-2"><div className="h-6 w-16 bg-[#1e2430] rounded" /><div className="h-5 w-12 bg-[#1e2430] rounded" /></div><div className="h-6 w-14 bg-[#1e2430] rounded" /></div>
-        <div className="h-5 w-36 bg-[#1e2430] rounded-full" />
-        <div className="grid grid-cols-3 gap-2"><div className="h-14 bg-[#111620] rounded-xl" /><div className="h-14 bg-[#111620] rounded-xl" /><div className="h-14 bg-[#111620] rounded-xl" /></div>
-        <div className="h-5 bg-[#1e2430] rounded-full" />
-        <div className="h-10 bg-[#111620] rounded-lg" />
+    <div className="bg-white dark:bg-[#0d1117] rounded-2xl border border-gray-200 dark:border-[#1e2430] p-5 space-y-3 animate-pulse">
+        <div className="flex justify-between"><div className="flex gap-2"><div className="h-6 w-16 bg-gray-200 dark:bg-[#1e2430] rounded" /><div className="h-5 w-12 bg-gray-200 dark:bg-[#1e2430] rounded" /></div><div className="h-6 w-14 bg-gray-200 dark:bg-[#1e2430] rounded" /></div>
+        <div className="h-5 w-36 bg-gray-200 dark:bg-[#1e2430] rounded-full" />
+        <div className="grid grid-cols-3 gap-2"><div className="h-14 bg-gray-100 dark:bg-[#111620] rounded-xl" /><div className="h-14 bg-gray-100 dark:bg-[#111620] rounded-xl" /><div className="h-14 bg-gray-100 dark:bg-[#111620] rounded-xl" /></div>
+        <div className="h-5 bg-gray-200 dark:bg-[#1e2430] rounded-full" />
+        <div className="h-10 bg-gray-100 dark:bg-[#111620] rounded-lg" />
     </div>
 );
 
@@ -514,7 +514,7 @@ const HistorySummaryStats: React.FC<{ history: IronGateHistory[] }> = ({ history
                 { label: 'Avg Duration', value: formatDuration(avgDur), color: 'text-white' },
                 { label: 'Wins / Losses', value: `${wins.length}W / ${history.length - wins.length}L`, color: 'text-amber-400' },
             ].map(s => (
-                <div key={s.label} className="bg-[#0d1117] rounded-xl border border-[#1e2430] p-3 text-center">
+                <div key={s.label} className="bg-white dark:bg-[#0d1117] rounded-xl border border-gray-200 dark:border-[#1e2430] p-3 text-center">
                     <span className="block text-[9px] text-slate-600 font-bold uppercase tracking-wider mb-1">{s.label}</span>
                     <span className={`block text-sm font-black font-mono ${s.color}`}>{s.value}</span>
                 </div>
@@ -595,18 +595,18 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
         : positions;
 
     return (
-        <div className="flex-1 overflow-y-auto bg-[#080b10] min-h-screen text-white font-sans">
+        <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#080b10] min-h-screen text-slate-900 dark:text-white font-sans">
             <div className="max-w-[1600px] mx-auto p-5 lg:p-7 space-y-5">
 
                 {/* ── HEADER ── */}
-                <div className="relative bg-gradient-to-br from-[#0d1117] to-[#0a0e16] rounded-2xl border border-[#1e2430] overflow-hidden">
+                <div className="relative bg-white dark:bg-gradient-to-br dark:from-[#0d1117] dark:to-[#0a0e16] rounded-2xl border border-gray-200 dark:border-[#1e2430] overflow-hidden">
                     <div className="absolute inset-0 bg-gradient-to-r from-amber-900/5 via-transparent to-transparent pointer-events-none" />
                     <div className="relative p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex items-center gap-4">
                             <div className="w-12 h-12 rounded-xl bg-amber-900/20 border border-amber-700/30 flex items-center justify-center text-2xl shrink-0">🔒</div>
                             <div>
                                 <div className="flex items-center gap-2.5 flex-wrap">
-                                    <h1 className="text-xl font-black tracking-tight uppercase text-white">{config?.display_name || 'Iron Gate Tracker'}</h1>
+                                    <h1 className="text-xl font-black tracking-tight uppercase text-slate-900 dark:text-white">{config?.display_name || 'Iron Gate Tracker'}</h1>
                                     {config?.is_active ? (
                                         <span className="flex items-center gap-1 text-[9px] font-bold text-[#00d97e] bg-[#00d97e]/10 border border-[#00d97e]/25 px-2 py-0.5 rounded-full">
                                             <span className="w-1.5 h-1.5 rounded-full bg-[#00d97e] animate-pulse" />ACTIVE
@@ -622,15 +622,15 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                         {/* Live position stats */}
                         {positions.length > 0 && (
                             <div className="flex items-center gap-3 flex-wrap">
-                                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#111620] border border-[#1e2430] text-xs font-bold">
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-100 dark:bg-[#111620] border border-gray-200 dark:border-[#1e2430] text-xs font-bold">
                                     <span className="text-slate-500">Locked</span>
-                                    <span className="text-white font-black text-sm">{positions.length}</span>
+                                    <span className="text-slate-900 dark:text-white font-black text-sm">{positions.length}</span>
                                 </div>
-                                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#111620] border border-[#1e2430] text-xs font-bold">
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-100 dark:bg-[#111620] border border-gray-200 dark:border-[#1e2430] text-xs font-bold">
                                     <span className="text-slate-500">In Profit</span>
                                     <span className={`font-black text-sm ${profitCount > 0 ? 'text-[#00d97e]' : 'text-slate-400'}`}>{profitCount}/{positions.length}</span>
                                 </div>
-                                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#111620] border border-[#1e2430] text-xs font-bold">
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-100 dark:bg-[#111620] border border-gray-200 dark:border-[#1e2430] text-xs font-bold">
                                     <span className="text-slate-500">Avg P&L</span>
                                     <span className={`font-black text-sm font-mono ${totalPnl >= 0 ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>{totalPnl >= 0 ? '+' : ''}{totalPnl.toFixed(2)}%</span>
                                 </div>
@@ -646,10 +646,10 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                     </div>
 
                     {scanTimes.length > 0 && (
-                        <div className="px-5 pb-4 flex items-center gap-2 flex-wrap border-t border-[#1a1f2e] pt-3">
+                        <div className="px-5 pb-4 flex items-center gap-2 flex-wrap border-t border-gray-200 dark:border-[#1a1f2e] pt-3">
                             <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Scan Times:</span>
                             {scanTimes.map((t: string, i: number) => (
-                                <span key={i} className="px-2 py-0.5 rounded bg-[#111620] border border-[#1e2430] text-slate-400 text-[10px] font-mono font-bold">{t}</span>
+                                <span key={i} className="px-2 py-0.5 rounded bg-gray-100 dark:bg-[#111620] border border-gray-200 dark:border-[#1e2430] text-slate-400 text-[10px] font-mono font-bold">{t}</span>
                             ))}
                             <span className="ml-auto flex items-center gap-1 text-[9px] text-slate-600 font-bold">
                                 <span className="w-1.5 h-1.5 rounded-full bg-[#00d97e] animate-pulse" />polling every 30s
@@ -660,7 +660,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
 
                 {/* ── SECTION TOGGLE ── */}
                 <div className="flex items-center justify-between gap-4 flex-wrap">
-                    <div className="flex bg-[#0d1117] rounded-xl border border-[#1e2430] p-1 gap-1">
+                    <div className="flex bg-gray-100 dark:bg-[#0d1117] rounded-xl border border-gray-200 dark:border-[#1e2430] p-1 gap-1">
                         {[
                             { id: 'positions', label: `Positions (${positions.length})`, icon: 'radar', color: 'bg-blue-600 shadow-blue-600/25' },
                             { id: 'history', label: `History (${history.length})`, icon: 'history', color: 'bg-violet-600 shadow-violet-600/25' },
@@ -682,15 +682,15 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                 {[1, 2, 3, 4].map(i => <PositionSkeleton key={i} />)}
                             </div>
                         ) : positions.length === 0 ? (
-                            <div className="text-center py-24 bg-[#0d1117] rounded-2xl border border-[#1e2430]">
+                            <div className="text-center py-24 bg-gray-50 dark:bg-[#0d1117] rounded-2xl border border-gray-200 dark:border-[#1e2430]">
                                 <div className="w-16 h-16 rounded-2xl bg-amber-900/15 border border-amber-800/20 flex items-center justify-center text-3xl mx-auto mb-4">🔒</div>
-                                <h3 className="text-base font-black text-white uppercase tracking-tight mb-2">Iron Gate is Watching</h3>
+                                <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Iron Gate is Watching</h3>
                                 <p className="text-slate-600 text-sm max-w-sm mx-auto mb-5">Waiting for A+ or A tier signals to lock. Qualifying positions will appear here with live tracking.</p>
                                 {scanTimes.length > 0 && (
                                     <div className="flex items-center justify-center gap-2 flex-wrap text-xs text-slate-700">
                                         <span className="font-bold">Next scans:</span>
                                         {scanTimes.map((t: string, i: number) => (
-                                            <span key={i} className="px-2 py-0.5 bg-[#111620] rounded border border-[#1e2430] font-mono text-slate-500">{t}</span>
+                                            <span key={i} className="px-2 py-0.5 bg-gray-100 dark:bg-[#111620] rounded border border-gray-200 dark:border-[#1e2430] font-mono text-slate-500">{t}</span>
                                         ))}
                                     </div>
                                 )}
@@ -730,8 +730,8 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                 </div>
 
                                 {filteredPositions.length === 0 && signalFilter && (
-                                    <div className="text-center py-12 bg-[#0d1117] rounded-2xl border border-[#1e2430]">
-                                        <p className="text-slate-500 text-sm">No <span className="text-white font-bold">{signalFilter}</span> positions open</p>
+                                    <div className="text-center py-12 bg-gray-50 dark:bg-[#0d1117] rounded-2xl border border-gray-200 dark:border-[#1e2430]">
+                                        <p className="text-slate-500 text-sm">No <span className="text-slate-900 dark:text-white font-bold">{signalFilter}</span> positions open</p>
                                     </div>
                                 )}
                             </>
@@ -744,22 +744,22 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                     <div>
                         {loadingHistory ? (
                             <div className="space-y-2">
-                                {[1, 2, 3].map(i => <div key={i} className="h-11 bg-[#0d1117] rounded-lg border border-[#1e2430] animate-pulse" />)}
+                                {[1, 2, 3].map(i => <div key={i} className="h-11 bg-white dark:bg-[#0d1117] rounded-lg border border-gray-200 dark:border-[#1e2430] animate-pulse" />)}
                             </div>
                         ) : history.length === 0 ? (
-                            <div className="text-center py-24 bg-[#0d1117] rounded-2xl border border-[#1e2430]">
+                            <div className="text-center py-24 bg-gray-50 dark:bg-[#0d1117] rounded-2xl border border-gray-200 dark:border-[#1e2430]">
                                 <div className="text-5xl mb-4">📊</div>
-                                <h3 className="text-base font-black text-white uppercase tracking-tight mb-2">No Trade History</h3>
+                                <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">No Trade History</h3>
                                 <p className="text-slate-600 text-sm">Closed positions will appear here.</p>
                             </div>
                         ) : (
                             <>
                                 <HistorySummaryStats history={history} />
-                                <div className="bg-[#0d1117] rounded-2xl border border-[#1e2430] overflow-hidden">
+                                <div className="bg-white dark:bg-[#0d1117] rounded-2xl border border-gray-200 dark:border-[#1e2430] overflow-hidden">
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-xs">
                                             <thead>
-                                                <tr className="border-b border-[#1e2430] bg-[#080b10]">
+                                                <tr className="border-b border-gray-100 dark:border-[#1e2430] bg-gray-100 dark:bg-[#080b10]">
                                                     {['Symbol', 'Type', 'Tier', 'Entry', 'Exit', 'P&L%', 'P&L$', 'Result', 'Duration', 'Exit Reason', 'Date'].map(col => (
                                                         <th key={col} className="px-4 py-3 text-left text-[9px] font-bold text-slate-600 uppercase tracking-wider">{col}</th>
                                                     ))}
@@ -769,8 +769,8 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                                 {history.map(h => {
                                                     const isWin = h.result === 'WIN';
                                                     return (
-                                                        <tr key={h.id} className={`border-b border-[#111620] transition-colors hover:bg-[#111620] ${isWin ? 'bg-[#00d97e]/[0.02]' : 'bg-[#ff4757]/[0.02]'}`}>
-                                                            <td className="px-4 py-3 font-black text-white">{h.symbol}</td>
+                                                        <tr key={h.id} className={`border-b border-gray-100 dark:border-[#111620] transition-colors hover:bg-gray-100 dark:hover:bg-[#111620] ${isWin ? 'bg-[#00d97e]/[0.02]' : 'bg-[#ff4757]/[0.02]'}`}>
+                                                            <td className="px-4 py-3 font-black text-slate-900 dark:text-white">{h.symbol}</td>
                                                             <td className="px-4 py-3">
                                                                 <span className={`px-1.5 py-0.5 rounded text-[9px] font-black border ${h.option_type?.toUpperCase() === 'CALL' ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/30' : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/30'}`}>
                                                                     {h.option_type?.toUpperCase()}
