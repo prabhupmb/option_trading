@@ -277,6 +277,40 @@ const App: React.FC = () => {
     };
   }, [currentView, selectedStrategy, getAutoRefreshIntervalMs, refresh]);
 
+  // ─── GLOBAL IRON GATE SCHEDULER ───
+  // Runs app-wide so webhook fires regardless of which screen is active
+  useEffect(() => {
+    const IRON_GATE_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/irongate-swingtrade';
+    const IRON_GATE_SCAN_TIMES = ['08:31', '08:45', '09:00', '09:10', '09:20', '09:35', '09:50', '10:15', '10:45', '12:10', '13:30', '14:15', '14:50'];
+    const firedRef = new Set<string>();
+
+    const getCSTHHMM = () => {
+      const cst = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+      return cst.toTimeString().slice(0, 5);
+    };
+
+    const check = () => {
+      if (!isCSTWeekday()) return;
+      const hhmm = getCSTHHMM();
+      if (IRON_GATE_SCAN_TIMES.includes(hhmm) && !firedRef.has(hhmm)) {
+        firedRef.add(hhmm);
+        console.log(`[IronGate Global] Firing webhook at ${hhmm} CST`);
+        fetch(IRON_GATE_WEBHOOK, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ triggered_by: `scheduled_${hhmm}` }),
+          })
+          .then(() => console.log(`[IronGate Global] Webhook OK at ${hhmm}`))
+          .catch(err => console.error(`[IronGate Global] Webhook failed at ${hhmm}:`, err));
+      }
+    };
+
+    check();
+    const i = setInterval(check, 30000);
+    const midnight = setInterval(() => { if (getCSTHHMM() === '00:00') firedRef.clear(); }, 60000);
+    return () => { clearInterval(i); clearInterval(midnight); };
+  }, []);
+
   // Filter & Sort Logic
   const processedSignals = useMemo(() => {
     let result = [...signals];

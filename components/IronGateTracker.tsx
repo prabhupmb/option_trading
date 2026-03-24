@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { OptionSignal } from '../types';
 
@@ -555,13 +555,16 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
     const [webhookStatus, setWebhookStatus] = useState<'idle' | 'triggering' | 'ok' | 'err'>('idle');
     const [lastTriggeredTime, setLastTriggeredTime] = useState<string | null>(null);
     const [firedTimes, setFiredTimes] = useState<Set<string>>(new Set());
-    const firedTimesRef = useRef<Set<string>>(new Set());
 
     const triggerWebhook = async (reason: string, scheduledTime?: string) => {
         console.log(`[IronGate] Triggering webhook: ${reason}`);
         setWebhookStatus('triggering');
         try {
-            await fetch(IRON_GATE_WEBHOOK, { method: 'POST' });
+            await fetch(IRON_GATE_WEBHOOK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ triggered_by: 'manual' }),
+            });
             const fired = scheduledTime || getCSTHHMM();
             setWebhookStatus('ok');
             setLastTriggeredTime(fired);
@@ -575,25 +578,17 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
         }
     };
 
-    // Auto-scheduler: checks every 30s if current CST time matches a scan time
+    // Sync firedTimes UI state with the global scheduler in App.tsx
+    // Updates scan time badge colors every 30s based on elapsed times
     useEffect(() => {
-        const check = () => {
-            if (!isCSTWeekday()) return;
+        const sync = () => {
             const hhmm = getCSTHHMM();
-            if (IRON_GATE_SCAN_TIMES.includes(hhmm) && !firedTimesRef.current.has(hhmm)) {
-                firedTimesRef.current.add(hhmm);
-                triggerWebhook(`scheduled scan at ${hhmm} CST`, hhmm);
-            }
+            setFiredTimes(new Set(IRON_GATE_SCAN_TIMES.filter(t => t < hhmm)));
         };
-        check();
-        const i = setInterval(check, 30000);
-        // Clear fired times at midnight CST
+        sync();
+        const i = setInterval(sync, 30000);
         const midnight = setInterval(() => {
-            const hhmm = getCSTHHMM();
-            if (hhmm === '00:00') {
-                firedTimesRef.current.clear();
-                setFiredTimes(new Set());
-            }
+            if (getCSTHHMM() === '00:00') setFiredTimes(new Set());
         }, 60000);
         return () => { clearInterval(i); clearInterval(midnight); };
     }, []);
