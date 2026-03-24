@@ -726,9 +726,21 @@ const IronGateDayTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void 
                                 {scanTimes.length > 0 && (
                                     <div className="flex items-center justify-center gap-2 flex-wrap text-xs text-gray-600">
                                         <span className="font-bold">Scan window:</span>
-                                        {scanTimes.map((t: string, i: number) => (
-                                            <span key={i} className="px-2 py-0.5 bg-gray-100 dark:bg-[#21262d] rounded border border-gray-200 dark:border-[#30363d] font-mono text-gray-400">{t}</span>
-                                        ))}
+                                        {scanTimes.map((t: string, i: number) => {
+                                            const cst = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+                                            const hhmm = cst.toTimeString().slice(0, 5);
+                                            const nextScan = scanTimes.find((st: string) => st > hhmm);
+                                            const isFired = t < hhmm;
+                                            return (
+                                                <span key={i} className={`px-2 py-0.5 rounded border font-mono text-[10px] font-bold transition-colors ${
+                                                    isFired
+                                                        ? 'bg-[#00d97e]/10 border-[#00d97e]/40 text-[#00d97e]'
+                                                        : t === nextScan
+                                                            ? 'bg-blue-900/15 border-blue-700/40 text-blue-400'
+                                                            : 'bg-gray-100 dark:bg-[#21262d] border-gray-200 dark:border-[#30363d] text-gray-400'
+                                                }`}>{t}</span>
+                                            );
+                                        })}
                                     </div>
                                 )}
                                 <div className="mt-4 flex items-center justify-center gap-2 text-[10px] text-gray-600">

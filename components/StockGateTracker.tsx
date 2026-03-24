@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabase';
 import { OptionSignal } from '../types';
 import ExecuteStockTradeModal from './ExecuteStockTradeModal';
@@ -544,6 +544,39 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }>
     const [activeSection, setActiveSection] = useState<'positions' | 'history'>('positions');
     const [signalFilter, setSignalFilter] = useState<string | null>(null);
     const [executingPosition, setExecutingPosition] = useState<StockGatePosition | null>(null);
+    const [firedTimes, setFiredTimes] = useState<Set<string>>(new Set());
+    const firedTimesRef = useRef<Set<string>>(new Set());
+
+    const getCSTHHMM = () => {
+        const cst = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+        return cst.toTimeString().slice(0, 5);
+    };
+
+    const isWeekday = () => {
+        const cst = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+        const d = cst.getDay();
+        return d !== 0 && d !== 6;
+    };
+
+    // Track fired times based on elapsed scan times
+    useEffect(() => {
+        const check = () => {
+            if (!isWeekday()) return;
+            const hhmm = getCSTHHMM();
+            STOCK_SCAN_TIMES.forEach(t => {
+                if (t <= hhmm && !firedTimesRef.current.has(t)) {
+                    firedTimesRef.current.add(t);
+                    setFiredTimes(prev => new Set(prev).add(t));
+                }
+            });
+        };
+        check();
+        const i = setInterval(check, 30000);
+        const midnight = setInterval(() => {
+            if (getCSTHHMM() === '00:00') { firedTimesRef.current.clear(); setFiredTimes(new Set()); }
+        }, 60000);
+        return () => { clearInterval(i); clearInterval(midnight); };
+    }, []);
 
     const fetchConfig = async () => {
         const { data } = await supabase.from('strategy_configs').select('*').eq('strategy', 'stock_gate').limit(1).single();
@@ -649,10 +682,24 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }>
 
                     {/* Scan times row */}
                     <div className="px-5 pb-4 flex items-center gap-2 flex-wrap border-t border-gray-200 dark:border-[#1a1f2e] pt-3">
-                        <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Scan Times:</span>
-                        {STOCK_SCAN_TIMES.map((t, i) => (
-                            <span key={i} className="px-2 py-0.5 rounded bg-gray-100 dark:bg-[#111620] border border-gray-200 dark:border-[#1e2430] text-slate-400 text-[10px] font-mono font-bold">{t}</span>
-                        ))}
+                        <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Scan Times (CST):</span>
+                        {STOCK_SCAN_TIMES.map((t, i) => {
+                            const hhmm = getCSTHHMM();
+                            const isFired = firedTimes.has(t);
+                            const nextScan = STOCK_SCAN_TIMES.find(st => st > hhmm);
+                            const isPast = t < hhmm && !isFired;
+                            return (
+                                <span key={i} className={`px-2 py-0.5 rounded border text-[10px] font-mono font-bold transition-colors ${
+                                    isFired
+                                        ? 'bg-[#00d97e]/10 border-[#00d97e]/40 text-[#00d97e]'
+                                        : t === nextScan
+                                            ? 'bg-emerald-900/15 border-emerald-700/40 text-emerald-400'
+                                            : isPast
+                                                ? 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-300 dark:text-slate-600'
+                                                : 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400'
+                                }`}>{t}</span>
+                            );
+                        })}
                         <span className="ml-auto flex items-center gap-1 text-[9px] text-slate-600 font-bold">
                             <span className="w-1.5 h-1.5 rounded-full bg-[#00d97e] animate-pulse" />polling every 30s
                         </span>
@@ -689,9 +736,22 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }>
                                 <p className="text-slate-600 text-sm max-w-sm mx-auto mb-5">Waiting for A+ or A tier signals to lock. Qualifying positions will appear here with live tracking.</p>
                                 <div className="flex items-center justify-center gap-2 flex-wrap text-xs text-slate-700">
                                     <span className="font-bold">Next scans:</span>
-                                    {STOCK_SCAN_TIMES.map((t, i) => (
-                                        <span key={i} className="px-2 py-0.5 bg-gray-100 dark:bg-[#111620] rounded border border-gray-200 dark:border-[#1e2430] font-mono text-slate-500">{t}</span>
-                                    ))}
+                                    {STOCK_SCAN_TIMES.map((t, i) => {
+                                        const hhmm = getCSTHHMM();
+                                        const isFired = firedTimes.has(t);
+                                        const nextScan = STOCK_SCAN_TIMES.find(st => st > hhmm);
+                                        return (
+                                            <span key={i} className={`px-2 py-0.5 rounded border font-mono text-[10px] font-bold transition-colors ${
+                                                isFired
+                                                    ? 'bg-[#00d97e]/10 border-[#00d97e]/40 text-[#00d97e]'
+                                                    : t === nextScan
+                                                        ? 'bg-emerald-900/15 border-emerald-700/40 text-emerald-400'
+                                                        : t < hhmm
+                                                            ? 'bg-gray-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-300 dark:text-slate-600'
+                                                            : 'bg-gray-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500'
+                                            }`}>{t}</span>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         ) : (

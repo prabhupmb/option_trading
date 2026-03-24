@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabase';
 import { OptionSignal } from '../types';
 
@@ -527,6 +527,21 @@ const HistorySummaryStats: React.FC<{ history: IronGateHistory[] }> = ({ history
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
 
+// ─── IRON GATE SCAN SCHEDULE ─────────────────────────────────
+const IRON_GATE_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/irongate-swingtrade';
+const IRON_GATE_SCAN_TIMES = ['08:31', '08:45', '09:00', '09:10', '09:20', '09:35', '09:50', '10:15', '10:45', '12:10', '13:30', '14:15', '14:50'];
+
+const getCSTHHMM = () => {
+    const cst = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+    return cst.toTimeString().slice(0, 5);
+};
+
+const isCSTWeekday = () => {
+    const cst = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+    const day = cst.getDay();
+    return day !== 0 && day !== 6;
+};
+
 const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> = ({ onExecute }) => {
     const [config, setConfig] = useState<StrategyConfig | null>(null);
     const [positions, setPositions] = useState<IronGatePosition[]>([]);
@@ -537,6 +552,51 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
     const [isClosing, setIsClosing] = useState(false);
     const [activeSection, setActiveSection] = useState<'positions' | 'history'>('positions');
     const [signalFilter, setSignalFilter] = useState<string | null>(null);
+    const [webhookStatus, setWebhookStatus] = useState<'idle' | 'triggering' | 'ok' | 'err'>('idle');
+    const [lastTriggeredTime, setLastTriggeredTime] = useState<string | null>(null);
+    const [firedTimes, setFiredTimes] = useState<Set<string>>(new Set());
+    const firedTimesRef = useRef<Set<string>>(new Set());
+
+    const triggerWebhook = async (reason: string, scheduledTime?: string) => {
+        console.log(`[IronGate] Triggering webhook: ${reason}`);
+        setWebhookStatus('triggering');
+        try {
+            await fetch(IRON_GATE_WEBHOOK, { method: 'POST' });
+            const fired = scheduledTime || getCSTHHMM();
+            setWebhookStatus('ok');
+            setLastTriggeredTime(fired);
+            setFiredTimes(prev => new Set(prev).add(fired));
+            console.log(`[IronGate] Webhook triggered OK at ${fired} CST`);
+            setTimeout(() => setWebhookStatus('idle'), 4000);
+        } catch (err) {
+            console.error('[IronGate] Webhook trigger failed:', err);
+            setWebhookStatus('err');
+            setTimeout(() => setWebhookStatus('idle'), 4000);
+        }
+    };
+
+    // Auto-scheduler: checks every 30s if current CST time matches a scan time
+    useEffect(() => {
+        const check = () => {
+            if (!isCSTWeekday()) return;
+            const hhmm = getCSTHHMM();
+            if (IRON_GATE_SCAN_TIMES.includes(hhmm) && !firedTimesRef.current.has(hhmm)) {
+                firedTimesRef.current.add(hhmm);
+                triggerWebhook(`scheduled scan at ${hhmm} CST`, hhmm);
+            }
+        };
+        check();
+        const i = setInterval(check, 30000);
+        // Clear fired times at midnight CST
+        const midnight = setInterval(() => {
+            const hhmm = getCSTHHMM();
+            if (hhmm === '00:00') {
+                firedTimesRef.current.clear();
+                setFiredTimes(new Set());
+            }
+        }, 60000);
+        return () => { clearInterval(i); clearInterval(midnight); };
+    }, []);
 
     const fetchConfig = async () => {
         const { data } = await supabase.from('strategy_configs').select('*').eq('strategy', 'iron_gate').limit(1).single();
@@ -545,12 +605,14 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
 
     const fetchPositions = async () => {
         const { data, error } = await supabase.from('iron_gate_positions').select('*').eq('status', 'OPEN').order('opened_at', { ascending: false });
+        console.log('[IronGate] fetchPositions:', { count: data?.length, error, data });
         if (!error && data) setPositions(data);
         setLoadingPositions(false);
     };
 
     const fetchHistory = async () => {
         const { data, error } = await supabase.from('iron_gate_history').select('*').order('closed_at', { ascending: false }).limit(50);
+        console.log('[IronGate] fetchHistory:', { count: data?.length, error });
         if (!error && data) setHistory(data);
         setLoadingHistory(false);
     };
@@ -645,17 +707,50 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                         )}
                     </div>
 
-                    {scanTimes.length > 0 && (
-                        <div className="px-5 pb-4 flex items-center gap-2 flex-wrap border-t border-gray-200 dark:border-[#1a1f2e] pt-3">
-                            <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Scan Times:</span>
-                            {scanTimes.map((t: string, i: number) => (
-                                <span key={i} className="px-2 py-0.5 rounded bg-gray-100 dark:bg-[#111620] border border-gray-200 dark:border-[#1e2430] text-slate-400 text-[10px] font-mono font-bold">{t}</span>
-                            ))}
-                            <span className="ml-auto flex items-center gap-1 text-[9px] text-slate-600 font-bold">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#00d97e] animate-pulse" />polling every 30s
-                            </span>
+                    <div className="px-5 pb-4 flex items-center gap-2 flex-wrap border-t border-gray-200 dark:border-[#1a1f2e] pt-3">
+                        <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Scan Times (CST):</span>
+                        {IRON_GATE_SCAN_TIMES.map((t, i) => {
+                            const hhmm = getCSTHHMM();
+                            const nextScan = IRON_GATE_SCAN_TIMES.find(st => st > hhmm);
+                            const isFired = firedTimes.has(t);
+                            const isPast = t < hhmm && !isFired;
+                            return (
+                                <span key={i} className={`px-2 py-0.5 rounded border text-[10px] font-mono font-bold transition-colors ${
+                                    isFired
+                                        ? 'bg-[#00d97e]/10 border-[#00d97e]/40 text-[#00d97e]'
+                                        : t === nextScan
+                                            ? 'bg-amber-900/15 border-amber-700/40 text-amber-400'
+                                            : isPast
+                                                ? 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-300 dark:text-slate-600'
+                                                : 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400'
+                                }`}>{t}</span>
+                            );
+                        })}
+                        <div className="ml-auto flex items-center gap-2">
+                            {lastTriggeredTime && (
+                                <span className="text-[9px] text-amber-400 font-bold">last: {lastTriggeredTime}</span>
+                            )}
+                            <button
+                                onClick={() => triggerWebhook('manual')}
+                                disabled={webhookStatus === 'triggering' || !isCSTWeekday()}
+                                title={!isCSTWeekday() ? 'Only available on weekdays (CST)' : 'Trigger scan now'}
+                                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all border ${
+                                    webhookStatus === 'ok'
+                                        ? 'bg-[#00d97e]/10 border-[#00d97e]/30 text-[#00d97e]'
+                                        : webhookStatus === 'err'
+                                            ? 'bg-red-500/10 border-red-500/30 text-red-400'
+                                            : isCSTWeekday()
+                                                ? 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400 hover:text-amber-400 hover:border-amber-700/40'
+                                                : 'bg-slate-50 dark:bg-[#0d1117] border-gray-100 dark:border-[#1a1f2e] text-slate-300 dark:text-slate-700 cursor-not-allowed'
+                                }`}
+                            >
+                                <span className={`material-symbols-outlined text-sm ${webhookStatus === 'triggering' ? 'animate-spin' : ''}`}>
+                                    {webhookStatus === 'ok' ? 'check_circle' : webhookStatus === 'err' ? 'error' : 'play_arrow'}
+                                </span>
+                                {webhookStatus === 'ok' ? 'Triggered!' : webhookStatus === 'err' ? 'Failed' : webhookStatus === 'triggering' ? 'Triggering...' : 'Scan Now'}
+                            </button>
                         </div>
-                    )}
+                    </div>
                 </div>
 
                 {/* ── SECTION TOGGLE ── */}

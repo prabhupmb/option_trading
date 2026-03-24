@@ -90,50 +90,85 @@ const getNextScanTime = () => {
 const ScanTimesBar: React.FC<{ activeTab: string }> = ({ activeTab }) => {
   const [triggering, setTriggering] = React.useState(false);
   const [triggerStatus, setTriggerStatus] = React.useState<'idle' | 'ok' | 'err'>('idle');
+  const [firedTimes, setFiredTimes] = React.useState<Set<string>>(new Set());
+  const [lastTriggeredTime, setLastTriggeredTime] = React.useState<string | null>(null);
+  const firedTimesRef = React.useRef<Set<string>>(new Set());
   const webhookUrl = STRATEGY_WEBHOOKS[activeTab];
   const canTrigger = !!webhookUrl && isCSTWeekday();
   const nextScan = getNextScanTime();
 
-  const handleTrigger = async () => {
+  const getCSTHHMM = () => {
+    const cst = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+    return cst.toTimeString().slice(0, 5);
+  };
+
+  const fireWebhook = async (scheduledTime?: string) => {
     if (!webhookUrl || !isCSTWeekday()) return;
     setTriggering(true);
     setTriggerStatus('idle');
     try {
       await fetch(webhookUrl, { method: 'POST' });
+      const fired = scheduledTime || getCSTHHMM();
       setTriggerStatus('ok');
+      setLastTriggeredTime(fired);
+      setFiredTimes(prev => new Set(prev).add(fired));
+      setTimeout(() => setTriggerStatus('idle'), 3000);
     } catch {
       setTriggerStatus('err');
+      setTimeout(() => setTriggerStatus('idle'), 3000);
     } finally {
       setTriggering(false);
-      setTimeout(() => setTriggerStatus('idle'), 3000);
     }
   };
+
+  // Auto-scheduler: fire webhook at each scan time
+  React.useEffect(() => {
+    if (!webhookUrl) return;
+    const check = () => {
+      if (!isCSTWeekday()) return;
+      const hhmm = getCSTHHMM();
+      if (SCAN_TIMES.includes(hhmm) && !firedTimesRef.current.has(hhmm)) {
+        firedTimesRef.current.add(hhmm);
+        fireWebhook(hhmm);
+      }
+    };
+    check();
+    const i = setInterval(check, 30000);
+    const midnight = setInterval(() => {
+      if (getCSTHHMM() === '00:00') { firedTimesRef.current.clear(); setFiredTimes(new Set()); }
+    }, 60000);
+    return () => { clearInterval(i); clearInterval(midnight); };
+  }, [activeTab]);
 
   return (
     <div className="flex items-center gap-2 flex-wrap mb-4 px-1 py-2 border-b border-gray-100 dark:border-white/5">
       <span className="text-[9px] font-bold text-slate-500 dark:text-slate-600 uppercase tracking-widest">Scan Times:</span>
       {SCAN_TIMES.map((t, i) => {
-        const cst = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
-        const hhmm = cst.toTimeString().slice(0, 5);
-        const isNext = t === nextScan;
-        const isPast = t < hhmm;
+        const hhmm = getCSTHHMM();
+        const isFired = firedTimes.has(t);
+        const isPast = t < hhmm && !isFired;
         return (
           <span key={i} className={`px-2 py-0.5 rounded border text-[10px] font-mono font-bold transition-colors ${
-            isNext
+            isFired
               ? 'bg-rh-green/10 border-rh-green/40 text-rh-green'
-              : isPast
-                ? 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-300 dark:text-slate-600'
-                : 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400'
+              : t === nextScan
+                ? 'bg-rh-green/10 border-rh-green/40 text-rh-green'
+                : isPast
+                  ? 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-300 dark:text-slate-600'
+                  : 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400'
           }`}>{t}</span>
         );
       })}
       <div className="ml-auto flex items-center gap-2">
+        {lastTriggeredTime && (
+          <span className="text-[9px] text-rh-green font-bold">last: {lastTriggeredTime}</span>
+        )}
         <span className="flex items-center gap-1 text-[9px] text-slate-400 dark:text-slate-600 font-bold">
           <span className="w-1.5 h-1.5 rounded-full bg-rh-green animate-pulse" />polling every 30s
         </span>
         {webhookUrl && (
           <button
-            onClick={handleTrigger}
+            onClick={() => fireWebhook()}
             disabled={!canTrigger || triggering}
             title={!isCSTWeekday() ? 'Only available on weekdays (CST)' : 'Trigger scan now'}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all border ${
