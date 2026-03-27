@@ -528,7 +528,7 @@ const HistorySummaryStats: React.FC<{ history: IronGateHistory[] }> = ({ history
 // ═══════════════════════════════════════════════════════════════
 
 // ─── IRON GATE SCAN SCHEDULE ─────────────────────────────────
-const IRON_GATE_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/irongate-swingtrade';
+const IRON_GATE_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/irongate-swingtrade1';
 const IRON_GATE_SCAN_TIMES = ['08:31', '08:45', '09:00', '09:10', '09:20', '09:35', '09:50', '10:15', '10:45', '12:10', '13:30', '14:15', '14:50'];
 
 const getCSTHHMM = () => {
@@ -562,7 +562,8 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
         try {
             await fetch(IRON_GATE_WEBHOOK, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
                 body: JSON.stringify({ triggered_by: 'manual' }),
             });
             const fired = scheduledTime || getCSTHHMM();

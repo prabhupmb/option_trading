@@ -19,6 +19,7 @@ import QuickTradePage from './components/QuickTradePage';
 import AutoTradeSettings from './components/AutoTradeSettings';
 import IronGateTracker from './components/IronGateTracker';
 import IronGateDayTracker from './components/IronGateDayTracker';
+import IronGateV2Scanner from './components/IronGateV2Scanner';
 import StockGateTracker from './components/StockGateTracker';
 import QuickTradeModal from './components/quicktrade/QuickTradeModal';
 import { useAuth } from './services/useAuth';
@@ -45,7 +46,7 @@ const StockFeedView: React.FC<{ onExecute: (s: any) => void }> = ({ onExecute })
             className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${stockTab === tab.id
               ? 'border-rh-green text-rh-green'
               : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-white'
-            }`}
+              }`}
           >
             <span className="material-symbols-outlined text-base">{tab.icon}</span>
             {tab.label}
@@ -148,15 +149,14 @@ const ScanTimesBar: React.FC<{ activeTab: string }> = ({ activeTab }) => {
         const isFired = firedTimes.has(t);
         const isPast = t < hhmm && !isFired;
         return (
-          <span key={i} className={`px-2 py-0.5 rounded border text-[10px] font-mono font-bold transition-colors ${
-            isFired
+          <span key={i} className={`px-2 py-0.5 rounded border text-[10px] font-mono font-bold transition-colors ${isFired
+            ? 'bg-rh-green/10 border-rh-green/40 text-rh-green'
+            : t === nextScan
               ? 'bg-rh-green/10 border-rh-green/40 text-rh-green'
-              : t === nextScan
-                ? 'bg-rh-green/10 border-rh-green/40 text-rh-green'
-                : isPast
-                  ? 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-300 dark:text-slate-600'
-                  : 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400'
-          }`}>{t}</span>
+              : isPast
+                ? 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-300 dark:text-slate-600'
+                : 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400'
+            }`}>{t}</span>
         );
       })}
       <div className="ml-auto flex items-center gap-2">
@@ -171,15 +171,14 @@ const ScanTimesBar: React.FC<{ activeTab: string }> = ({ activeTab }) => {
             onClick={() => fireWebhook()}
             disabled={!canTrigger || triggering}
             title={!isCSTWeekday() ? 'Only available on weekdays (CST)' : 'Trigger scan now'}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all border ${
-              triggerStatus === 'ok'
-                ? 'bg-rh-green/10 border-rh-green/30 text-rh-green'
-                : triggerStatus === 'err'
-                  ? 'bg-red-500/10 border-red-500/30 text-red-400'
-                  : canTrigger
-                    ? 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400 hover:text-rh-green hover:border-rh-green/40'
-                    : 'bg-slate-50 dark:bg-[#0d1117] border-gray-100 dark:border-[#1a1f2e] text-slate-300 dark:text-slate-700 cursor-not-allowed'
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all border ${triggerStatus === 'ok'
+              ? 'bg-rh-green/10 border-rh-green/30 text-rh-green'
+              : triggerStatus === 'err'
+                ? 'bg-red-500/10 border-red-500/30 text-red-400'
+                : canTrigger
+                  ? 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400 hover:text-rh-green hover:border-rh-green/40'
+                  : 'bg-slate-50 dark:bg-[#0d1117] border-gray-100 dark:border-[#1a1f2e] text-slate-300 dark:text-slate-700 cursor-not-allowed'
+              }`}
           >
             <span className={`material-symbols-outlined text-sm ${triggering ? 'animate-spin' : ''}`}>
               {triggerStatus === 'ok' ? 'check_circle' : triggerStatus === 'err' ? 'error' : 'play_arrow'}
@@ -197,7 +196,7 @@ const App: React.FC = () => {
 
   // Strategy filter
   const [activeTab, setActiveTab] = useState<string>('iron-gate');
-  const selectedStrategy = ['iron-gate', 'iron-gate-day'].includes(activeTab) ? null : activeTab;
+  const selectedStrategy = ['iron-gate', 'iron-gate-day', 'iron-gate-v2'].includes(activeTab) ? null : activeTab;
   const { strategies } = useStrategyConfigs();
 
   // New Hook
@@ -280,7 +279,7 @@ const App: React.FC = () => {
   // ─── GLOBAL IRON GATE SCHEDULER ───
   // Runs app-wide so webhook fires regardless of which screen is active
   useEffect(() => {
-    const IRON_GATE_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/irongate-swingtrade';
+    const IRON_GATE_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/irongate-swingtrade1';
     const IRON_GATE_SCAN_TIMES = ['08:31', '08:45', '09:00', '09:10', '09:20', '09:35', '09:50', '10:15', '10:45', '12:10', '13:30', '14:15', '14:50'];
     const firedRef = new Set<string>();
 
@@ -290,16 +289,18 @@ const App: React.FC = () => {
     };
 
     const check = () => {
-      if (!isCSTWeekday()) return;
+      if (!isCSTWeekday()) { console.log('[IronGate Global] Skipping — not a CST weekday'); return; }
       const hhmm = getCSTHHMM();
+      console.log(`[IronGate Global] Tick — current CST: ${hhmm} | scan times: ${IRON_GATE_SCAN_TIMES.join(', ')} | fired: ${[...firedRef].join(', ') || 'none'} | match: ${IRON_GATE_SCAN_TIMES.includes(hhmm)} | alreadyFired: ${firedRef.has(hhmm)}`);
       if (IRON_GATE_SCAN_TIMES.includes(hhmm) && !firedRef.has(hhmm)) {
         firedRef.add(hhmm);
-        console.log(`[IronGate Global] Firing webhook at ${hhmm} CST`);
+        console.log(`[IronGate Global] Firing webhook at ${hhmm} CST → ${IRON_GATE_WEBHOOK}`);
         fetch(IRON_GATE_WEBHOOK, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ triggered_by: `scheduled_${hhmm}` }),
-          })
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ triggered_by: `scheduled_${hhmm}` }),
+        })
           .then(() => console.log(`[IronGate Global] Webhook OK at ${hhmm}`))
           .catch(err => console.error(`[IronGate Global] Webhook failed at ${hhmm}:`, err));
       }
@@ -479,13 +480,14 @@ const App: React.FC = () => {
                 {([
                   { id: 'iron-gate', label: 'Iron Gate', icon: 'lock' },
                   { id: 'iron-gate-day', label: 'Iron Gate Day', icon: 'bolt' },
+                  { id: 'iron-gate-v2', label: 'Pullback Scanner', icon: 'radar' },
                 ] as const).map(tab => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${activeTab === tab.id
-                        ? 'border-rh-green text-rh-green'
-                        : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-white'
+                      ? 'border-rh-green text-rh-green'
+                      : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-white'
                       }`}
                   >
                     <span className="material-symbols-outlined text-base">{tab.icon}</span>
@@ -497,8 +499,8 @@ const App: React.FC = () => {
                     key={strategy.strategy}
                     onClick={() => setActiveTab(strategy.strategy)}
                     className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${activeTab === strategy.strategy
-                        ? 'border-rh-green text-rh-green'
-                        : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-white'
+                      ? 'border-rh-green text-rh-green'
+                      : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-white'
                       }`}
                   >
                     <span className="material-symbols-outlined text-base">{strategy.icon}</span>
@@ -601,6 +603,12 @@ const App: React.FC = () => {
               {activeTab === 'iron-gate-day' && (
                 <div className="flex-1 overflow-y-auto">
                   <IronGateDayTracker onExecute={setExecutingSignal} />
+                </div>
+              )}
+
+              {activeTab === 'iron-gate-v2' && (
+                <div className="flex-1 overflow-y-auto">
+                  <IronGateV2Scanner onExecute={setExecutingSignal} />
                 </div>
               )}
 
