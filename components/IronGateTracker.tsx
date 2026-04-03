@@ -619,22 +619,80 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
     const handleManualClose = async (position: IronGatePosition) => {
         setIsClosing(true);
         try {
-            const pnl = calcPnl(position);
-            const durationMinutes = Math.floor((Date.now() - new Date(position.opened_at).getTime()) / 60000);
-            await supabase.from('iron_gate_positions').update({ status: 'MANUAL_CLOSE', closed_at: new Date().toISOString(), close_reason: 'MANUAL', pnl_pct: pnl }).eq('id', position.id);
-            await supabase.from('iron_gate_history').insert({
-                position_id: position.id, symbol: position.symbol, option_type: position.option_type, tier: position.tier,
-                entry_price: position.entry_price, exit_price: position.current_price, pnl_pct: pnl,
-                pnl_dollars: position.pnl_dollars || 0, result: pnl >= 0 ? 'WIN' : 'LOSS', exit_reason: 'MANUAL',
-                duration_minutes: durationMinutes, high_water_mark: position.high_water_mark,
-                low_water_mark: position.low_water_mark, opened_at: position.opened_at,
-                closed_at: new Date().toISOString(), gates_passed: position.gates_passed,
-            });
+            const closedAt = new Date().toISOString();
+
+            // Correct P&L per option type
+            const pnlDollars = position.option_type === 'CALL'
+                ? (position.current_price - position.entry_price)
+                : (position.entry_price - position.current_price);
+            const pnlPct = +((pnlDollars / position.entry_price) * 100).toFixed(2);
+
+            // Step 1: Update position (no status filter — let backend race-condition be a 23505)
+            const { error: updateError } = await supabase
+                .from('iron_gate_positions')
+                .update({
+                    status: 'MANUAL_CLOSE',
+                    closed_at: closedAt,
+                    close_reason: 'MANUAL',
+                    current_price: position.current_price,
+                    pnl_dollars: +pnlDollars.toFixed(2),
+                    pnl_pct: pnlPct,
+                })
+                .eq('id', position.id);
+
+            if (updateError) {
+                if (updateError.code === '23505') {
+                    console.log(`[IronGate] ${position.symbol} already closed by backend — continuing`);
+                } else {
+                    throw updateError;
+                }
+            }
+
+            // Step 2: Insert history — all NOT NULL columns included
+            const { error: historyError } = await supabase
+                .from('iron_gate_history')
+                .insert({
+                    position_id: position.id,
+                    symbol: position.symbol,
+                    option_type: position.option_type,
+                    tier: position.tier,
+                    gates_passed: position.gates_passed,
+                    entry_price: position.entry_price,
+                    target_price: position.target_price || position.fib_target1 || 0,
+                    stop_loss: position.stop_loss,
+                    profit_zone_low: position.profit_zone_low,
+                    profit_zone_high: position.profit_zone_high,
+                    exit_price: position.current_price,
+                    exit_reason: 'MANUAL',
+                    result: pnlDollars > 0 ? 'WIN' : pnlDollars < 0 ? 'LOSS' : 'BREAKEVEN',
+                    pnl_dollars: +pnlDollars.toFixed(2),
+                    pnl_pct: pnlPct,
+                    opened_at: position.opened_at,
+                    closed_at: closedAt,
+                    high_water_mark: position.high_water_mark,
+                    low_water_mark: position.low_water_mark,
+                    source: 'iron_gate',
+                    version: 'v2.3_manual',
+                });
+
+            if (historyError) {
+                if (historyError.code === '23505') {
+                    console.log(`[IronGate] History already exists for ${position.symbol}`);
+                } else {
+                    console.error('[IronGate] History insert error:', historyError.code, historyError.message, historyError.hint);
+                }
+            }
+
             await Promise.all([fetchPositions(), fetchHistory()]);
+        } catch (err) {
+            console.error('[IronGate] Close position failed:', err);
+        } finally {
             setClosingPosition(null);
-        } catch (err) { console.error('Manual close failed:', err); }
-        finally { setIsClosing(false); }
+            setIsClosing(false);
+        }
     };
+
+
 
     const scanTimes = config?.params?.scan_times || [];
 
@@ -711,15 +769,14 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                             const isFired = firedTimes.has(t);
                             const isPast = t < hhmm && !isFired;
                             return (
-                                <span key={i} className={`px-2 py-0.5 rounded border text-[10px] font-mono font-bold transition-colors ${
-                                    isFired
-                                        ? 'bg-[#00d97e]/10 border-[#00d97e]/40 text-[#00d97e]'
-                                        : t === nextScan
-                                            ? 'bg-amber-900/15 border-amber-700/40 text-amber-400'
-                                            : isPast
-                                                ? 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-300 dark:text-slate-600'
-                                                : 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400'
-                                }`}>{t}</span>
+                                <span key={i} className={`px-2 py-0.5 rounded border text-[10px] font-mono font-bold transition-colors ${isFired
+                                    ? 'bg-[#00d97e]/10 border-[#00d97e]/40 text-[#00d97e]'
+                                    : t === nextScan
+                                        ? 'bg-amber-900/15 border-amber-700/40 text-amber-400'
+                                        : isPast
+                                            ? 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-300 dark:text-slate-600'
+                                            : 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400'
+                                    }`}>{t}</span>
                             );
                         })}
                         <div className="ml-auto flex items-center gap-2">
@@ -730,15 +787,14 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                 onClick={() => triggerWebhook('manual')}
                                 disabled={webhookStatus === 'triggering' || !isCSTWeekday()}
                                 title={!isCSTWeekday() ? 'Only available on weekdays (CST)' : 'Trigger scan now'}
-                                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all border ${
-                                    webhookStatus === 'ok'
-                                        ? 'bg-[#00d97e]/10 border-[#00d97e]/30 text-[#00d97e]'
-                                        : webhookStatus === 'err'
-                                            ? 'bg-red-500/10 border-red-500/30 text-red-400'
-                                            : isCSTWeekday()
-                                                ? 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400 hover:text-amber-400 hover:border-amber-700/40'
-                                                : 'bg-slate-50 dark:bg-[#0d1117] border-gray-100 dark:border-[#1a1f2e] text-slate-300 dark:text-slate-700 cursor-not-allowed'
-                                }`}
+                                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all border ${webhookStatus === 'ok'
+                                    ? 'bg-[#00d97e]/10 border-[#00d97e]/30 text-[#00d97e]'
+                                    : webhookStatus === 'err'
+                                        ? 'bg-red-500/10 border-red-500/30 text-red-400'
+                                        : isCSTWeekday()
+                                            ? 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400 hover:text-amber-400 hover:border-amber-700/40'
+                                            : 'bg-slate-50 dark:bg-[#0d1117] border-gray-100 dark:border-[#1a1f2e] text-slate-300 dark:text-slate-700 cursor-not-allowed'
+                                    }`}
                             >
                                 <span className={`material-symbols-outlined text-sm ${webhookStatus === 'triggering' ? 'animate-spin' : ''}`}>
                                     {webhookStatus === 'ok' ? 'check_circle' : webhookStatus === 'err' ? 'error' : 'play_arrow'}

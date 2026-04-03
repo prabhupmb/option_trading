@@ -17,6 +17,7 @@ import SignalFeed from './components/SignalFeed';
 import UserProfilePage from './components/UserProfilePage';
 import QuickTradePage from './components/QuickTradePage';
 import AutoTradeSettings from './components/AutoTradeSettings';
+import StockAutoTrade from './components/StockAutoTrade';
 import IronGateTracker from './components/IronGateTracker';
 import IronGateDayTracker from './components/IronGateDayTracker';
 import IronGateV2Scanner from './components/IronGateV2Scanner';
@@ -629,6 +630,8 @@ const App: React.FC = () => {
             </div>
           ) : currentView === 'auto-trade' ? (
             <AutoTradeSettings />
+          ) : currentView === 'stock-auto-trade' ? (
+            <StockAutoTrade />
           ) : currentView === 'settings' ? (
             <div className="flex-1 overflow-y-auto">
               <UserProfilePage />
