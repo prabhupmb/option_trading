@@ -627,7 +627,7 @@ const App: React.FC = () => {
             <div className="flex-1 overflow-hidden">
               <QuickTradePage />
             </div>
-          ) : currentView === 'auto-trade' || currentView === 'stock-auto-trade' ? (
+          ) : currentView === 'auto-trade' ? (
             <AutoTradePage />
           ) : currentView === 'settings' ? (
             <div className="flex-1 overflow-y-auto">
