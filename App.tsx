@@ -19,7 +19,7 @@ import QuickTradePage from './components/QuickTradePage';
 import AutoTradePage from './components/AutoTradePage';
 import IronGateTracker from './components/IronGateTracker';
 import IronGateDayTracker from './components/IronGateDayTracker';
-import IronGateV2Scanner from './components/IronGateV2Scanner';
+import IronDipTracker from './components/IronDipTracker';
 import StockGateTracker from './components/StockGateTracker';
 import QuickTradeModal from './components/quicktrade/QuickTradeModal';
 import { useAuth } from './services/useAuth';
@@ -196,7 +196,7 @@ const App: React.FC = () => {
 
   // Strategy filter
   const [activeTab, setActiveTab] = useState<string>('iron-gate');
-  const selectedStrategy = ['iron-gate', 'iron-gate-day', 'iron-gate-v2'].includes(activeTab) ? null : activeTab;
+  const selectedStrategy = ['iron-gate', 'iron-gate-day'].includes(activeTab) ? null : activeTab;
   const { strategies } = useStrategyConfigs();
 
   // New Hook
@@ -480,7 +480,6 @@ const App: React.FC = () => {
                 {([
                   { id: 'iron-gate', label: 'Iron Gate', icon: 'lock' },
                   { id: 'iron-gate-day', label: 'Iron Gate Day', icon: 'bolt' },
-                  { id: 'iron-gate-v2', label: 'Pullback Scanner', icon: 'radar' },
                 ] as const).map(tab => (
                   <button
                     key={tab.id}
@@ -510,7 +509,7 @@ const App: React.FC = () => {
               </div>
 
               {/* ── Tab content ── */}
-              {!['iron-gate', 'iron-gate-day'].includes(activeTab) && (
+              {!['iron-gate', 'iron-gate-day'].includes(activeTab) && activeTab !== 'iron-gate-v2' && (
                 <main className="flex-1 p-8 overflow-y-auto">
                   {/* Data Delay Banner */}
                   <DataDelayBanner onRefresh={refresh} loading={loading} isAdmin={role === 'admin'} />
@@ -606,11 +605,7 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              {activeTab === 'iron-gate-v2' && (
-                <div className="flex-1 overflow-y-auto">
-                  <IronGateV2Scanner onExecute={setExecutingSignal} />
-                </div>
-              )}
+
 
             </div>
           ) : currentView === 'portfolio' ? (
@@ -629,6 +624,10 @@ const App: React.FC = () => {
             </div>
           ) : currentView === 'auto-trade' ? (
             <AutoTradePage />
+          ) : currentView === 'iron-dip' ? (
+            <div className="flex-1 overflow-y-auto">
+              <IronDipTracker />
+            </div>
           ) : currentView === 'settings' ? (
             <div className="flex-1 overflow-y-auto">
               <UserProfilePage />

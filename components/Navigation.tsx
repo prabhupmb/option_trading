@@ -2,7 +2,7 @@ import React from 'react';
 import type { User } from '@supabase/supabase-js';
 import { UserRole, AccessLevel } from '../types';
 
-export type View = 'signals' | 'smart-feed' | 'portfolio' | 'quick-trade' | 'auto-trade' | 'iron-gate' | 'iron-gate-day' | 'ai-hub' | 'chat' | 'watchlist' | 'history' | 'settings' | 'admin';
+export type View = 'signals' | 'smart-feed' | 'portfolio' | 'quick-trade' | 'auto-trade' | 'iron-dip' | 'iron-gate' | 'iron-gate-day' | 'ai-hub' | 'chat' | 'watchlist' | 'history' | 'settings' | 'admin';
 
 interface NavigationProps {
   activeView: View;
@@ -18,6 +18,7 @@ interface NavigationProps {
 const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, onSignOut, role, accessLevel, trialDaysLeft, isTrialUser }) => {
   let tabs: { id: View; label: string; icon: string }[] = [
     { id: 'signals', label: 'Option Feed', icon: 'dashboard' },
+    { id: 'iron-dip', label: 'Iron Dip', icon: 'pool' },
     { id: 'smart-feed', label: 'Stock Feed', icon: 'query_stats' },
     { id: 'portfolio', label: 'Portfolio', icon: 'analytics' },
     { id: 'quick-trade', label: 'Quick Trade', icon: 'bolt' },
