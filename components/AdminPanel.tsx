@@ -40,6 +40,56 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
     const [pendingOpen, setPendingOpen] = useState(true);
     const [upgradeOpen, setUpgradeOpen] = useState(true);
 
+    // ── Delete user state ──
+    const [deletingUser, setDeletingUser] = useState<UserProfile | null>(null);
+    const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+    const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 5000);
+    };
+
+    const openDeleteModal = (user: UserProfile) => {
+        setDeletingUser(user);
+        setDeleteConfirmInput('');
+    };
+
+    const handleDeleteUser = async () => {
+        if (!deletingUser) return;
+        const userName = deletingUser.username || deletingUser.user_name || '';
+        if (deleteConfirmInput !== userName) return;
+
+        setIsDeleting(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const response = await fetch(
+                'https://prabhupadala01.app.n8n.cloud/webhook/admin-delete-user',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session?.access_token || ''}`,
+                    },
+                    body: JSON.stringify({ targetUserName: userName }),
+                }
+            );
+            const result = await response.json();
+            if (result.success) {
+                showToast(`✅ User "${userName}" deleted successfully`, 'success');
+                setDeletingUser(null);
+                await fetchUsers();
+            } else {
+                showToast(result.error || result.message || 'Delete failed', 'error');
+            }
+        } catch (err: any) {
+            showToast(err?.message || 'Network error during delete', 'error');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     useEffect(() => {
         fetchUsers();
         fetchUpgradeRequests();
@@ -235,6 +285,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
 
     return (
         <div className="p-8 max-w-7xl mx-auto text-slate-900 dark:text-white">
+
+            {/* Toast */}
+            {toast && (
+                <div className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl border text-sm font-bold shadow-2xl transition-all ${toast.type === 'success'
+                        ? 'bg-emerald-950/95 border-emerald-600/50 text-emerald-300'
+                        : 'bg-red-950/95 border-red-600/50 text-red-300'
+                    }`}>
+                    {toast.msg}
+                </div>
+            )}
             <div className="flex items-center justify-between mb-8">
                 <h1 className="text-3xl font-black flex items-center gap-3">
                     <span className="material-symbols-outlined text-4xl text-rh-green">admin_panel_settings</span>
@@ -455,12 +515,24 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                                                     </button>
                                                 </td>
                                                 <td className="p-6 text-right">
-                                                    <button
-                                                        onClick={() => handleEditClick(user)}
-                                                        className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
-                                                    >
-                                                        <span className="material-symbols-outlined">edit</span>
-                                                    </button>
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <button
+                                                            onClick={() => handleEditClick(user)}
+                                                            className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
+                                                            title="Edit user"
+                                                        >
+                                                            <span className="material-symbols-outlined">edit</span>
+                                                        </button>
+                                                        {user.role !== 'admin' && (
+                                                            <button
+                                                                onClick={() => openDeleteModal(user)}
+                                                                className="text-red-500/60 hover:text-red-400 transition-colors p-2 hover:bg-red-500/10 rounded-lg"
+                                                                title="Delete user"
+                                                            >
+                                                                <span className="material-symbols-outlined">delete</span>
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
@@ -554,6 +626,62 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                                 </div>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+            {/* ── Delete Confirm Modal ── */}
+            {deletingUser && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setDeletingUser(null)}>
+                    <div className="w-full max-w-md bg-[#1e2124] rounded-2xl border border-red-500/30 shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="h-px bg-gradient-to-r from-transparent via-red-500/60 to-transparent" />
+                        <div className="p-5 border-b border-red-500/10 flex justify-between items-center">
+                            <h3 className="text-base font-black text-red-400 flex items-center gap-2">
+                                <span className="material-symbols-outlined text-lg">warning</span>
+                                Delete User Account
+                            </h3>
+                            <button onClick={() => setDeletingUser(null)} className="text-slate-500 hover:text-white">
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-sm text-red-200/80 leading-relaxed">
+                                Are you sure you want to delete <span className="font-black text-white">&ldquo;{deletingUser.username || deletingUser.user_name}&rdquo;</span> ({deletingUser.email})?
+                                <br /><br />
+                                This will permanently remove their account, credentials, watchlists, and all trade data. <span className="font-black text-red-400">This cannot be undone.</span>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                                    Type <span className="text-white font-mono">{deletingUser.username || deletingUser.user_name}</span> to confirm
+                                </label>
+                                <input
+                                    type="text"
+                                    value={deleteConfirmInput}
+                                    onChange={e => setDeleteConfirmInput(e.target.value)}
+                                    placeholder={deletingUser.username || deletingUser.user_name || ''}
+                                    className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-red-500 font-mono"
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="flex gap-3 pt-1">
+                                <button
+                                    onClick={() => setDeletingUser(null)}
+                                    className="flex-1 py-3 border border-white/10 text-slate-400 font-bold rounded-xl hover:bg-white/5 transition text-xs uppercase tracking-wide"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleDeleteUser}
+                                    disabled={deleteConfirmInput !== (deletingUser.username || deletingUser.user_name) || isDeleting}
+                                    className="flex-[2] py-3 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl text-xs uppercase tracking-wide disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+                                >
+                                    {isDeleting ? (
+                                        <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Deleting...</>
+                                    ) : (
+                                        <><span className="material-symbols-outlined text-sm">delete_forever</span>Delete Permanently</>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
