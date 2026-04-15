@@ -428,6 +428,7 @@ interface StockTrade { id: string; symbol: string; signal_tier: string; trade_si
 
 const StockPanel: React.FC = () => {
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [userId, setUserId] = useState<string | null>(null);
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
@@ -447,33 +448,53 @@ const StockPanel: React.FC = () => {
 
     const showToast = (msg: string, type: 'success' | 'error') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
+    const parseTradeSide = (raw: any): string[] => {
+        try {
+            if (Array.isArray(raw)) return raw.filter(Boolean);
+            if (typeof raw === 'string') return raw.replace(/[{}\'"]/g, '').split(',').map(s => s.trim()).filter(Boolean);
+        } catch { /* fall through */ }
+        return STK_DEF.trade_side;
+    };
+
     const fetchSettings = useCallback(async () => {
         try {
             setLoading(true);
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            setFetchError(null);
+            const { data: { user }, error: authErr } = await supabase.auth.getUser();
+            if (authErr) throw new Error('Auth error: ' + authErr.message);
+            if (!user) { setLoading(false); return; }
             setUserId(user.id);
-            const { data } = await supabase.from('stock_auto_trade_settings').select('*').eq('user_id', user.id).maybeSingle();
-            if (!data) return;
+            const { data, error: dbErr } = await supabase
+                .from('stock_auto_trade_settings')
+                .select('*')
+                .eq('user_id', user.id)
+                .maybeSingle();
+            if (dbErr) throw new Error('DB error: ' + dbErr.message);
+            if (!data) return; // no row yet — use defaults
             setEnabled(data.enabled ?? STK_DEF.enabled);
             setBudget(String(data.budget ?? STK_DEF.budget));
             setMaxDaily(String(data.max_daily ?? STK_DEF.max_daily));
             setMinTier(data.min_tier ?? STK_DEF.min_tier);
-            const sides = Array.isArray(data.trade_side) ? data.trade_side : typeof data.trade_side === 'string' ? data.trade_side.replace(/[{}]/g, '').split(',').filter(Boolean) : STK_DEF.trade_side;
-            setTradeSide(sides);
+            setTradeSide(parseTradeSide(data.trade_side));
             setUseLimit(data.use_limit ?? STK_DEF.use_limit);
             setBidDiscount(String(+((data.bid_discount ?? STK_DEF.bid_discount) * 100).toFixed(1)));
             setMinRR(String(data.min_rr_ratio ?? STK_DEF.min_rr_ratio));
             setMaxSlPct(String(data.max_sl_pct ?? STK_DEF.max_sl_pct));
             setMinAdx(String(data.min_adx ?? STK_DEF.min_adx));
-        } catch { /* silent */ } finally { setLoading(false); }
+        } catch (err: any) {
+            setFetchError(err?.message || 'Failed to load settings');
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
     const fetchTrades = useCallback(async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const { data } = await supabase.from('stock_auto_trades').select('*').eq('user_id', user.id).gte('created_at', todayISO()).order('created_at', { ascending: false }).limit(10);
-        setTrades(data || []);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            const { data } = await supabase.from('stock_auto_trades').select('*').eq('user_id', user.id).gte('created_at', todayISO()).order('created_at', { ascending: false }).limit(10);
+            setTrades(data || []);
+        } catch { /* non-critical */ }
     }, []);
 
     useEffect(() => { fetchSettings(); fetchTrades(); }, [fetchSettings, fetchTrades]);
@@ -527,6 +548,14 @@ const StockPanel: React.FC = () => {
     };
 
     if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200 }}><span style={{ color: C.textMuted, fontFamily: MONO, fontSize: 12 }}>Loading settings...</span></div>;
+
+    if (fetchError) return (
+        <div style={{ padding: '20px', borderRadius: 10, background: C.redBg, border: `1px solid ${C.redBdr}`, marginTop: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.red, fontFamily: MONO, marginBottom: 6 }}>⚠ Failed to Load Stock Settings</div>
+            <div style={{ fontSize: 11, color: C.textSec, fontFamily: SANS, marginBottom: 14 }}>{fetchError}</div>
+            <button onClick={() => fetchSettings()} style={{ padding: '8px 16px', borderRadius: 6, border: 'none', background: C.red, color: '#fff', fontSize: 11, fontWeight: 700, fontFamily: MONO, cursor: 'pointer' }}>Retry</button>
+        </div>
+    );
 
     return (
         <div>
@@ -646,15 +675,15 @@ const StockPanel: React.FC = () => {
                                             ? <div style={{ color: C.red, fontSize: 10, fontFamily: SANS }}>{t.error_message}</div>
                                             : <div style={{ color: C.textMuted, fontSize: 10, fontFamily: MONO }}>
                                                 {t.quantity} sh
-                                                {t.bracket_tp && <> · TP <span style={{ color: C.green }}>${t.bracket_tp?.toFixed(2)}</span></>}
-                                                {t.bracket_sl && <> · SL <span style={{ color: C.red }}>${t.bracket_sl?.toFixed(2)}</span></>}
-                                                {t.risk_reward && <> · R:R <span style={{ color: C.cyan }}>{t.risk_reward?.toFixed(1)}</span></>}
+                                                {t.bracket_tp && <> · TP <span style={{ color: C.green }}>${Number(t.bracket_tp).toFixed(2)}</span></>}
+                                                {t.bracket_sl && <> · SL <span style={{ color: C.red }}>${Number(t.bracket_sl).toFixed(2)}</span></>}
+                                                {t.risk_reward && <> · R:R <span style={{ color: C.cyan }}>{Number(t.risk_reward).toFixed(1)}</span></>}
                                             </div>
                                         }
                                     </div>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                                    {t.total_cost && <span style={{ color: C.text, fontFamily: MONO, fontSize: 12 }}>${t.total_cost.toFixed(0)}</span>}
+                                    {t.total_cost && <span style={{ color: C.text, fontFamily: MONO, fontSize: 12 }}>${Number(t.total_cost).toFixed(0)}</span>}
                                     <span style={{ padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 700, fontFamily: MONO, background: ok ? C.greenBg : isErr ? C.redBg : `${C.textFaint}20`, color: ok ? C.green : isErr ? C.red : C.textMuted }}>{t.order_status}</span>
                                     <span style={{ color: C.textFaint, fontSize: 10, fontFamily: MONO }}>{fmtTime(t.created_at)}</span>
                                 </div>
