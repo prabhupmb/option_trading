@@ -270,7 +270,7 @@ const PositionCard: React.FC<{
     const pnlPositive = pnl >= 0;
 
     return (
-        <div className="relative bg-white dark:bg-[#0d1117] rounded-2xl overflow-hidden border border-gray-200 dark:border-[#1e2430] hover:border-gray-300 dark:hover:border-[#2a3142] transition-all duration-200 group">
+        <div className="relative bg-white dark:bg-[#0d1117] rounded-2xl overflow-hidden border border-gray-200 dark:border-[#1e2430] hover:border-gray-300 dark:hover:border-[#2a3142] transition-all duration-200 group shadow-sm dark:shadow-none">
             {/* Direction accent bar */}
             <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-2xl" style={{ background: accentColor }} />
 
@@ -366,7 +366,7 @@ const PositionCard: React.FC<{
                 <div className="flex items-center gap-2 pt-0.5">
                     <div className="ml-auto flex items-center gap-2">
                         <button onClick={() => onManualClose(position)}
-                            className="px-3 py-1.5 rounded-lg bg-gray-200 dark:bg-[#1a1f2e] border border-gray-300 dark:border-[#252c3b] text-slate-400 text-[10px] font-bold hover:text-white hover:border-slate-500 transition-all flex items-center gap-1.5">
+                            className="px-3 py-1.5 rounded-lg bg-gray-200 dark:bg-[#1a1f2e] border border-gray-300 dark:border-[#252c3b] text-slate-500 dark:text-slate-400 text-[10px] font-bold hover:text-red-500 dark:hover:text-white hover:border-red-300 dark:hover:border-slate-500 transition-all flex items-center gap-1.5">
                             <span className="material-symbols-outlined text-sm">close</span>
                             Close
                         </button>
@@ -701,9 +701,9 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
     const profitCount = positions.filter(p => isProfitable(p)).length;
     const filters = [
         { label: 'STRONG BUY', icon: '🔥', test: (p: IronGatePosition) => p.option_type?.toUpperCase() === 'CALL' && p.tier === 'A+', color: 'text-[#00d97e]', ring: 'ring-[#00d97e]', bg: 'bg-[#00d97e]/5 border-[#00d97e]/20', activeBg: 'bg-[#00d97e]/15 border-[#00d97e]/40' },
-        { label: 'BUY', icon: '✅', test: (p: IronGatePosition) => p.option_type?.toUpperCase() === 'CALL' && p.tier === 'A', color: 'text-emerald-400', ring: 'ring-emerald-500', bg: 'bg-emerald-900/10 border-emerald-800/20', activeBg: 'bg-emerald-900/25 border-emerald-700/40' },
+        { label: 'BUY', icon: '✅', test: (p: IronGatePosition) => p.option_type?.toUpperCase() === 'CALL' && p.tier === 'A', color: 'text-emerald-600 dark:text-emerald-400', ring: 'ring-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800/20', activeBg: 'bg-emerald-100 dark:bg-emerald-900/25 border-emerald-300 dark:border-emerald-700/40' },
         { label: 'STRONG SELL', icon: '🔥', test: (p: IronGatePosition) => p.option_type?.toUpperCase() === 'PUT' && p.tier === 'A+', color: 'text-[#ff4757]', ring: 'ring-[#ff4757]', bg: 'bg-[#ff4757]/5 border-[#ff4757]/20', activeBg: 'bg-[#ff4757]/15 border-[#ff4757]/40' },
-        { label: 'SELL', icon: '✅', test: (p: IronGatePosition) => p.option_type?.toUpperCase() === 'PUT' && p.tier === 'A', color: 'text-red-400', ring: 'ring-red-500', bg: 'bg-red-900/10 border-red-800/20', activeBg: 'bg-red-900/25 border-red-700/40' },
+        { label: 'SELL', icon: '✅', test: (p: IronGatePosition) => p.option_type?.toUpperCase() === 'PUT' && p.tier === 'A', color: 'text-red-600 dark:text-red-400', ring: 'ring-red-500', bg: 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800/20', activeBg: 'bg-red-100 dark:bg-red-900/25 border-red-300 dark:border-red-700/40' },
     ];
 
     const filteredPositions = signalFilter
@@ -719,7 +719,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                     <div className="absolute inset-0 bg-gradient-to-r from-amber-900/5 via-transparent to-transparent pointer-events-none" />
                     <div className="relative p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-amber-900/20 border border-amber-700/30 flex items-center justify-center text-2xl shrink-0">🔒</div>
+                            <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700/30 flex items-center justify-center text-2xl shrink-0">🔒</div>
                             <div>
                                 <div className="flex items-center gap-2.5 flex-wrap">
                                     <h1 className="text-xl font-black tracking-tight uppercase text-slate-900 dark:text-white">{config?.display_name || 'Iron Gate Tracker'}</h1>
@@ -728,7 +728,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                             <span className="w-1.5 h-1.5 rounded-full bg-[#00d97e] animate-pulse" />ACTIVE
                                         </span>
                                     ) : config ? (
-                                        <span className="text-[9px] font-bold text-slate-500 bg-slate-800/60 border border-slate-700/40 px-2 py-0.5 rounded-full">INACTIVE</span>
+                                        <span className="text-[9px] font-bold text-slate-500 bg-slate-200 dark:bg-slate-800/60 border border-slate-300 dark:border-slate-700/40 px-2 py-0.5 rounded-full">INACTIVE</span>
                                     ) : null}
                                 </div>
                                 <p className="text-slate-500 text-xs font-medium mt-0.5">Automated swing trade tracking · A+/A tier locked positions</p>
@@ -752,9 +752,9 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                 </div>
                                 {config?.params && (
                                     <div className="flex items-center gap-1.5 flex-wrap">
-                                        {config.params.min_gates && <span className="px-2 py-1 rounded-lg bg-blue-900/20 border border-blue-800/30 text-blue-400 text-[9px] font-bold">Gates ≥{config.params.min_gates}</span>}
-                                        {config.params.min_tier && <span className="px-2 py-1 rounded-lg bg-amber-900/20 border border-amber-800/30 text-amber-400 text-[9px] font-bold">Tier ≥{config.params.min_tier}</span>}
-                                        {config.params.monitor_interval && <span className="px-2 py-1 rounded-lg bg-purple-900/20 border border-purple-800/30 text-purple-400 text-[9px] font-bold">⟳ {config.params.monitor_interval}</span>}
+                                        {config.params.min_gates && <span className="px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/30 text-blue-600 dark:text-blue-400 text-[9px] font-bold">Gates ≥{config.params.min_gates}</span>}
+                                        {config.params.min_tier && <span className="px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/30 text-amber-600 dark:text-amber-400 text-[9px] font-bold">Tier ≥{config.params.min_tier}</span>}
+                                        {config.params.monitor_interval && <span className="px-2 py-1 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800/30 text-purple-600 dark:text-purple-400 text-[9px] font-bold">⟳ {config.params.monitor_interval}</span>}
                                     </div>
                                 )}
                             </div>
@@ -772,7 +772,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                 <span key={i} className={`px-2 py-0.5 rounded border text-[10px] font-mono font-bold transition-colors ${isFired
                                     ? 'bg-[#00d97e]/10 border-[#00d97e]/40 text-[#00d97e]'
                                     : t === nextScan
-                                        ? 'bg-amber-900/15 border-amber-700/40 text-amber-400'
+                                        ? 'bg-amber-50 dark:bg-amber-900/15 border-amber-300 dark:border-amber-700/40 text-amber-600 dark:text-amber-400'
                                         : isPast
                                             ? 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-300 dark:text-slate-600'
                                             : 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400'
@@ -781,7 +781,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                         })}
                         <div className="ml-auto flex items-center gap-2">
                             {lastTriggeredTime && (
-                                <span className="text-[9px] text-amber-400 font-bold">last: {lastTriggeredTime}</span>
+                                <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold">last: {lastTriggeredTime}</span>
                             )}
                             <button
                                 onClick={() => triggerWebhook('manual')}
@@ -813,7 +813,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                             { id: 'history', label: `History (${history.length})`, icon: 'history', color: 'bg-violet-600 shadow-violet-600/25' },
                         ].map(tab => (
                             <button key={tab.id} onClick={() => setActiveSection(tab.id as any)}
-                                className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${activeSection === tab.id ? `${tab.color} text-white shadow-lg` : 'text-slate-500 hover:text-slate-300'}`}>
+                                className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${activeSection === tab.id ? `${tab.color} text-white shadow-lg` : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}>
                                 <span className="material-symbols-outlined text-sm">{tab.icon}</span>
                                 {tab.label}
                             </button>
@@ -830,7 +830,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                             </div>
                         ) : positions.length === 0 ? (
                             <div className="text-center py-24 bg-gray-50 dark:bg-[#0d1117] rounded-2xl border border-gray-200 dark:border-[#1e2430]">
-                                <div className="w-16 h-16 rounded-2xl bg-amber-900/15 border border-amber-800/20 flex items-center justify-center text-3xl mx-auto mb-4">🔒</div>
+                                <div className="w-16 h-16 rounded-2xl bg-amber-100 dark:bg-amber-900/15 border border-amber-300 dark:border-amber-800/20 flex items-center justify-center text-3xl mx-auto mb-4">🔒</div>
                                 <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Iron Gate is Watching</h3>
                                 <p className="text-slate-600 text-sm max-w-sm mx-auto mb-5">Waiting for A+ or A tier signals to lock. Qualifying positions will appear here with live tracking.</p>
                                 {scanTimes.length > 0 && (
@@ -855,7 +855,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all ${f.color} ${isActive ? `${f.activeBg} ${f.ring} ring-1` : f.bg} ${count === 0 ? 'opacity-40 cursor-default' : 'hover:opacity-80 cursor-pointer'}`}>
                                                 <span>{f.icon}</span>
                                                 <span className="uppercase tracking-wide">{f.label}</span>
-                                                <span className="font-black bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{count}</span>
+                                                <span className="font-black bg-black/10 dark:bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{count}</span>
                                             </button>
                                         );
                                     })}
@@ -923,15 +923,15 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                                                     {h.option_type?.toUpperCase()}
                                                                 </span>
                                                             </td>
-                                                            <td className="px-4 py-3 text-slate-400 font-bold">{h.tier}</td>
-                                                            <td className="px-4 py-3 text-slate-300 font-mono">{fmt(h.entry_price)}</td>
-                                                            <td className="px-4 py-3 text-slate-300 font-mono">{fmt(h.exit_price)}</td>
+                                                            <td className="px-4 py-3 text-slate-500 dark:text-slate-400 font-bold">{h.tier}</td>
+                                                            <td className="px-4 py-3 text-slate-700 dark:text-slate-300 font-mono font-bold">{fmt(h.entry_price)}</td>
+                                                            <td className="px-4 py-3 text-slate-700 dark:text-slate-300 font-mono font-bold">{fmt(h.exit_price)}</td>
                                                             <td className={`px-4 py-3 font-mono font-bold ${isWin ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>{(h.pnl_pct || 0) >= 0 ? '+' : ''}{(h.pnl_pct || 0).toFixed(2)}%</td>
                                                             <td className={`px-4 py-3 font-mono font-bold ${isWin ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>{fmt(h.pnl_dollars)}</td>
                                                             <td className="px-4 py-3">
                                                                 <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${isWin ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/30' : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/30'}`}>{h.result}</span>
                                                             </td>
-                                                            <td className="px-4 py-3 text-slate-400 font-mono">{formatDuration(h.duration_minutes)}</td>
+                                                            <td className="px-4 py-3 text-slate-600 dark:text-slate-400 font-mono font-bold">{formatDuration(h.duration_minutes)}</td>
                                                             <td className="px-4 py-3 text-slate-500 uppercase text-[9px] font-bold">{h.exit_reason}</td>
                                                             <td className="px-4 py-3 text-slate-600 font-mono">{h.closed_at ? new Date(h.closed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</td>
                                                         </tr>
