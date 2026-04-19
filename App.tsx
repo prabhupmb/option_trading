@@ -623,7 +623,7 @@ const App: React.FC = () => {
               <QuickTradePage />
             </div>
           ) : currentView === 'auto-trade' ? (
-            <AutoTradePage />
+            <AutoTradePage userId={user?.id || ''} isAdmin={role === 'admin'} />
           ) : currentView === 'iron-dip' ? (
             <div className="flex-1 overflow-y-auto">
               <IronDipTracker />
