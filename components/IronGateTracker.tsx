@@ -201,17 +201,17 @@ const IronGateProgressBar: React.FC<{ position: IronGatePosition }> = ({ positio
                 {/* Entry marker */}
                 <div className="absolute top-0 bottom-0 w-px z-10" style={{ left: `${entryPct}%`, background: 'rgba(255,211,42,0.5)', borderLeft: '1px dashed rgba(255,211,42,0.7)' }} />
                 {/* HWM */}
-                {hwm > 0 && <div className="absolute -top-2.5 text-[8px] text-emerald-400 font-black z-10" style={{ left: `calc(${hwm}% - 3px)` }} title={`HWM ${hwm.toFixed(1)}%`}>▲</div>}
+                {hwm > 0 && <div className="absolute -top-2.5 text-[8px] text-emerald-600 dark:text-emerald-400 font-black z-10" style={{ left: `calc(${hwm}% - 3px)` }} title={`HWM ${hwm.toFixed(1)}%`}>▲</div>}
                 {/* LWM */}
-                {lwm > 0 && lwm < 100 && <div className="absolute -bottom-2.5 text-[8px] text-red-400 font-black z-10" style={{ left: `calc(${lwm}% - 3px)` }} title={`LWM ${lwm.toFixed(1)}%`}>▼</div>}
+                {lwm > 0 && lwm < 100 && <div className="absolute -bottom-2.5 text-[8px] text-red-500 dark:text-red-400 font-black z-10" style={{ left: `calc(${lwm}% - 3px)` }} title={`LWM ${lwm.toFixed(1)}%`}>▼</div>}
                 {/* Current dot */}
                 <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-white dark:border-[#0d1117] z-20 transition-all duration-700 ease-out shadow-lg"
                     style={{ left: `calc(${pct}% - 6px)`, background: zoneColor, boxShadow: `0 0 8px ${zoneColor}80` }} />
             </div>
             <div className="flex justify-between text-[9px] font-bold mt-0.5">
-                <span className="text-red-400">⛔ {fmt(stop_loss)}</span>
-                <span className="text-yellow-400/70">Entry {fmt(entry_price)}</span>
-                <span className="text-emerald-400">🎯 {fmt(target_price)}</span>
+                <span className="text-red-500 dark:text-red-400">⛔ {fmt(stop_loss)}</span>
+                <span className="text-amber-600 dark:text-yellow-400/70">Entry {fmt(entry_price)}</span>
+                <span className="text-emerald-600 dark:text-emerald-400">🎯 {fmt(target_price)}</span>
             </div>
         </div>
     );
@@ -235,7 +235,7 @@ const GateDetails: React.FC<{ position: IronGatePosition }> = ({ position }) => 
             const value = (position as any)[key] as string || '—';
             const passed = gateIsPassed(value);
             return (
-                <div key={key} className={`flex items-start gap-2 px-3 py-2 rounded-lg text-[10px] font-mono border ${passed ? 'bg-emerald-950/25 border-emerald-800/30 text-emerald-300' : 'bg-red-950/15 border-red-900/20 text-red-400/60'}`}>
+                <div key={key} className={`flex items-start gap-2 px-3 py-2 rounded-lg text-[10px] font-mono border ${passed ? 'bg-emerald-50 dark:bg-emerald-950/25 border-emerald-200 dark:border-emerald-800/30 text-emerald-700 dark:text-emerald-300' : 'bg-red-50 dark:bg-red-950/15 border-red-200 dark:border-red-900/20 text-red-500 dark:text-red-400/60'}`}>
                     <span className="flex-shrink-0 text-[11px]">{passed ? '✅' : '❌'}</span>
                     <span className="font-bold text-slate-500 flex-shrink-0 w-14">{label}:</span>
                     <span className="break-all leading-relaxed">{value}</span>
@@ -286,14 +286,14 @@ const PositionCard: React.FC<{
                         <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border ${isCall ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/30' : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/30'}`}>
                             {position.option_type?.toUpperCase()}
                         </span>
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border ${position.tier?.includes('+') ? 'text-amber-300 bg-amber-900/30 border-amber-600/40' : 'text-slate-300 bg-slate-800/60 border-slate-600/60'}`}>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border ${position.tier?.includes('+') ? 'text-amber-600 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-600/40' : 'text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/60 border-slate-300 dark:border-slate-600/60'}`}>
                             {position.tier}
                         </span>
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-emerald-400 bg-emerald-900/20 border border-emerald-800/30">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/30">
                             {position.gates_passed || '0/6'} ✅
                         </span>
                         {position.consensus_vote && (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-violet-400 bg-violet-900/20 border border-violet-800/30">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800/30">
                                 {position.consensus_vote}
                             </span>
                         )}
@@ -308,14 +308,14 @@ const PositionCard: React.FC<{
                                 {position.pnl_dollars >= 0 ? '+' : ''}{fmt(position.pnl_dollars)}
                             </span>
                         )}
-                        <span className="block text-[9px] text-slate-600 font-mono mt-0.5">{timeSince(position.opened_at)}</span>
+                        <span className="block text-[9px] text-slate-600 font-mono font-bold mt-0.5">{timeSince(position.opened_at)}</span>
                     </div>
                 </div>
 
                 {/* ── Row 2: Signal Badge ── */}
                 <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${isCall
-                    ? (isStrong ? 'text-emerald-300 bg-emerald-950/40 border-emerald-700/40' : 'text-green-400 bg-green-950/30 border-green-800/30')
-                    : (isStrong ? 'text-red-300 bg-red-950/40 border-red-700/40' : 'text-red-400 bg-red-950/30 border-red-800/30')}`}>
+                    ? (isStrong ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/40' : 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border-green-300 dark:border-green-800/30')
+                    : (isStrong ? 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-700/40' : 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-800/30')}`}>
                     {isStrong ? '🔥' : '✅'} {rec} (LOCKED)
                 </div>
 
@@ -323,26 +323,26 @@ const PositionCard: React.FC<{
                 <div className="grid grid-cols-3 gap-2 text-center">
                     <div className="bg-gray-100 dark:bg-[#111620] rounded-xl p-2.5 border border-gray-200 dark:border-[#1e2430]">
                         <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">🔒 Entry</span>
-                        <span className="block text-sm font-black font-mono text-amber-300">{fmt(position.entry_price)}</span>
+                        <span className="block text-sm font-black font-mono text-amber-600 dark:text-amber-300">{fmt(position.entry_price)}</span>
                     </div>
-                    <div className={`rounded-xl p-2.5 border ${profitable ? 'bg-emerald-950/20 border-emerald-900/30' : 'bg-red-950/15 border-red-900/20'}`}>
+                    <div className={`rounded-xl p-2.5 border ${profitable ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/30' : 'bg-red-50 dark:bg-red-950/15 border-red-200 dark:border-red-900/20'}`}>
                         <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">📍 Current</span>
                         <span className={`block text-sm font-black font-mono ${profitable ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>{fmt(position.current_price)}</span>
                         <span className={`block text-[8px] font-mono font-bold ${profitable ? 'text-[#00d97e]/60' : 'text-[#ff4757]/60'}`}>{profitable ? '▲' : '▼'} {Math.abs(pnl).toFixed(2)}%</span>
                     </div>
                     <div className="bg-gray-100 dark:bg-[#111620] rounded-xl p-2.5 border border-gray-200 dark:border-[#1e2430]">
                         <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">🎯 Target</span>
-                        <span className="block text-sm font-black font-mono text-emerald-400">{fmt(position.target_price)}</span>
+                        <span className="block text-sm font-black font-mono text-emerald-600 dark:text-emerald-400">{fmt(position.target_price)}</span>
                     </div>
                 </div>
 
                 {/* ── Row 4: SL + Profit Zone + R:R ── */}
                 <div className="flex items-center justify-between text-[10px] px-0.5">
-                    <span className="text-slate-500 font-bold">⛔ SL <span className="text-red-400 font-mono">{fmt(position.stop_loss)}</span></span>
+                    <span className="text-slate-500 font-bold">⛔ SL <span className="text-red-400 font-mono font-bold">{fmt(position.stop_loss)}</span></span>
                     {(position.profit_zone_low || position.profit_zone_high) && (
-                        <span className="text-slate-500 font-bold">💰 <span className="text-emerald-400 font-mono">{fmt(position.profit_zone_low)}–{fmt(position.profit_zone_high)}</span></span>
+                        <span className="text-slate-500 font-bold">💰 <span className="text-emerald-400 font-mono font-bold">{fmt(position.profit_zone_low)}–{fmt(position.profit_zone_high)}</span></span>
                     )}
-                    <span className="text-slate-500 font-bold">R:R <span className="text-slate-900 dark:text-white font-mono">{position.risk_reward_ratio || '—'}</span></span>
+                    <span className="text-slate-500 font-bold">R:R <span className="text-slate-900 dark:text-white font-mono font-bold">{position.risk_reward_ratio || '—'}</span></span>
                 </div>
 
                 {/* ── Row 5: Progress Bar ── */}
@@ -352,8 +352,8 @@ const PositionCard: React.FC<{
 
                 {/* ── Row 8: Monitor Footer ── */}
                 <div className="flex items-center justify-between text-[9px] text-slate-600 font-bold pt-2 border-t border-gray-200 dark:border-[#1a1f2e]">
-                    <span className="text-slate-700">{formatOpenedAt(position.opened_at)}</span>
-                    <div className="flex items-center gap-2 text-slate-600">
+                    <span className="text-slate-700 font-bold">{formatOpenedAt(position.opened_at)}</span>
+                    <div className="flex items-center gap-2 text-slate-600 font-bold">
                         <span>⟳ {timeSince(position.last_checked_at)}</span>
                         <span className="text-slate-800">·</span>
                         <span>{position.check_count || 0} checks</span>
@@ -441,14 +441,14 @@ const ManualCloseModal: React.FC<{
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${isCall ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/30' : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/30'}`}>
                                     {position.option_type?.toUpperCase()}
                                 </span>
-                                <span className="text-[10px] font-black text-amber-300 bg-amber-900/20 border border-amber-700/30 px-2 py-0.5 rounded">{position.tier}</span>
+                                <span className="text-[10px] font-black text-amber-600 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700/30 px-2 py-0.5 rounded">{position.tier}</span>
                             </div>
                             <span className={`text-lg font-black font-mono ${pnl >= 0 ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>{pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}%</span>
                         </div>
                         <div className="grid grid-cols-3 gap-3 text-center text-xs">
                             <div>
                                 <span className="block text-[9px] text-slate-600 font-bold uppercase mb-1">Entry</span>
-                                <span className="text-amber-300 font-mono font-bold">{fmt(position.entry_price)}</span>
+                                <span className="text-amber-600 dark:text-amber-300 font-mono font-bold">{fmt(position.entry_price)}</span>
                             </div>
                             <div>
                                 <span className="block text-[9px] text-slate-600 font-bold uppercase mb-1">Current</span>
@@ -460,9 +460,9 @@ const ManualCloseModal: React.FC<{
                             </div>
                         </div>
                     </div>
-                    <div className="bg-amber-950/20 border border-amber-800/30 rounded-xl p-3 flex items-start gap-2.5">
+                    <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30 rounded-xl p-3 flex items-start gap-2.5">
                         <span className="text-lg shrink-0">⚠️</span>
-                        <p className="text-amber-200/80 text-xs leading-relaxed">This will manually close the position and record it in trade history. This action cannot be undone.</p>
+                        <p className="text-amber-700 dark:text-amber-200/80 text-xs leading-relaxed">This will manually close the position and record it in trade history. This action cannot be undone.</p>
                     </div>
                     <div className="flex gap-3">
                         <button onClick={onClose} className="flex-1 py-3 border border-gray-200 dark:border-[#1e2430] text-slate-400 font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-[#1a1f2e] transition-colors text-xs uppercase tracking-wide">Cancel</button>
@@ -505,14 +505,14 @@ const HistorySummaryStats: React.FC<{ history: IronGateHistory[] }> = ({ history
     return (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
             {[
-                { label: 'Total Trades', value: String(history.length), color: 'text-white' },
+                { label: 'Total Trades', value: String(history.length), color: 'text-slate-900 dark:text-white' },
                 { label: 'Win Rate', value: `${winRate.toFixed(1)}%`, color: winRate >= 50 ? 'text-[#00d97e]' : 'text-[#ff4757]' },
                 { label: 'Avg P&L', value: `${avgPnl >= 0 ? '+' : ''}${avgPnl.toFixed(1)}%`, color: avgPnl >= 0 ? 'text-[#00d97e]' : 'text-[#ff4757]' },
                 { label: 'Total P&L', value: `${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(0)}`, color: totalPnl >= 0 ? 'text-[#00d97e]' : 'text-[#ff4757]' },
                 { label: 'Best Trade', value: `${best.symbol} +${(best.pnl_pct || 0).toFixed(1)}%`, color: 'text-[#00d97e]' },
                 { label: 'Worst Trade', value: `${worst.symbol} ${(worst.pnl_pct || 0).toFixed(1)}%`, color: 'text-[#ff4757]' },
-                { label: 'Avg Duration', value: formatDuration(avgDur), color: 'text-white' },
-                { label: 'Wins / Losses', value: `${wins.length}W / ${history.length - wins.length}L`, color: 'text-amber-400' },
+                { label: 'Avg Duration', value: formatDuration(avgDur), color: 'text-slate-900 dark:text-white' },
+                { label: 'Wins / Losses', value: `${wins.length}W / ${history.length - wins.length}L`, color: 'text-amber-600 dark:text-amber-400' },
             ].map(s => (
                 <div key={s.label} className="bg-white dark:bg-[#0d1117] rounded-xl border border-gray-200 dark:border-[#1e2430] p-3 text-center">
                     <span className="block text-[9px] text-slate-600 font-bold uppercase tracking-wider mb-1">{s.label}</span>
@@ -825,7 +825,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                 {activeSection === 'positions' && (
                     <div className="space-y-4">
                         {loadingPositions ? (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {[1, 2, 3, 4].map(i => <PositionSkeleton key={i} />)}
                             </div>
                         ) : positions.length === 0 ? (
@@ -860,7 +860,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                         );
                                     })}
                                     {signalFilter && (
-                                        <button onClick={() => setSignalFilter(null)} className="text-[10px] text-slate-500 hover:text-white font-bold underline transition-colors">
+                                        <button onClick={() => setSignalFilter(null)} className="text-[10px] text-slate-500 hover:text-slate-900 dark:hover:text-white font-bold underline transition-colors">
                                             clear
                                         </button>
                                     )}
@@ -870,7 +870,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                 </div>
 
                                 {/* Position grid */}
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {filteredPositions.map(p => (
                                         <PositionCard key={p.id} position={p} onManualClose={setClosingPosition} onExecute={onExecute} />
                                     ))}
