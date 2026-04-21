@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../services/useAuth';
 import { useBrokerContext } from '../context/BrokerContext';
 import { SmartSignal } from '../hooks/useSignals';
-import { formatCurrency } from '../utils/tradeUtils';
+import { formatCurrency, isAfter10AMCST } from '../utils/tradeUtils';
 
 // ─── TYPES ────────────────────────────────────────────────────
 
@@ -131,7 +131,7 @@ const ExecuteStockTradeModal: React.FC<ExecuteStockTradeModalProps> = ({ isOpen,
 
     // State
     const [tradeAction, setTradeAction] = useState<TradeAction>('BUY');
-    const [orderType, setOrderType] = useState<OrderType>('market');
+    const [orderType, setOrderType] = useState<OrderType>(isAfter10AMCST() ? 'limit' : 'market');
     const [quantity, setQuantity] = useState(1);
     const [limitPrice, setLimitPrice] = useState('');
     const [confirmText, setConfirmText] = useState('');
@@ -160,7 +160,7 @@ const ExecuteStockTradeModal: React.FC<ExecuteStockTradeModalProps> = ({ isOpen,
         if (signal && isOpen) {
             const signalType = signal.signal_type?.toUpperCase();
             setTradeAction(signalType === 'SELL' ? 'SELL' : 'BUY');
-            setOrderType('market');
+            setOrderType(isAfter10AMCST() ? 'limit' : 'market');
             setQuantity(1);
             setLimitPrice(signal.entry_price?.toFixed(2) || signal.current_price?.toFixed(2) || '');
             setConfirmText('');
@@ -375,8 +375,8 @@ const ExecuteStockTradeModal: React.FC<ExecuteStockTradeModalProps> = ({ isOpen,
                                 <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Order Type</label>
                                 <div className="flex bg-[#0d1117] rounded-lg border border-gray-700/60 p-1 gap-1">
                                     <button
-                                        onClick={() => setOrderType('market')}
-                                        className={`flex-1 py-2.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-2 ${orderType === 'market' ? 'bg-indigo-900/30 text-indigo-400 border border-indigo-800' : 'text-gray-500 hover:text-white border border-transparent'}`}
+                                        onClick={() => !isAfter10AMCST() && setOrderType('market')}
+                                        className={`flex-1 py-2.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-2 ${orderType === 'market' ? 'bg-indigo-900/30 text-indigo-400 border border-indigo-800' : 'text-gray-500 hover:text-white border border-transparent'} ${isAfter10AMCST() ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
                                         <span className="material-symbols-outlined text-sm">bolt</span>
                                         Market
@@ -389,6 +389,14 @@ const ExecuteStockTradeModal: React.FC<ExecuteStockTradeModalProps> = ({ isOpen,
                                         Limit
                                     </button>
                                 </div>
+                                {isAfter10AMCST() && (
+                                    <div className="mt-2 p-2.5 bg-amber-900/20 border border-amber-500/30 rounded-lg flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-amber-500 text-sm">info</span>
+                                        <p className="text-[10px] text-amber-200 font-bold leading-tight">
+                                            Market orders are restricted after 10:00 AM CST to mitigate risk. Please use limit orders.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Limit Price */}

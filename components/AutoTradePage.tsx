@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabase';
+import { isAfter10AMCST } from '../utils/tradeUtils';
 
 /* ─── DESIGN TOKENS ─────────────────────────────────────── */
 const C = {
@@ -198,7 +199,7 @@ const OptionsPanel: React.FC<{ userId: string }> = ({ userId }) => {
     const [tpPct, setTpPct] = useState(String(Math.round(OPT_DEF.tp_pct * 100)));
     const [slPct, setSlPct] = useState(String(Math.round(OPT_DEF.sl_pct * 100)));
     const [bidDiscount, setBidDiscount] = useState(String(Math.round(OPT_DEF.bid_discount * 100)));
-    const [entryType, setEntryType] = useState<'limit' | 'market'>(OPT_DEF.entry_type);
+    const [entryType, setEntryType] = useState<'limit' | 'market'>(isAfter10AMCST() ? 'limit' : OPT_DEF.entry_type);
     const [trades, setTrades] = useState<OptionTrade[]>([]);
     const [errors, setErrors] = useState<string[]>([]);
 
@@ -229,7 +230,7 @@ const OptionsPanel: React.FC<{ userId: string }> = ({ userId }) => {
             setTpPct(String(Math.round((data.tp_pct ?? OPT_DEF.tp_pct) * 100)));
             setSlPct(String(Math.round((data.sl_pct ?? OPT_DEF.sl_pct) * 100)));
             setBidDiscount(String(Math.round((data.bid_discount ?? OPT_DEF.bid_discount) * 100)));
-            setEntryType(data.entry_type ?? OPT_DEF.entry_type);
+            setEntryType(isAfter10AMCST() ? 'limit' : (data.entry_type ?? OPT_DEF.entry_type));
         } catch { /* silent */ } finally { setLoading(false); }
     }, [userId]);
 
@@ -361,9 +362,15 @@ const OptionsPanel: React.FC<{ userId: string }> = ({ userId }) => {
                 <Row label="Order Type" hint="How the entry order is placed with your broker" last>
                     <div style={{ display: 'flex', gap: 6 }}>
                         <Pill label="LIMIT" active={entryType === 'limit'} onClick={() => setEntryType('limit')} color={C.blue} />
-                        <Pill label="MARKET" active={entryType === 'market'} onClick={() => setEntryType('market')} color={C.green} />
+                        <Pill label="MARKET" active={entryType === 'market'} onClick={() => !isAfter10AMCST() && setEntryType('market')} color={isAfter10AMCST() ? C.textMuted : C.green} />
                     </div>
                 </Row>
+                {isAfter10AMCST() && (
+                    <div style={{ padding: '9px 14px', borderRadius: 8, background: C.amberBg, border: `1px solid ${C.amberBdr}`, marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: C.amber }}>info</span>
+                        <span style={{ fontSize: 11, fontFamily: MONO, color: C.amber }}>Market orders are restricted after 10:00 AM CST to mitigate risk. Please use limit orders.</span>
+                    </div>
+                )}
                 <div style={{ padding: '8px 12px', borderRadius: 6, background: C.bg, border: `1px solid ${C.border}`, marginTop: 4 }}>
                     <span style={{ fontSize: 11, color: C.textSec, fontFamily: SANS, lineHeight: 1.6 }}>
                         {entryType === 'limit'
@@ -441,7 +448,7 @@ const StockPanel: React.FC<{ userId: string }> = ({ userId }) => {
     const [maxDaily, setMaxDaily] = useState(String(STK_DEF.max_daily));
     const [minTier, setMinTier] = useState(STK_DEF.min_tier);
     const [tradeSide, setTradeSide] = useState<string[]>(STK_DEF.trade_side);
-    const [entryType, setEntryType] = useState<'limit' | 'market'>(STK_DEF.entry_type);
+    const [entryType, setEntryType] = useState<'limit' | 'market'>(isAfter10AMCST() ? 'limit' : STK_DEF.entry_type);
     const [bidDiscount, setBidDiscount] = useState(String(+(STK_DEF.bid_discount * 100).toFixed(1)));
     const [trades, setTrades] = useState<StockTrade[]>([]);
     const [errors, setErrors] = useState<string[]>([]);
@@ -475,7 +482,7 @@ const StockPanel: React.FC<{ userId: string }> = ({ userId }) => {
             setMaxDaily(String(data.max_daily ?? STK_DEF.max_daily));
             setMinTier(data.min_tier ?? STK_DEF.min_tier);
             setTradeSide(parseTradeSide(data.trade_side));
-            setEntryType(data.entry_type ?? (data.use_limit === false ? 'market' : STK_DEF.entry_type));
+            setEntryType(isAfter10AMCST() ? 'limit' : (data.entry_type ?? (data.use_limit === false ? 'market' : STK_DEF.entry_type)));
             setBidDiscount(String(+((data.bid_discount ?? STK_DEF.bid_discount) * 100).toFixed(1)));
         } catch { /* silent */ } finally { setLoading(false); }
     }, [userId]);
@@ -591,9 +598,15 @@ const StockPanel: React.FC<{ userId: string }> = ({ userId }) => {
                 <Row label="Order Type" hint="How the entry order is placed with Alpaca" last>
                     <div style={{ display: 'flex', gap: 6 }}>
                         <Pill label="LIMIT" active={entryType === 'limit'} onClick={() => setEntryType('limit')} color={C.cyan} />
-                        <Pill label="MARKET" active={entryType === 'market'} onClick={() => setEntryType('market')} color={C.green} />
+                        <Pill label="MARKET" active={entryType === 'market'} onClick={() => !isAfter10AMCST() && setEntryType('market')} color={isAfter10AMCST() ? C.textMuted : C.green} />
                     </div>
                 </Row>
+                {isAfter10AMCST() && (
+                    <div style={{ padding: '9px 14px', borderRadius: 8, background: C.amberBg, border: `1px solid ${C.amberBdr}`, marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: C.amber }}>info</span>
+                        <span style={{ fontSize: 11, fontFamily: MONO, color: C.amber }}>Market orders are restricted after 10:00 AM CST to mitigate risk. Please use limit orders.</span>
+                    </div>
+                )}
                 <div style={{ padding: '8px 12px', borderRadius: 6, background: C.bg, border: `1px solid ${C.border}`, marginTop: 4 }}>
                     <span style={{ fontSize: 11, color: C.textSec, fontFamily: SANS, lineHeight: 1.6 }}>
                         {entryType === 'limit'

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../services/useAuth';
 import { useBrokerContext } from '../context/BrokerContext';
 import { OptionSignal } from '../types';
-import { formatCurrency } from '../utils/tradeUtils';
+import { formatCurrency, isAfter10AMCST } from '../utils/tradeUtils';
 
 // ─── TYPES ────────────────────────────────────────────────────
 
@@ -397,7 +397,8 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
     const [selectedContract, setSelectedContract] = useState<ContractRecommendation | null>(null);
 
     // Step 3: TP/SL
-    const [orderMode, setOrderMode] = useState<OrderMode>('bracket');
+    const limitOnly = isAfter10AMCST();
+    const [orderMode, setOrderMode] = useState<OrderMode>(limitOnly ? 'limit' : 'bracket');
     const [limitPrice, setLimitPrice] = useState<string>('');
     const [slMode, setSlMode] = useState<TPSLMode>('percent');
     const [slPercent, setSlPercent] = useState(20);
@@ -1066,8 +1067,9 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                         <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Order Mode</label>
                                         <div className="flex bg-[#0d1117] rounded-lg border border-gray-700/60 p-1 gap-1">
                                             <button
-                                                onClick={() => setOrderMode('bracket')}
-                                                className={`flex-1 py-2.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-2 ${orderMode === 'bracket' ? 'bg-indigo-900/30 text-indigo-400 border border-indigo-800' : 'text-gray-500 hover:text-white border border-transparent'}`}
+                                                onClick={() => !limitOnly && setOrderMode('bracket')}
+                                                disabled={limitOnly}
+                                                className={`flex-1 py-2.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-2 ${limitOnly ? 'opacity-40 cursor-not-allowed text-gray-600 border border-transparent' : orderMode === 'bracket' ? 'bg-indigo-900/30 text-indigo-400 border border-indigo-800' : 'text-gray-500 hover:text-white border border-transparent'}`}
                                             >
                                                 <span className="material-symbols-outlined text-sm">link</span>
                                                 Bracket
@@ -1080,6 +1082,12 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                                 Limit Order
                                             </button>
                                         </div>
+                                        {limitOnly && (
+                                            <div className="mt-2 bg-amber-500/5 border border-amber-500/20 rounded-lg p-2 flex items-center gap-2">
+                                                <span className="material-symbols-outlined text-amber-400 text-sm shrink-0">schedule</span>
+                                                <span className="text-amber-300/80 text-[10px] leading-relaxed">After 10:00 AM CST — limit orders only. Bracket/market orders are disabled.</span>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 

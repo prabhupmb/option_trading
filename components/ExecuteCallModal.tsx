@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { StockSignal, AccessLevel } from '../types';
+import { isAfter10AMCST } from '../utils/tradeUtils';
 
 // --- Types & Constants ---
 export enum RiskLevel {
@@ -321,12 +322,22 @@ const ExecuteCallModal: React.FC<Props> = ({ signal, onClose, onSuccess, brokera
                     </div>
                 )}
 
+                {isAfter10AMCST() && (
+                    <div className="mx-6 mb-4 p-4 bg-amber-900/20 border border-amber-500/30 rounded-xl flex items-start gap-3">
+                        <span className="material-symbols-outlined text-amber-500 text-lg shrink-0">info</span>
+                        <div>
+                            <p className="text-sm font-bold text-amber-500">Trading Restricted</p>
+                            <p className="text-xs text-amber-200/80 mt-1">Market orders are restricted after 10:00 AM CST to mitigate risk. Please use the Advance Trade interface for limit orders.</p>
+                        </div>
+                    </div>
+                )}
+
                 {/* Footer Actions */}
                 <div className="p-6 pt-0 flex gap-3 relative z-10 w-full">
                     <button onClick={onClose} className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-bold rounded-2xl transition-all uppercase tracking-wide text-xs">Cancel</button>
                     <button
                         onClick={handleBuyNow}
-                        disabled={!isAffordable || selectedContracts <= 0 || isExecuting}
+                        disabled={!isAffordable || selectedContracts <= 0 || isExecuting || isAfter10AMCST()}
                         className={`flex-[2] py-4 ${signal.optionType === 'PUT' ? 'bg-rh-red hover:bg-rh-red/90 shadow-[0_0_20px_rgba(220,38,38,0.3)] hover:shadow-[0_0_25px_rgba(220,38,38,0.5)]' : 'bg-rh-green hover:bg-rh-green/90 shadow-[0_0_20px_rgba(0,200,5,0.3)] hover:shadow-[0_0_25px_rgba(0,200,5,0.5)]'} disabled:opacity-50 disabled:cursor-not-allowed text-white font-black rounded-2xl transition-all flex items-center justify-center gap-2 group uppercase tracking-widest text-xs active:scale-[0.98]`}
                     >
                         <span className={`material-symbols-outlined font-bold group-hover:scale-110 transition-transform ${isExecuting ? 'animate-spin' : ''}`}>{isExecuting ? 'sync' : 'bolt'}</span>

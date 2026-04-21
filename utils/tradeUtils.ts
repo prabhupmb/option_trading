@@ -12,6 +12,12 @@ export const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
+export const isAfter10AMCST = () => {
+    const cst = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+    const hours = cst.getHours();
+    return hours >= 10;
+};
+
 export const getNextFriday = (date: Date = new Date()) => {
     const result = new Date(date);
     // If today is Friday, and it's late? Assume cutoff is handled elsewhere.
