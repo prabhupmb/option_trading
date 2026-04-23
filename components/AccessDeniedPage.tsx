@@ -7,48 +7,50 @@ interface AccessDeniedPageProps {
 }
 
 const AccessDeniedPage: React.FC<AccessDeniedPageProps> = ({ onSignOut, userEmail, message }) => {
-    // Auto sign-out after 15 seconds
+    const isPending = message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval');
+    const isDisabled = !isPending && message?.toLowerCase().includes('disabled');
+
+    // Auto sign-out after 15 seconds only for hard-denied users (not pending approval)
     useEffect(() => {
+        if (isPending) return;
         const timer = setTimeout(() => {
             onSignOut();
         }, 15000);
         return () => clearTimeout(timer);
-    }, [onSignOut]);
+    }, [onSignOut, isPending]);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex items-center justify-center p-6 relative overflow-hidden">
             {/* Animated background */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <div className={`absolute -top-40 -right-40 w-96 h-96 ${message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval') || message?.toLowerCase().includes('disabled') ? 'bg-rh-green/10' : 'bg-red-500/10'} rounded-full blur-3xl animate-pulse`} />
-                <div className={`absolute -bottom-40 -left-40 w-96 h-96 ${message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval') || message?.toLowerCase().includes('disabled') ? 'bg-emerald-600/5' : 'bg-red-600/5'} rounded-full blur-3xl animate-pulse`} style={{ animationDelay: '1s' }} />
+                <div className={`absolute -top-40 -right-40 w-96 h-96 ${isPending ? 'bg-rh-green/10' : 'bg-red-500/10'} rounded-full blur-3xl animate-pulse`} />
+                <div className={`absolute -bottom-40 -left-40 w-96 h-96 ${isPending ? 'bg-emerald-600/5' : 'bg-red-600/5'} rounded-full blur-3xl animate-pulse`} style={{ animationDelay: '1s' }} />
             </div>
 
             <div className="relative w-full max-w-md text-center">
                 {/* Icon */}
                 <div className="inline-flex items-center justify-center mb-6">
-                    <div className={`${message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval') || message?.toLowerCase().includes('disabled') ? 'bg-rh-green/10 border-rh-green/20' : 'bg-red-500/20 border-red-500/30'} p-5 rounded-2xl border`}>
-                        <span className={`material-symbols-outlined ${message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval') || message?.toLowerCase().includes('disabled') ? 'text-rh-green' : 'text-red-400'} text-5xl`}>
-                            {message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval') || message?.toLowerCase().includes('disabled') ? 'check_circle' : 'shield_lock'}
+                    <div className={`${isPending ? 'bg-rh-green/10 border-rh-green/20' : 'bg-red-500/20 border-red-500/30'} p-5 rounded-2xl border`}>
+                        <span className={`material-symbols-outlined ${isPending ? 'text-rh-green' : 'text-red-400'} text-5xl`}>
+                            {isPending ? 'schedule' : 'shield_lock'}
                         </span>
                     </div>
                 </div>
 
                 {/* Title */}
-                <h1 className={`text-3xl font-black tracking-tight mb-3 ${message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval') || message?.toLowerCase().includes('disabled') ? 'text-rh-green' : 'text-white'}`}>
-                    {message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval') || message?.toLowerCase().includes('disabled') ? 'Registration Successful' : 'Access Denied'}
+                <h1 className={`text-3xl font-black tracking-tight mb-3 ${isPending ? 'text-rh-green' : 'text-white'}`}>
+                    {isPending ? 'Pending Approval' : isDisabled ? 'Account Disabled' : 'Access Denied'}
                 </h1>
 
-                {/* Webhook message */}
+                {/* Message */}
                 {message ? (
-                    <div className={`${message.toLowerCase().includes('pending') || message.toLowerCase().includes('approval') || message.toLowerCase().includes('disabled') ? 'bg-rh-green/10 border-rh-green/20' : 'bg-red-500/10 border-red-500/20'} border rounded-xl p-4 mb-6 text-left`}>
+                    <div className={`${isPending ? 'bg-rh-green/10 border-rh-green/20' : 'bg-red-500/10 border-red-500/20'} border rounded-xl p-4 mb-6 text-left`}>
                         <div className="flex items-start gap-3">
-                            <span className={`material-symbols-outlined ${message.toLowerCase().includes('pending') || message.toLowerCase().includes('approval') || message.toLowerCase().includes('disabled') ? 'text-rh-green' : 'text-red-400'} text-lg mt-0.5`}>
-                                {message.toLowerCase().includes('pending') || message.toLowerCase().includes('approval') || message.toLowerCase().includes('disabled') ? 'check_circle' : 'error'}
+                            <span className={`material-symbols-outlined ${isPending ? 'text-rh-green' : 'text-red-400'} text-lg mt-0.5`}>
+                                {isPending ? 'hourglass_empty' : 'error'}
                             </span>
-                            <p className={`text-sm ${message.toLowerCase().includes('pending') || message.toLowerCase().includes('approval') || message.toLowerCase().includes('disabled') ? 'text-rh-green font-bold' : 'text-red-300'} leading-relaxed`}>
-                                {message.toLowerCase().includes('disabled')
-                                    ? "Your account is pending approval. This usually takes a few hours. Please check back later."
-                                    : message}
+                            <p className={`text-sm ${isPending ? 'text-rh-green font-bold' : 'text-red-300'} leading-relaxed`}>
+                                {message}
                             </p>
                         </div>
                     </div>
@@ -70,13 +72,13 @@ const AccessDeniedPage: React.FC<AccessDeniedPageProps> = ({ onSignOut, userEmai
                         <span className="material-symbols-outlined text-amber-400 text-xl mt-0.5">info</span>
                         <div>
                             <p className="text-sm text-slate-300 font-medium mb-1">
-                                {message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval') || message?.toLowerCase().includes('disabled')
-                                    ? "Next Steps"
-                                    : "Status Update"}
+                                {isPending ? "Next Steps" : "Status Update"}
                             </p>
                             <p className="text-xs text-slate-500 leading-relaxed">
-                                {message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval') || message?.toLowerCase().includes('disabled')
-                                    ? "Your registration has been received. You will be automatically redirected to the dashboard once an administrator approves your account. This page will refresh automatically."
+                                {isPending
+                                    ? "Your registration has been received. You will be automatically redirected to the dashboard once an administrator approves your account."
+                                    : isDisabled
+                                    ? "Your account has been deactivated. Please contact the administrator to restore access."
                                     : "Contact the administrator to request access to the Signal Feed trading terminal."}
                             </p>
                         </div>
@@ -84,7 +86,7 @@ const AccessDeniedPage: React.FC<AccessDeniedPageProps> = ({ onSignOut, userEmai
                 </div>
 
                 {/* Check Status Button for Pending Users */}
-                {(message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval') || message?.toLowerCase().includes('disabled')) && (
+                {isPending && (
                     <button
                         onClick={() => window.location.reload()}
                         className="w-full flex items-center justify-center gap-2 bg-rh-green hover:bg-rh-green/90 text-white font-bold py-3.5 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-rh-green/20 hover:shadow-rh-green/30 active:scale-[0.98]"
@@ -94,8 +96,8 @@ const AccessDeniedPage: React.FC<AccessDeniedPageProps> = ({ onSignOut, userEmai
                     </button>
                 )}
 
-                {/* Sign Out Button - Hide if pending approval */}
-                {!(message?.toLowerCase().includes('pending') || message?.toLowerCase().includes('approval') || message?.toLowerCase().includes('disabled')) && (
+                {/* Sign Out Button - Show for denied/disabled users */}
+                {!isPending && (
                     <button
                         onClick={onSignOut}
                         className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white font-medium py-3 px-6 rounded-xl border border-white/10 transition-all duration-200 active:scale-[0.98]"

@@ -50,7 +50,6 @@ export function useAuth() {
 
     const verifyUser = useCallback(async (session: Session) => {
         console.log('🔐 Verifying user access...');
-        // Optimistic update
         setAuthState(prev => ({
             ...prev,
             verificationStatus: prev.verificationStatus === 'allowed' ? 'allowed' : 'verifying',
@@ -61,127 +60,66 @@ export function useAuth() {
             const email = session.user.email;
             if (!email) throw new Error('No email in session');
 
-            // 1. Check Supabase 'users' table directly
+            // DB is the single source of truth — no webhook fallback
             const { data: userProfile, error: dbError } = await supabase
                 .from('users')
                 .select('*')
                 .eq('email', email)
                 .single();
 
-            if (userProfile && !dbError) {
-                console.log('✅ User found in DB:', userProfile);
-
-                if (!userProfile.is_active) {
-                    // Account disabled
-                    setAuthState(prev => ({
-                        ...prev,
-                        verificationStatus: 'denied',
-                        verificationData: {
-                            email: email,
-                            message: 'Your account has been disabled by an administrator.',
-                        }
-                    }));
-                    return;
-                }
-
-                // Access Granted — check trial status
-                const userRole = userProfile.role as UserRole;
-                const userAccessLevel = userProfile.access_level as AccessLevel;
-                const trialEligible = isTrialEligible(userRole, userAccessLevel);
-                const daysLeft = trialEligible && userProfile.created_at
-                    ? getTrialDaysLeft(userProfile.created_at)
-                    : undefined;
-                const trialExpired = trialEligible && daysLeft !== undefined && daysLeft <= 0;
-
+            if (dbError || !userProfile) {
+                // Not in DB → show signup form so they can request access
+                console.log('📝 User not in DB — showing signup');
                 setAuthState(prev => ({
                     ...prev,
-                    verificationStatus: trialExpired ? 'trial_expired' : 'allowed',
-                    role: userRole,
-                    accessLevel: userAccessLevel,
-                    isTrialUser: trialEligible,
-                    trialDaysLeft: daysLeft,
-                    dbUserId: userProfile.id,
+                    verificationStatus: 'signup',
                     verificationData: {
-                        email: userProfile.email,
-                        fullName: userProfile.name || session.user.user_metadata.full_name,
+                        email: email,
+                        fullName: session.user.user_metadata.full_name,
                         avatarUrl: session.user.user_metadata.avatar_url,
                     },
                 }));
                 return;
             }
 
-            // 2. Fallback to Webhook if user not in DB (likely new user needing signup)
-            console.log('⚠️ User not in DB, falling back to webhook verification...');
+            console.log('✅ User found in DB:', userProfile);
 
-            const resp = await fetch('https://prabhupadala01.app.n8n.cloud/webhook/verify-user', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${session.access_token}`,
-                },
-            });
-
-            console.log('🔐 Verification response status:', resp.status);
-
-            // Parse response body
-            let result: any = {};
-            try {
-                const body = await resp.json();
-                result = Array.isArray(body) ? body[0] : body;
-            } catch (e) {
-                console.warn('⚠️ Could not parse response body');
-            }
-
-            console.log('🔐 Verification result:', result);
-
-            if (resp.status === 401) {
-                console.log('🔒 Unauthorized (401) — signing out');
-                await supabase.auth.signOut();
-                setAuthState(prev => ({
-                    ...prev,
-                    user: null,
-                    session: null,
-                    verificationStatus: 'unauthorized',
-                    verificationData: {},
-                }));
-            } else if (result.allowed === true) {
-                // If webhook allows but DB check failed, we might use default roles or strictly require DB
-                // Assuming default for now
-                console.log('✅ User verified via Webhook');
-                setAuthState(prev => ({
-                    ...prev,
-                    verificationStatus: 'allowed',
-                    role: 'customer', // Default
-                    accessLevel: 'signal', // Default
-                    verificationData: {
-                        email: result.email,
-                        fullName: result.fullName,
-                        avatarUrl: result.avatarUrl,
-                    },
-                }));
-            } else if (result.reason === 'not_registered') {
-                console.log('📝 New user — signup required');
-                setAuthState(prev => ({
-                    ...prev,
-                    verificationStatus: 'signup',
-                    verificationData: {
-                        email: result.email,
-                        fullName: result.fullName,
-                        avatarUrl: result.avatarUrl,
-                        message: result.message,
-                        reason: result.reason,
-                    },
-                }));
-            } else {
-                const denyMessage = result.message || 'Access denied.';
+            if (!userProfile.is_active) {
+                // In DB but not yet approved by admin
                 setAuthState(prev => ({
                     ...prev,
                     verificationStatus: 'denied',
                     verificationData: {
-                        message: denyMessage,
-                        email: result.email,
-                    },
+                        email: email,
+                        message: 'Your account is pending admin approval.',
+                    }
                 }));
+                return;
             }
+
+            // Active user — check trial status
+            const userRole = userProfile.role as UserRole;
+            const userAccessLevel = userProfile.access_level as AccessLevel;
+            const trialEligible = isTrialEligible(userRole, userAccessLevel);
+            const daysLeft = trialEligible && userProfile.created_at
+                ? getTrialDaysLeft(userProfile.created_at)
+                : undefined;
+            const trialExpired = trialEligible && daysLeft !== undefined && daysLeft <= 0;
+
+            setAuthState(prev => ({
+                ...prev,
+                verificationStatus: trialExpired ? 'trial_expired' : 'allowed',
+                role: userRole,
+                accessLevel: userAccessLevel,
+                isTrialUser: trialEligible,
+                trialDaysLeft: daysLeft,
+                dbUserId: userProfile.id,
+                verificationData: {
+                    email: userProfile.email,
+                    fullName: userProfile.name || session.user.user_metadata.full_name,
+                    avatarUrl: session.user.user_metadata.avatar_url,
+                },
+            }));
 
         } catch (error) {
             console.error('❌ Verification failed:', error);
