@@ -76,10 +76,10 @@ const AccessDeniedPage: React.FC<AccessDeniedPageProps> = ({ onSignOut, userEmai
                             </p>
                             <p className="text-xs text-slate-500 leading-relaxed">
                                 {isPending
-                                    ? "Your registration has been received. You will be automatically redirected to the dashboard once an administrator approves your account."
+                                    ? <>Your registration has been received. An administrator will review your account shortly. For faster approval, contact us at <a href="mailto:prabhupadala1982@gmail.com" className="text-rh-green underline">prabhupadala1982@gmail.com</a>.</>
                                     : isDisabled
-                                    ? "Your account has been deactivated. Please contact the administrator to restore access."
-                                    : "Contact the administrator to request access to the Signal Feed trading terminal."}
+                                    ? <>Your account has been deactivated. Contact the administrator at <a href="mailto:prabhupadala1982@gmail.com" className="text-amber-400 underline">prabhupadala1982@gmail.com</a> to restore access.</>
+                                    : <>Contact the administrator at <a href="mailto:prabhupadala1982@gmail.com" className="text-amber-400 underline">prabhupadala1982@gmail.com</a> to request access to the Signal Feed trading terminal.</>}
                             </p>
                         </div>
                     </div>
@@ -96,16 +96,14 @@ const AccessDeniedPage: React.FC<AccessDeniedPageProps> = ({ onSignOut, userEmai
                     </button>
                 )}
 
-                {/* Sign Out Button - Show for denied/disabled users */}
-                {!isPending && (
-                    <button
-                        onClick={onSignOut}
-                        className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white font-medium py-3 px-6 rounded-xl border border-white/10 transition-all duration-200 active:scale-[0.98]"
-                    >
-                        <span className="material-symbols-outlined text-lg">logout</span>
-                        <span className="text-sm">Sign Out & Return to Login</span>
-                    </button>
-                )}
+                {/* Sign Out Button - Always visible */}
+                <button
+                    onClick={onSignOut}
+                    className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white font-medium py-3 px-6 rounded-xl border border-white/10 transition-all duration-200 active:scale-[0.98]"
+                >
+                    <span className="material-symbols-outlined text-lg">logout</span>
+                    <span className="text-sm">Sign Out & Try a Different Account</span>
+                </button>
             </div>
         </div>
     );
