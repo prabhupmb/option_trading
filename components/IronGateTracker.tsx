@@ -79,6 +79,12 @@ interface IronGatePosition {
     close_reason: string | null;
     pnl_dollars: number;
     pnl_pct: number;
+    // Execution timing — updated every ~5 min by the monitor workflow
+    execution_hint: 'READY_BUY' | 'READY_SELL' | 'WAIT' | null;
+    execution_reason: string | null;  // e.g. "5m✓ 15m✓"
+    st_5m_aligned: boolean | null;
+    st_15m_aligned: boolean | null;
+    // st_5m_direction / st_15m_direction already declared above (existing fields)
 }
 
 interface IronGateHistory {
@@ -245,6 +251,55 @@ const GateDetails: React.FC<{ position: IronGatePosition }> = ({ position }) => 
     </div>
 );
 
+// ─── EXECUTION HINT BADGE ─────────────────────────────────────
+
+const ExecutionHintBadge: React.FC<{ position: IronGatePosition }> = ({ position }) => {
+    const { execution_hint, execution_reason, st_5m_aligned, st_15m_aligned, st_5m_direction, st_15m_direction } = position;
+    if (!execution_hint) return null;
+
+    const isReady = execution_hint === 'READY_BUY' || execution_hint === 'READY_SELL';
+    const label = execution_hint === 'READY_BUY' ? 'Ready Buy'
+                : execution_hint === 'READY_SELL' ? 'Ready Sell'
+                : 'Wait';
+
+    const tooltip = [
+        `5m ST: ${st_5m_aligned ? 'aligned' : 'not aligned'}${st_5m_direction ? ` (${st_5m_direction})` : ''}`,
+        `15m ST: ${st_15m_aligned ? 'aligned' : 'not aligned'}${st_15m_direction ? ` (${st_15m_direction})` : ''}`,
+    ].join(' | ');
+
+    if (isReady) {
+        return (
+            <div
+                title={tooltip}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border font-mono transition-all duration-300 cursor-default
+                    text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-600/50"
+                style={{ boxShadow: '0 0 10px rgba(52,211,153,0.18)' }}
+            >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+                🟢 {label}
+                {execution_reason && (
+                    <span className="opacity-70 text-[9px] font-mono ml-0.5 normal-case">{execution_reason}</span>
+                )}
+            </div>
+        );
+    }
+
+    // WAIT state
+    return (
+        <div
+            title={tooltip}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border font-mono transition-all duration-300 cursor-default opacity-80
+                text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700/40"
+        >
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
+            🟡 Wait
+            {execution_reason && (
+                <span className="opacity-70 text-[9px] font-mono ml-0.5 normal-case">{execution_reason}</span>
+            )}
+        </div>
+    );
+};
+
 // ─── POSITION CARD ────────────────────────────────────────────
 
 const GATE_KEYS = ['g1_sma', 'g2_1h', 'g3_15m', 'g4_5m', 'g5_vwap', 'g6_adx'];
@@ -269,9 +324,25 @@ const PositionCard: React.FC<{
     const accentColor = isCall ? '#00d97e' : '#ff4757';
     const pnlPositive = pnl >= 0;
 
+    const execHint = position.execution_hint;
+    const isExecReady = execHint === 'READY_BUY' || execHint === 'READY_SELL';
+    const isExecWait  = execHint === 'WAIT';
+
+    const cardBorderClass = isExecReady
+        ? 'border-emerald-400/40 dark:border-emerald-500/30 hover:border-emerald-400/60 dark:hover:border-emerald-500/50'
+        : isExecWait
+        ? 'border-amber-400/30 dark:border-amber-500/20 hover:border-amber-400/50 dark:hover:border-amber-500/35'
+        : 'border-gray-200 dark:border-[#1e2430] hover:border-gray-300 dark:hover:border-[#2a3142]';
+    const cardGlow = isExecReady
+        ? '0 0 0 1px rgba(52,211,153,0.1), 0 2px 12px rgba(52,211,153,0.07)'
+        : undefined;
+
     return (
-        <div className="relative bg-white dark:bg-[#0d1117] rounded-2xl overflow-hidden border border-gray-200 dark:border-[#1e2430] hover:border-gray-300 dark:hover:border-[#2a3142] transition-all duration-200 group shadow-sm dark:shadow-none">
-            {/* Direction accent bar */}
+        <div
+            className={`relative bg-white dark:bg-[#0d1117] rounded-2xl overflow-hidden border transition-all duration-300 group shadow-sm dark:shadow-none ${cardBorderClass}`}
+            style={{ boxShadow: cardGlow }}
+        >
+            {/* Direction accent bar — unchanged CALL/PUT color */}
             <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-2xl" style={{ background: accentColor }} />
 
             {/* Top glow line based on P&L */}
@@ -312,11 +383,14 @@ const PositionCard: React.FC<{
                     </div>
                 </div>
 
-                {/* ── Row 2: Signal Badge ── */}
-                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${isCall
-                    ? (isStrong ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/40' : 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border-green-300 dark:border-green-800/30')
-                    : (isStrong ? 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-700/40' : 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-800/30')}`}>
-                    {isStrong ? '🔥' : '✅'} {rec} (LOCKED)
+                {/* ── Row 2: Signal Badge + Execution Hint ── */}
+                <div className="flex flex-wrap items-center gap-2">
+                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${isCall
+                        ? (isStrong ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/40' : 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border-green-300 dark:border-green-800/30')
+                        : (isStrong ? 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-700/40' : 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-800/30')}`}>
+                        {isStrong ? '🔥' : '✅'} {rec} (LOCKED)
+                    </div>
+                    <ExecutionHintBadge position={position} />
                 </div>
 
                 {/* ── Row 3: Price Trio ── */}
@@ -396,10 +470,18 @@ const PositionCard: React.FC<{
                                 signal_text: position.signal || '',
                                 opened_at: position.opened_at,
                             })}
-                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all flex items-center gap-1.5 ${isCall
-                                ? 'bg-[#00d97e]/10 border border-[#00d97e]/30 text-[#00d97e] hover:bg-[#00d97e]/20 hover:border-[#00d97e]/50'
-                                : 'bg-[#ff4757]/10 border border-[#ff4757]/30 text-[#ff4757] hover:bg-[#ff4757]/20 hover:border-[#ff4757]/50'}`}>
-                            ⚡ Execute {position.option_type?.toUpperCase()}
+                            title={isExecWait ? `Wait — 5m or 15m ST not aligned, but you can still execute` : undefined}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all flex items-center gap-1.5
+                                ${isExecReady
+                                    ? 'bg-emerald-500/15 border border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/25 hover:border-emerald-400/70 hover:shadow-emerald-500/20 hover:shadow-md'
+                                    : isExecWait
+                                    ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/18 hover:border-amber-400/50'
+                                    : isCall
+                                    ? 'bg-[#00d97e]/10 border border-[#00d97e]/30 text-[#00d97e] hover:bg-[#00d97e]/20 hover:border-[#00d97e]/50'
+                                    : 'bg-[#ff4757]/10 border border-[#ff4757]/30 text-[#ff4757] hover:bg-[#ff4757]/20 hover:border-[#ff4757]/50'
+                                }`}
+                        >
+                            {isExecReady ? '⚡' : isExecWait ? '⏸' : '⚡'} Execute {position.option_type?.toUpperCase()}
                         </button>
                     </div>
                 </div>
@@ -552,6 +634,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
     const [isClosing, setIsClosing] = useState(false);
     const [activeSection, setActiveSection] = useState<'positions' | 'history'>('positions');
     const [signalFilter, setSignalFilter] = useState<string | null>(null);
+    const [executionFilter, setExecutionFilter] = useState<'READY' | 'WAIT' | null>(null);
     const [webhookStatus, setWebhookStatus] = useState<'idle' | 'triggering' | 'ok' | 'err'>('idle');
     const [lastTriggeredTime, setLastTriggeredTime] = useState<string | null>(null);
     const [firedTimes, setFiredTimes] = useState<Set<string>>(new Set());
@@ -706,9 +789,15 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
         { label: 'SELL', icon: '✅', test: (p: IronGatePosition) => p.option_type?.toUpperCase() === 'PUT' && p.tier === 'A', color: 'text-red-600 dark:text-red-400', ring: 'ring-red-500', bg: 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800/20', activeBg: 'bg-red-100 dark:bg-red-900/25 border-red-300 dark:border-red-700/40' },
     ];
 
-    const filteredPositions = signalFilter
-        ? positions.filter(p => filters.find(f => f.label === signalFilter)?.test(p))
-        : positions;
+    const filteredPositions = positions.filter(p => {
+        if (signalFilter && !filters.find(f => f.label === signalFilter)?.test(p)) return false;
+        if (executionFilter === 'READY' && p.execution_hint !== 'READY_BUY' && p.execution_hint !== 'READY_SELL') return false;
+        if (executionFilter === 'WAIT'  && p.execution_hint !== 'WAIT') return false;
+        return true;
+    });
+
+    const readyCount = positions.filter(p => p.execution_hint === 'READY_BUY' || p.execution_hint === 'READY_SELL').length;
+    const waitCount  = positions.filter(p => p.execution_hint === 'WAIT').length;
 
     return (
         <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#080b10] min-h-screen text-slate-900 dark:text-white font-sans">
@@ -847,6 +936,8 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                 {/* Filter chips */}
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Filter:</span>
+
+                                    {/* Tier / signal filters */}
                                     {filters.map(f => {
                                         const count = positions.filter(f.test).length;
                                         const isActive = signalFilter === f.label;
@@ -859,11 +950,53 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                             </button>
                                         );
                                     })}
-                                    {signalFilter && (
-                                        <button onClick={() => setSignalFilter(null)} className="text-[10px] text-slate-500 hover:text-slate-900 dark:hover:text-white font-bold underline transition-colors">
-                                            clear
+
+                                    {/* Divider */}
+                                    <span className="text-slate-700 dark:text-slate-600 text-[10px] select-none">|</span>
+
+                                    {/* READY chip */}
+                                    <button
+                                        onClick={() => setExecutionFilter(executionFilter === 'READY' ? null : 'READY')}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all
+                                            text-emerald-600 dark:text-emerald-400
+                                            ${executionFilter === 'READY'
+                                                ? 'bg-emerald-100 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-600/60 ring-1 ring-emerald-400'
+                                                : 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800/20'
+                                            }
+                                            ${readyCount === 0 ? 'opacity-40 cursor-default' : 'hover:opacity-80 cursor-pointer'}`}
+                                        style={executionFilter === 'READY' ? { boxShadow: '0 0 8px rgba(52,211,153,0.2)' } : undefined}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        <span className="uppercase tracking-wide">Ready</span>
+                                        <span className="font-black bg-black/10 dark:bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{readyCount}</span>
+                                    </button>
+
+                                    {/* WAIT chip */}
+                                    <button
+                                        onClick={() => setExecutionFilter(executionFilter === 'WAIT' ? null : 'WAIT')}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all
+                                            text-amber-600 dark:text-amber-400
+                                            ${executionFilter === 'WAIT'
+                                                ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-400 dark:border-amber-600/60 ring-1 ring-amber-400'
+                                                : 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800/20'
+                                            }
+                                            ${waitCount === 0 ? 'opacity-40 cursor-default' : 'hover:opacity-80 cursor-pointer'}`}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                        <span className="uppercase tracking-wide">Wait</span>
+                                        <span className="font-black bg-black/10 dark:bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{waitCount}</span>
+                                    </button>
+
+                                    {/* Clear all */}
+                                    {(signalFilter || executionFilter) && (
+                                        <button
+                                            onClick={() => { setSignalFilter(null); setExecutionFilter(null); }}
+                                            className="text-[10px] text-slate-500 hover:text-slate-900 dark:hover:text-white font-bold underline transition-colors"
+                                        >
+                                            clear all
                                         </button>
                                     )}
+
                                     <span className="ml-auto text-[9px] text-slate-700 font-bold">
                                         {filteredPositions.length} of {positions.length} shown
                                     </span>
