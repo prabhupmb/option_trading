@@ -278,6 +278,53 @@ const App: React.FC = () => {
     };
   }, [currentView, selectedStrategy, getAutoRefreshIntervalMs, refresh]);
 
+  // ─── GLOBAL IRON GATE DAY SCHEDULER ───
+  useEffect(() => {
+    const IRON_GATE_DAY_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook-test/Irorn_gate_day_trade';
+    const IRON_GATE_DAY_SCAN_TIMES = [
+      '09:35', '09:50', '10:05', '10:20', '10:35',
+      '11:05', '11:20', '11:35', '11:50',
+      '12:05', '12:20', '12:35', '12:50',
+      '13:05', '13:20', '13:35', '13:50',
+      '14:05', '14:20', '14:35', '14:50',
+      '15:05', '15:20', '15:35', '15:50',
+    ];
+    const firedRef = new Set<string>();
+
+    const getETHHMM = () => {
+      const et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+      return `${String(et.getHours()).padStart(2, '0')}:${String(et.getMinutes()).padStart(2, '0')}`;
+    };
+
+    const isETWeekday = () => {
+      const et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+      const day = et.getDay();
+      return day !== 0 && day !== 6;
+    };
+
+    const check = () => {
+      if (!isETWeekday()) return;
+      const hhmm = getETHHMM();
+      if (IRON_GATE_DAY_SCAN_TIMES.includes(hhmm) && !firedRef.has(hhmm)) {
+        firedRef.add(hhmm);
+        console.log(`[IronGateDay Global] Firing webhook at ${hhmm} ET → ${IRON_GATE_DAY_WEBHOOK}`);
+        fetch(IRON_GATE_DAY_WEBHOOK, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ triggered_by: `scheduled_${hhmm}` }),
+        })
+          .then(() => console.log(`[IronGateDay Global] Webhook OK at ${hhmm}`))
+          .catch(err => console.error(`[IronGateDay Global] Webhook failed at ${hhmm}:`, err));
+      }
+    };
+
+    check();
+    const i = setInterval(check, 30000);
+    const midnight = setInterval(() => { if (getETHHMM() === '00:00') firedRef.clear(); }, 60000);
+    return () => { clearInterval(i); clearInterval(midnight); };
+  }, []);
+
   // ─── GLOBAL IRON GATE SCHEDULER ───
   // Runs app-wide so webhook fires regardless of which screen is active
   useEffect(() => {
