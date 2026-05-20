@@ -7,9 +7,11 @@ import type { ConnectionStatus } from './types';
 interface Props {
   clock: ETClockResult;
   connectionStatus: ConnectionStatus;
+  onScan?: () => void;
+  scanStatus?: 'idle' | 'scanning' | 'ok' | 'err';
 }
 
-export const HeaderCard: React.FC<Props> = ({ clock, connectionStatus }) => {
+export const HeaderCard: React.FC<Props> = ({ clock, connectionStatus, onScan, scanStatus = 'idle' }) => {
   const marketPillBg = clock.isMarketOpen ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)';
   const marketPillBorder = clock.isMarketOpen ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)';
   const marketPillText = clock.isMarketOpen ? C.accentGreen : C.accentRed;
@@ -85,25 +87,63 @@ export const HeaderCard: React.FC<Props> = ({ clock, connectionStatus }) => {
           </div>
         </div>
 
-        {/* Right: clock + connection */}
-        <div style={{ textAlign: 'right' }}>
-          <div style={{
-            fontSize: 36,
-            fontWeight: 900,
-            fontFamily: 'JetBrains Mono, monospace',
-            color: C.textPrimary,
-            letterSpacing: '-0.02em',
-            lineHeight: 1.1,
-            tabularNums: 'true',
-          } as React.CSSProperties}>
-            {clock.formatted}
+        {/* Right: scan button + clock + connection */}
+        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Manual Scan Button */}
+            {onScan && (
+              <button
+                onClick={onScan}
+                disabled={scanStatus === 'scanning'}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 16px',
+                  borderRadius: 10,
+                  border: scanStatus === 'ok'
+                    ? '1px solid rgba(34,197,94,0.5)'
+                    : scanStatus === 'err'
+                      ? '1px solid rgba(239,68,68,0.5)'
+                      : '1px solid rgba(255,215,0,0.35)',
+                  background: scanStatus === 'ok'
+                    ? 'rgba(34,197,94,0.12)'
+                    : scanStatus === 'err'
+                      ? 'rgba(239,68,68,0.12)'
+                      : 'rgba(255,215,0,0.08)',
+                  color: scanStatus === 'ok'
+                    ? C.accentGreen
+                    : scanStatus === 'err'
+                      ? C.accentRed
+                      : C.accentYellow,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  cursor: scanStatus === 'scanning' ? 'not-allowed' : 'pointer',
+                  opacity: scanStatus === 'scanning' ? 0.6 : 1,
+                  transition: 'all 0.2s',
+                  fontFamily: 'Inter, sans-serif',
+                }}
+              >
+                <span style={{
+                  fontSize: 14,
+                  display: 'inline-block',
+                  animation: scanStatus === 'scanning' ? 'igd-pulse 1s infinite' : 'none',
+                }}>
+                  {scanStatus === 'ok' ? '✓' : scanStatus === 'err' ? '✕' : '⚡'}
+                </span>
+                {scanStatus === 'scanning' ? 'Scanning...' : scanStatus === 'ok' ? 'Triggered!' : scanStatus === 'err' ? 'Failed' : 'Scan Now'}
+              </button>
+            )}
+            <div style={{ fontSize: 36, fontWeight: 900, fontFamily: 'JetBrains Mono, monospace', color: C.textPrimary, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+              {clock.formatted}
+            </div>
           </div>
-          <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 2, marginBottom: 6 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
             ET Market Time
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <ConnectionIndicator status={connectionStatus} />
-          </div>
+          <ConnectionIndicator status={connectionStatus} />
         </div>
       </div>
     </div>

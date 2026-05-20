@@ -127,9 +127,30 @@ interface Props {
   onExecute?: (signal: any) => void;
 }
 
+const IRON_GATE_DAY_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook-test/Irorn_gate_day_trade';
+
 const IronGateDayDashboard: React.FC<Props> = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('positions');
   const [activeFilter, setActiveFilter] = useState<SignalFilter>('ALL');
+  const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'ok' | 'err'>('idle');
+
+  const handleManualScan = async () => {
+    if (scanStatus === 'scanning') return;
+    setScanStatus('scanning');
+    try {
+      await fetch(IRON_GATE_DAY_WEBHOOK, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ triggered_by: 'manual' }),
+      });
+      setScanStatus('ok');
+    } catch {
+      setScanStatus('err');
+    } finally {
+      setTimeout(() => setScanStatus('idle'), 4000);
+    }
+  };
 
   const {
     openPositions, todayHistory,
@@ -175,7 +196,7 @@ const IronGateDayDashboard: React.FC<Props> = () => {
       <div style={{ maxWidth: 1600, margin: '0 auto', padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* Header */}
-        <HeaderCard clock={clock} connectionStatus={connected} />
+        <HeaderCard clock={clock} connectionStatus={connected} onScan={handleManualScan} scanStatus={scanStatus} />
 
         {/* Signal count cards */}
         <SignalCountCards
