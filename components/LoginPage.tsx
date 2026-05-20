@@ -2,10 +2,11 @@ import React from 'react';
 
 interface LoginPageProps {
     onGoogleLogin: () => void;
+    onShowRegister?: () => void;
     loading?: boolean;
 }
 
-const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, loading }) => {
+const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onShowRegister, loading }) => {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex items-center justify-center p-6 relative overflow-hidden">
             {/* Animated background elements */}
@@ -81,6 +82,21 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, loading }) => {
                         ))}
                     </div>
                 </div>
+
+                {/* Register link */}
+                {onShowRegister && (
+                    <div className="mt-6 text-center">
+                        <p className="text-slate-500 text-sm">
+                            Don't have an account?{' '}
+                            <button
+                                onClick={onShowRegister}
+                                className="text-rh-green font-semibold hover:underline transition-all"
+                            >
+                                Create one
+                            </button>
+                        </p>
+                    </div>
+                )}
 
                 {/* Footer */}
                 <p className="text-center text-slate-600 text-[10px] mt-6 tracking-wide">

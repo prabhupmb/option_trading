@@ -4,8 +4,8 @@ import { UserProfile, UserRole, AccessLevel } from '../types';
 import type { User } from '@supabase/supabase-js';
 
 
-const WEBHOOK_APPROVE_USER = import.meta.env.VITE_WEBHOOK_APPROVE_USER || '';
-const WEBHOOK_UPGRADE_USER = import.meta.env.VITE_WEBHOOK_UPGRADE_USER || '';
+const WEBHOOK_APPROVE_USER = import.meta.env.VITE_WEBHOOK_APPROVE_USER || 'https://prabhupadala01.app.n8n.cloud/webhook/approve-user';
+const WEBHOOK_UPGRADE_USER = import.meta.env.VITE_WEBHOOK_UPGRADE_USER || 'https://prabhupadala01.app.n8n.cloud/webhook/upgrade-user';
 
 interface UpgradeRequest {
     id: number;

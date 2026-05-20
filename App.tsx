@@ -8,6 +8,7 @@ import Navigation, { View } from './components/Navigation';
 import Portfolio from './components/Portfolio';
 import GroupChat from './components/GroupChat';
 import LoginPage from './components/LoginPage';
+import RegisterPage from './components/RegisterPage';
 import AccessDeniedPage from './components/AccessDeniedPage';
 import TrialExpiredPage from './components/TrialExpiredPage';
 import SignupForm from './components/SignupForm';
@@ -193,6 +194,7 @@ const ScanTimesBar: React.FC<{ activeTab: string }> = ({ activeTab }) => {
 
 const App: React.FC = () => {
   const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut, role, accessLevel, trialDaysLeft, isTrialUser } = useAuth();
+  const [showRegister, setShowRegister] = useState(false);
 
   // Strategy filter
   const [activeTab, setActiveTab] = useState<string>('iron-gate');
@@ -418,7 +420,10 @@ const App: React.FC = () => {
 
   // Not Authenticated
   if (!isAuthenticated || verificationStatus === 'unauthorized') {
-    return <LoginPage onGoogleLogin={signInWithGoogle} />;
+    if (showRegister) {
+      return <RegisterPage onBackToLogin={() => setShowRegister(false)} />;
+    }
+    return <LoginPage onGoogleLogin={signInWithGoogle} onShowRegister={() => setShowRegister(true)} />;
   }
 
   // Verifying
