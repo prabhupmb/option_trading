@@ -12,6 +12,15 @@ function isDSTNow(d: Date): boolean {
   return d >= ms && d < ne;
 }
 
+function isPast3pmCentral(): boolean {
+  const now = new Date();
+  const offset = isDSTNow(now) ? -5 : -6; // CDT / CST
+  const centralNow = new Date(now.getTime() + offset * 3600 * 1000);
+  const hours = centralNow.getUTCHours();
+  const minutes = centralNow.getUTCMinutes();
+  return hours > 15 || (hours === 15 && minutes >= 0);
+}
+
 function getETMidnightISO(): string {
   const now = new Date();
   const offset = isDSTNow(now) ? -4 : -5;
@@ -181,14 +190,23 @@ export function useIronGateDay(): IronGateDayState {
       });
     }, 10000);
 
-    // Fallback poll every 15s
-    const pollInterval = setInterval(fetchAll, 15000);
+    // Fallback poll every 15 minutes, stops after 3 PM CST
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    if (!isPast3pmCentral()) {
+      pollInterval = setInterval(() => {
+        if (isPast3pmCentral()) {
+          if (pollInterval) clearInterval(pollInterval);
+          return;
+        }
+        fetchAll();
+      }, 15 * 60 * 1000);
+    }
 
     return () => {
       supabase.removeChannel(posChannel);
       supabase.removeChannel(histChannel);
       clearInterval(idleInterval);
-      clearInterval(pollInterval);
+      if (pollInterval) clearInterval(pollInterval);
     };
   }, [fetchAll, fetchHistory, flashRow, pulseRow, pushToast]);
 
