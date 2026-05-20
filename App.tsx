@@ -280,7 +280,7 @@ const App: React.FC = () => {
 
   // ─── GLOBAL IRON GATE DAY SCHEDULER ───
   useEffect(() => {
-    const IRON_GATE_DAY_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook-test/Irorn_gate_day_trade';
+    const IRON_GATE_DAY_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/Irorn_gate_day_trade';
     const IRON_GATE_DAY_SCAN_TIMES = [
       '09:35', '09:50', '10:05', '10:20', '10:35',
       '11:05', '11:20', '11:35', '11:50',

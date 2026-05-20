@@ -127,7 +127,7 @@ interface Props {
   onExecute?: (signal: any) => void;
 }
 
-const IRON_GATE_DAY_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook-test/Irorn_gate_day_trade';
+const IRON_GATE_DAY_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/Irorn_gate_day_trade';
 
 const IronGateDayDashboard: React.FC<Props> = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('positions');
