@@ -116,7 +116,7 @@ export function useAuth() {
                 dbUserId: userProfile.id,
                 verificationData: {
                     email: userProfile.email,
-                    fullName: userProfile.display_name || userProfile.full_name || userProfile.user_name || session.user.user_metadata.full_name,
+                    fullName: (() => { const raw = userProfile.display_name || userProfile.full_name || userProfile.user_name || session.user.user_metadata.full_name || ''; return raw.charAt(0).toUpperCase() + raw.slice(1); })(),
                     avatarUrl: session.user.user_metadata.avatar_url,
                 },
             }));

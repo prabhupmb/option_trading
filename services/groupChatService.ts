@@ -29,7 +29,12 @@ const fetchUserNames = async (ids: string[]): Promise<Map<string, string>> => {
     if (!ids.length) return new Map();
     const { data } = await supabase.from('users').select('id, display_name, full_name, user_name').in('id', ids);
     const map = new Map<string, string>();
-    for (const u of data ?? []) map.set(u.id, u.display_name || u.full_name || u.user_name || 'Unknown');
+    for (const u of data ?? []) {
+        const raw = u.display_name || u.full_name || u.user_name || 'Unknown';
+        // Capitalize first letter if falling back to user_name (e.g. "prabhupmb" → "Prabhupmb")
+        const name = raw.charAt(0).toUpperCase() + raw.slice(1);
+        map.set(u.id, name);
+    }
     return map;
 };
 
