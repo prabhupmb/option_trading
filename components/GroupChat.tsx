@@ -1,15 +1,21 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useAuth } from '../services/useAuth';
+import {
+    fetchMessages as fetchMessagesService,
+    sendMessage as sendMessageService,
+    sendSignal as sendSignalService,
+    setSignalResponse as setSignalResponseService,
+    toggleReaction as toggleReactionService,
+    fetchMembers as fetchMembersService,
+    fetchTodaySignals as fetchTodaySignalsService,
+    subscribeToMessages,
+    subscribeToReactions,
+    subscribeToSignalResponses,
+    subscribeToPresence,
+} from '../services/groupChatService';
+import { supabase } from '../services/supabase';
 
-// ─── TYPES ─────────────────────────────────────────────
-interface Member {
-    id: string;
-    name: string;
-    initials: string;
-    winRate: number;
-    online: boolean;
-    color: string;
-}
-
+// ─── TYPES ─────────────────────────────────────────────────────
 interface Reaction {
     emoji: string;
     count: number;
@@ -17,6 +23,7 @@ interface Reaction {
 }
 
 interface SignalData {
+    id: string;
     symbol: string;
     action: 'BUY' | 'SELL';
     strikePrice: number;
@@ -41,6 +48,15 @@ interface ChatMessage {
     signal?: SignalData;
 }
 
+interface Member {
+    id: string;
+    name: string;
+    initials: string;
+    winRate: number;
+    online: boolean;
+    color: string;
+}
+
 interface TodaySignal {
     symbol: string;
     action: 'BUY' | 'SELL';
@@ -50,101 +66,30 @@ interface TodaySignal {
     sender: string;
 }
 
-// ─── MOCK DATA ─────────────────────────────────────────
-const MEMBERS: Member[] = [
-    { id: '1', name: 'Prabhu Padala', initials: 'PP', winRate: 85, online: true, color: '#00C853' },
-    { id: '2', name: 'Ravi Sharma', initials: 'RS', winRate: 72, online: true, color: '#2196F3' },
-    { id: '3', name: 'Priya Gupta', initials: 'PG', winRate: 68, online: true, color: '#E040FB' },
-    { id: '4', name: 'Anil Kumar', initials: 'AK', winRate: 76, online: false, color: '#FF9800' },
-    { id: '5', name: 'Deepak Verma', initials: 'DV', winRate: 61, online: true, color: '#00BCD4' },
-    { id: '6', name: 'Sneha Reddy', initials: 'SR', winRate: 79, online: false, color: '#FF5252' },
-    { id: '7', name: 'Vikram Singh', initials: 'VS', winRate: 83, online: true, color: '#FFD740' },
-    { id: '8', name: 'Meena Patel', initials: 'MP', winRate: 70, online: false, color: '#69F0AE' },
-    { id: '9', name: 'Karthik Rao', initials: 'KR', winRate: 65, online: true, color: '#448AFF' },
-    { id: '10', name: 'Anjali Das', initials: 'AD', winRate: 74, online: false, color: '#FF80AB' },
+interface SignalFormData {
+    symbol: string;
+    action: 'BUY' | 'SELL';
+    strikePrice: string;
+    expiry: string;
+    stopLoss: string;
+    target: string;
+}
+
+// ─── HELPERS ───────────────────────────────────────────────────
+const USER_COLORS = [
+    '#00C853', '#2196F3', '#E040FB', '#FF9800', '#00BCD4',
+    '#FF5252', '#FFD740', '#69F0AE', '#448AFF', '#FF80AB',
 ];
 
-const MOCK_MESSAGES: ChatMessage[] = [
-    {
-        id: 'm1', senderId: '2', senderName: 'Ravi Sharma', senderInitials: 'RS', senderColor: '#2196F3',
-        text: 'Good morning team! Markets looking bullish today 🚀', timestamp: '09:15 AM',
-        reactions: [{ emoji: '🔥', count: 4, reacted: false }, { emoji: '👍', count: 3, reacted: true }],
-    },
-    {
-        id: 'm2', senderId: '1', senderName: 'Prabhu Padala', senderInitials: 'PP', senderColor: '#00C853',
-        text: 'Agreed! NIFTY broke through resistance. @Ravi Sharma did you see the volume surge on SPY?', timestamp: '09:18 AM',
-        reactions: [{ emoji: '✅', count: 2, reacted: false }],
-    },
-    {
-        id: 'm3', senderId: '3', senderName: 'Priya Gupta', senderInitials: 'PG', senderColor: '#E040FB',
-        text: '', timestamp: '09:22 AM',
-        reactions: [{ emoji: '🔥', count: 6, reacted: true }, { emoji: '✅', count: 3, reacted: false }],
-        signal: {
-            symbol: 'AAPL', action: 'BUY', strikePrice: 195, expiry: 'Mar 28, 2025',
-            stopLoss: 188, target: 210, riskReward: '1:2.1', currentPrice: 193.42,
-            responses: { in: 4, skip: 2, watching: 1 }, myResponse: null,
-        },
-    },
-    {
-        id: 'm4', senderId: '5', senderName: 'Deepak Verma', senderInitials: 'DV', senderColor: '#00BCD4',
-        text: 'That AAPL setup looks solid @Priya Gupta. I\'m watching for confirmation on the 15m chart.', timestamp: '09:25 AM',
-        reactions: [{ emoji: '👍', count: 2, reacted: false }],
-    },
-    {
-        id: 'm5', senderId: '7', senderName: 'Vikram Singh', senderInitials: 'VS', senderColor: '#FFD740',
-        text: '', timestamp: '09:30 AM',
-        reactions: [{ emoji: '🔥', count: 3, reacted: false }, { emoji: '✅', count: 5, reacted: true }],
-        signal: {
-            symbol: 'TSLA', action: 'SELL', strikePrice: 245, expiry: 'Mar 21, 2025',
-            stopLoss: 260, target: 220, riskReward: '1:1.7', currentPrice: 251.30,
-            responses: { in: 3, skip: 1, watching: 2 }, myResponse: 'in',
-        },
-    },
-    {
-        id: 'm6', senderId: '9', senderName: 'Karthik Rao', senderInitials: 'KR', senderColor: '#448AFF',
-        text: 'TSLA puts are printing already 💰. @Vikram Singh great call! Entry at $248 was perfect.', timestamp: '09:45 AM',
-        reactions: [{ emoji: '🔥', count: 5, reacted: true }, { emoji: '👍', count: 3, reacted: false }],
-    },
-    {
-        id: 'm7', senderId: '2', senderName: 'Ravi Sharma', senderInitials: 'RS', senderColor: '#2196F3',
-        text: '@Prabhu Padala yes! SPY volume was 2x average on that 5m candle. Very bullish signal.', timestamp: '09:48 AM',
-        reactions: [{ emoji: '✅', count: 2, reacted: false }],
-    },
-    {
-        id: 'm8', senderId: '1', senderName: 'Prabhu Padala', senderInitials: 'PP', senderColor: '#00C853',
-        text: '', timestamp: '10:05 AM',
-        reactions: [{ emoji: '🔥', count: 7, reacted: false }, { emoji: '✅', count: 4, reacted: true }, { emoji: '👍', count: 2, reacted: false }],
-        signal: {
-            symbol: 'NVDA', action: 'BUY', strikePrice: 880, expiry: 'Apr 04, 2025',
-            stopLoss: 845, target: 950, riskReward: '1:2.0', currentPrice: 872.50,
-            responses: { in: 6, skip: 0, watching: 2 }, myResponse: 'in',
-        },
-    },
-    {
-        id: 'm9', senderId: '3', senderName: 'Priya Gupta', senderInitials: 'PG', senderColor: '#E040FB',
-        text: 'NVDA is a monster setup. All gates passed on the daily chart. Let\'s ride this wave 🌊', timestamp: '10:08 AM',
-        reactions: [{ emoji: '🔥', count: 3, reacted: false }],
-    },
-    {
-        id: 'm10', senderId: '5', senderName: 'Deepak Verma', senderInitials: 'DV', senderColor: '#00BCD4',
-        text: '', timestamp: '10:30 AM',
-        reactions: [{ emoji: '👍', count: 2, reacted: false }],
-        signal: {
-            symbol: 'META', action: 'BUY', strikePrice: 520, expiry: 'Mar 28, 2025',
-            stopLoss: 505, target: 555, riskReward: '1:2.3', currentPrice: 515.80,
-            responses: { in: 2, skip: 1, watching: 3 }, myResponse: null,
-        },
-    },
-];
+const getUserColor = (id: string): string => {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    return USER_COLORS[Math.abs(hash) % USER_COLORS.length];
+};
 
-const TODAY_SIGNALS: TodaySignal[] = [
-    { symbol: 'AAPL', action: 'BUY', pnl: '+38%', status: 'win', time: '09:22 AM', sender: 'Priya G.' },
-    { symbol: 'TSLA', action: 'SELL', pnl: '+22%', status: 'win', time: '09:30 AM', sender: 'Vikram S.' },
-    { symbol: 'NVDA', action: 'BUY', pnl: 'Pending', status: 'pending', time: '10:05 AM', sender: 'Prabhu P.' },
-    { symbol: 'META', action: 'BUY', pnl: '-5%', status: 'loss', time: '10:30 AM', sender: 'Deepak V.' },
-];
+const getInitials = (name: string): string =>
+    name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
-// ─── HELPER: Render text with @mentions highlighted ────
 const renderMessageText = (text: string) => {
     const parts = text.split(/(@\w[\w\s]*?\b(?=\s|$|[.!?,]))/g);
     return parts.map((part, i) =>
@@ -156,23 +101,56 @@ const renderMessageText = (text: string) => {
     );
 };
 
-// ─── COMPONENT ─────────────────────────────────────────
+// ─── COMPONENT ─────────────────────────────────────────────────
 const GroupChat: React.FC = () => {
-    const [messages, setMessages] = useState<ChatMessage[]>(MOCK_MESSAGES);
+    const { dbUserId, verificationData } = useAuth();
+
+    const [groupId, setGroupId] = useState<string | null>(null);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [members, setMembers] = useState<Member[]>([]);
+    const [todaySignals, setTodaySignals] = useState<TodaySignal[]>([]);
+    const [loading, setLoading] = useState(true);
     const [inputText, setInputText] = useState('');
     const [showMentions, setShowMentions] = useState(false);
     const [mentionFilter, setMentionFilter] = useState('');
     const [showSignalModal, setShowSignalModal] = useState(false);
     const [showMobileMembers, setShowMobileMembers] = useState(false);
     const [showMobileSignals, setShowMobileSignals] = useState(false);
+    const [sending, setSending] = useState(false);
+    const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
+
     const chatEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const groupIdRef = useRef<string | null>(null);
 
-    // Signal composer state
-    const [signalForm, setSignalForm] = useState({
-        symbol: '', action: 'BUY' as 'BUY' | 'SELL',
-        strikePrice: '', expiry: '', stopLoss: '', target: '',
+    const playNotificationSound = useCallback(() => {
+        try {
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.3);
+        } catch (_) {}
+    }, []);
+
+    const [signalForm, setSignalForm] = useState<SignalFormData>({
+        symbol: '', action: 'BUY', strikePrice: '', expiry: '', stopLoss: '', target: '',
     });
+
+    // Current user display info (from members list or auth fallback)
+    const currentMember = useMemo(
+        () => members.find(m => m.id === dbUserId),
+        [members, dbUserId]
+    );
+    const currentUserName = currentMember?.name ?? verificationData.fullName ?? 'You';
+    const currentUserInitials = currentMember?.initials ?? getInitials(currentUserName);
+    const currentUserColor = currentMember?.color ?? (dbUserId ? getUserColor(dbUserId) : '#00C853');
 
     const riskReward = useMemo(() => {
         const entry = parseFloat(signalForm.strikePrice);
@@ -188,76 +166,235 @@ const GroupChat: React.FC = () => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // ─── Handlers ──────────────────────
-    const handleSendMessage = () => {
+    // Re-fetch all messages — used by reaction/response subscriptions
+    const refetchMessages = useCallback(async () => {
+        const gid = groupIdRef.current;
+        if (!gid) return;
+        try {
+            const msgs = await fetchMessagesService(gid);
+            setMessages(msgs);
+        } catch (e) {
+            console.error('refetchMessages error:', e);
+        }
+    }, []);
+
+    // Initial load + realtime subscriptions
+    useEffect(() => {
+        if (!dbUserId) return;
+
+        let unsubs: (() => void)[] = [];
+
+        const init = async () => {
+            try {
+                // Get the user's first group membership
+                const { data: membership } = await supabase
+                    .from('group_members')
+                    .select('group_id')
+                    .eq('user_id', dbUserId)
+                    .limit(1)
+                    .single();
+
+                if (!membership?.group_id) {
+                    setLoading(false);
+                    return;
+                }
+
+                const gid: string = membership.group_id;
+                setGroupId(gid);
+                groupIdRef.current = gid;
+
+                // Parallel initial data fetch
+                const [msgs, mems, sigs] = await Promise.all([
+                    fetchMessagesService(gid),
+                    fetchMembersService(gid),
+                    fetchTodaySignalsService(gid),
+                ]);
+
+                setMessages(msgs);
+                setMembers(mems);
+                setTodaySignals(sigs);
+                setLoading(false);
+
+                // Presence: track who's online in real-time
+                const unsubPresence = subscribeToPresence(gid, dbUserId!, (ids) => {
+                    setOnlineUserIds(new Set(ids));
+                });
+
+                // subscribeToMessages: hands back a fully-enriched ChatMessage
+                const unsubMessages = subscribeToMessages(gid, (newMsg: ChatMessage) => {
+                    setMessages(prev => {
+                        // Replace optimistic temp message from same sender with same text
+                        const withoutTemp = prev.filter(m =>
+                            !(m.id.startsWith('temp_') && m.senderId === newMsg.senderId && m.text === newMsg.text)
+                        );
+                        // Dedup by id
+                        if (withoutTemp.find(m => m.id === newMsg.id)) return withoutTemp;
+                        // Play sound only for messages from others
+                        if (newMsg.senderId !== dbUserId) playNotificationSound();
+                        return [...withoutTemp, newMsg];
+                    });
+                });
+
+                // subscribeToReactions / subscribeToSignalResponses only fire "something changed"
+                // so we re-fetch affected messages from DB
+                const unsubReactions = subscribeToReactions(gid, () => refetchMessages());
+                const unsubResponses = subscribeToSignalResponses(gid, () => refetchMessages());
+
+                unsubs = [unsubPresence, unsubMessages, unsubReactions, unsubResponses];
+            } catch (e) {
+                console.error('GroupChat init error:', e);
+                setLoading(false);
+            }
+        };
+
+        init();
+
+        return () => unsubs.forEach(fn => fn());
+    }, [dbUserId, refetchMessages]);
+
+    // ─── Handlers ──────────────────────────────────────────────
+    const handleSendMessage = async () => {
         const text = inputText.trim();
-        if (!text) return;
-        const newMsg: ChatMessage = {
-            id: `m${Date.now()}`, senderId: '1', senderName: 'Prabhu Padala', senderInitials: 'PP', senderColor: '#00C853',
-            text, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        if (!text || !groupId || sending) return;
+
+        const tempId = `temp_${Date.now()}`;
+        const optimistic: ChatMessage = {
+            id: tempId,
+            senderId: dbUserId!,
+            senderName: currentUserName,
+            senderInitials: currentUserInitials,
+            senderColor: currentUserColor,
+            text,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             reactions: [],
         };
-        setMessages(prev => [...prev, newMsg]);
+
+        setMessages(prev => [...prev, optimistic]);
         setInputText('');
         setShowMentions(false);
+
+        try {
+            await sendMessageService(groupId, text);
+            // Realtime subscription will replace the temp message with the real one
+        } catch (e) {
+            console.error('sendMessage error:', e);
+            setMessages(prev => prev.filter(m => m.id !== tempId));
+        }
     };
 
-    const handleReaction = (msgId: string, emoji: string) => {
+    const handleReaction = async (msgId: string, emoji: string) => {
+        // Optimistic update immediately
         setMessages(prev => prev.map(m => {
             if (m.id !== msgId) return m;
             const existing = m.reactions.find(r => r.emoji === emoji);
             if (existing) {
                 return {
-                    ...m, reactions: m.reactions.map(r =>
-                        r.emoji === emoji ? { ...r, count: r.reacted ? r.count - 1 : r.count + 1, reacted: !r.reacted } : r
-                    ).filter(r => r.count > 0),
+                    ...m,
+                    reactions: m.reactions
+                        .map(r => r.emoji === emoji
+                            ? { ...r, count: r.reacted ? r.count - 1 : r.count + 1, reacted: !r.reacted }
+                            : r
+                        )
+                        .filter(r => r.count > 0),
                 };
             }
             return { ...m, reactions: [...m.reactions, { emoji, count: 1, reacted: true }] };
         }));
+
+        try {
+            await toggleReactionService(msgId, emoji);
+        } catch (e) {
+            console.error('toggleReaction error:', e);
+            refetchMessages(); // revert via re-fetch on failure
+        }
     };
 
-    const handleSignalResponse = (msgId: string, response: 'in' | 'skip' | 'watching') => {
+    const handleSignalResponse = async (
+        msgId: string,
+        signalId: string,
+        response: 'in' | 'skip' | 'watching'
+    ) => {
+        // Skip optimistic on temp signals (not yet persisted)
+        if (signalId.startsWith('temp_')) return;
+
+        // Optimistic update
         setMessages(prev => prev.map(m => {
             if (m.id !== msgId || !m.signal) return m;
             const prev_ = m.signal.myResponse;
             const newResponses = { ...m.signal.responses };
             if (prev_) {
-                const key = prev_ === 'in' ? 'in' : prev_ === 'skip' ? 'skip' : 'watching';
-                newResponses[key] = Math.max(0, newResponses[key] - 1);
+                newResponses[prev_] = Math.max(0, newResponses[prev_] - 1);
             }
             if (prev_ === response) {
                 return { ...m, signal: { ...m.signal, responses: newResponses, myResponse: null } };
             }
-            const addKey = response === 'in' ? 'in' : response === 'skip' ? 'skip' : 'watching';
-            newResponses[addKey]++;
+            newResponses[response]++;
             return { ...m, signal: { ...m.signal, responses: newResponses, myResponse: response } };
         }));
+
+        try {
+            await setSignalResponseService(signalId, response);
+        } catch (e) {
+            console.error('setSignalResponse error:', e);
+            refetchMessages();
+        }
     };
 
-    const handleShareSignal = () => {
-        if (!signalForm.symbol || !signalForm.strikePrice) return;
-        const newMsg: ChatMessage = {
-            id: `m${Date.now()}`, senderId: '1', senderName: 'Prabhu Padala', senderInitials: 'PP', senderColor: '#00C853',
-            text: '', timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    const handleShareSignal = async () => {
+        if (!signalForm.symbol || !signalForm.strikePrice || !groupId || sending) return;
+        setSending(true);
+
+        const tempId = `temp_${Date.now()}`;
+        const optimistic: ChatMessage = {
+            id: tempId,
+            senderId: dbUserId!,
+            senderName: currentUserName,
+            senderInitials: currentUserInitials,
+            senderColor: currentUserColor,
+            text: '',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             reactions: [],
             signal: {
-                symbol: signalForm.symbol.toUpperCase(), action: signalForm.action,
-                strikePrice: parseFloat(signalForm.strikePrice) || 0, expiry: signalForm.expiry || 'TBD',
-                stopLoss: parseFloat(signalForm.stopLoss) || 0, target: parseFloat(signalForm.target) || 0,
-                riskReward, currentPrice: parseFloat(signalForm.strikePrice) || 0,
-                responses: { in: 0, skip: 0, watching: 0 }, myResponse: null,
+                id: tempId,
+                symbol: signalForm.symbol.toUpperCase(),
+                action: signalForm.action,
+                strikePrice: parseFloat(signalForm.strikePrice) || 0,
+                expiry: signalForm.expiry || 'TBD',
+                stopLoss: parseFloat(signalForm.stopLoss) || 0,
+                target: parseFloat(signalForm.target) || 0,
+                riskReward,
+                currentPrice: parseFloat(signalForm.strikePrice) || 0,
+                responses: { in: 0, skip: 0, watching: 0 },
+                myResponse: null,
             },
         };
-        setMessages(prev => [...prev, newMsg]);
+
+        setMessages(prev => [...prev, optimistic]);
         setShowSignalModal(false);
         setSignalForm({ symbol: '', action: 'BUY', strikePrice: '', expiry: '', stopLoss: '', target: '' });
+
+        try {
+            await sendSignalService(groupId, {
+                symbol: signalForm.symbol.toUpperCase(),
+                action: signalForm.action,
+                strikePrice: parseFloat(signalForm.strikePrice) || 0,
+                expiry: signalForm.expiry || 'TBD',
+                stopLoss: parseFloat(signalForm.stopLoss) || 0,
+                target: parseFloat(signalForm.target) || 0,
+            });
+            // Realtime will replace temp with real message
+        } catch (e) {
+            console.error('sendSignal error:', e);
+            setMessages(prev => prev.filter(m => m.id !== tempId));
+        } finally {
+            setSending(false);
+        }
     };
 
     const handleInputChange = (val: string) => {
         setInputText(val);
         const lastAt = val.lastIndexOf('@');
-        if (lastAt !== -1 && lastAt === val.length - 1 - (val.length - 1 - lastAt)) {
+        if (lastAt !== -1) {
             const afterAt = val.slice(lastAt + 1);
             if (!afterAt.includes(' ') || afterAt.length < 15) {
                 setShowMentions(true);
@@ -276,21 +413,40 @@ const GroupChat: React.FC = () => {
         inputRef.current?.focus();
     };
 
-    const filteredMembers = MEMBERS.filter(m =>
+    const filteredMembers = members.filter(m =>
         m.name.toLowerCase().includes(mentionFilter)
     );
 
-    const onlineMembersCount = MEMBERS.filter(m => m.online).length;
-    const signalWins = TODAY_SIGNALS.filter(s => s.status === 'win').length;
-    const signalLosses = TODAY_SIGNALS.filter(s => s.status === 'loss').length;
+    const onlineMembersCount = members.filter(m => onlineUserIds.has(m.id)).length;
+    const signalWins = todaySignals.filter(s => s.status === 'win').length;
+    const signalLosses = todaySignals.filter(s => s.status === 'loss').length;
 
-    // ─── RENDER ────────────────────────
+    // ─── LOADING / EMPTY STATES ────────────────────────────────
+    if (loading) {
+        return (
+            <div className="flex h-full items-center justify-center bg-[#0D1117]">
+                <div className="text-center">
+                    <div className="w-8 h-8 border-2 border-[#00BCD4] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                    <p className="text-xs text-gray-500">Loading chat...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!groupId) {
+        return (
+            <div className="flex h-full items-center justify-center bg-[#0D1117]">
+                <p className="text-sm text-gray-500">You are not a member of any group yet.</p>
+            </div>
+        );
+    }
+
+    // ─── RENDER ────────────────────────────────────────────────
     return (
         <div className="flex h-full bg-[#0D1117] text-white overflow-hidden" style={{ fontFamily: "'Inter', sans-serif" }}>
 
             {/* ─── LEFT SIDEBAR: Members ─── */}
             <div className={`${showMobileMembers ? 'fixed inset-0 z-50 bg-[#0D1117]' : 'hidden'} lg:block lg:relative lg:w-[200px] flex-shrink-0 border-r border-[#30363D] flex flex-col`}>
-                {/* Mobile close */}
                 <div className="flex items-center justify-between p-4 border-b border-[#30363D] lg:hidden">
                     <span className="text-sm font-bold">Members</span>
                     <button onClick={() => setShowMobileMembers(false)} className="text-gray-400 hover:text-white">
@@ -300,7 +456,7 @@ const GroupChat: React.FC = () => {
                 <div className="p-4 border-b border-[#30363D]">
                     <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Group Members</span>
-                        <span className="bg-[#00BCD4]/15 text-[#00BCD4] px-1.5 py-0.5 rounded text-[10px] font-bold">{MEMBERS.length}</span>
+                        <span className="bg-[#00BCD4]/15 text-[#00BCD4] px-1.5 py-0.5 rounded text-[10px] font-bold">{members.length}</span>
                     </div>
                     <div className="flex items-center gap-1.5 mt-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-[#00C853]"></span>
@@ -308,13 +464,13 @@ const GroupChat: React.FC = () => {
                     </div>
                 </div>
                 <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
-                    {MEMBERS.map(m => (
+                    {members.map(m => (
                         <div key={m.id} className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-[#161B22] transition-colors cursor-pointer group">
                             <div className="relative flex-shrink-0">
                                 <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold" style={{ backgroundColor: m.color + '20', color: m.color }}>
                                     {m.initials}
                                 </div>
-                                <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#0D1117] ${m.online ? 'bg-[#00C853]' : 'bg-gray-600'}`}></span>
+                                <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#0D1117] ${onlineUserIds.has(m.id) ? 'bg-[#00C853]' : 'bg-gray-600'}`}></span>
                             </div>
                             <div className="min-w-0 flex-1">
                                 <p className="text-xs font-semibold text-gray-200 truncate group-hover:text-white transition-colors">{m.name}</p>
@@ -330,7 +486,6 @@ const GroupChat: React.FC = () => {
                 {/* Top Bar */}
                 <div className="flex items-center justify-between px-5 py-3 border-b border-[#30363D] bg-[#0D1117]/80 backdrop-blur-sm flex-shrink-0">
                     <div className="flex items-center gap-3">
-                        {/* Mobile toggles */}
                         <button onClick={() => setShowMobileMembers(true)} className="lg:hidden text-gray-400 hover:text-white">
                             <span className="material-symbols-outlined text-xl">group</span>
                         </button>
@@ -339,7 +494,7 @@ const GroupChat: React.FC = () => {
                         </div>
                         <div>
                             <h2 className="text-sm font-bold text-white">TradingKarna Team</h2>
-                            <span className="text-[10px] text-gray-500">{onlineMembersCount} members online • {TODAY_SIGNALS.length} signals today</span>
+                            <span className="text-[10px] text-gray-500">{onlineMembersCount} members online • {todaySignals.length} signals today</span>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -409,19 +564,19 @@ const GroupChat: React.FC = () => {
                                                 {/* Action Buttons */}
                                                 <div className="flex gap-2 pt-1">
                                                     <button
-                                                        onClick={() => handleSignalResponse(msg.id, 'in')}
+                                                        onClick={() => handleSignalResponse(msg.id, msg.signal!.id, 'in')}
                                                         className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 flex items-center gap-1 ${msg.signal.myResponse === 'in' ? 'bg-[#00C853] text-black' : 'bg-[#00C853]/10 text-[#00C853] border border-[#00C853]/30 hover:bg-[#00C853]/20'}`}
                                                     >
                                                         ✅ I'm In
                                                     </button>
                                                     <button
-                                                        onClick={() => handleSignalResponse(msg.id, 'skip')}
+                                                        onClick={() => handleSignalResponse(msg.id, msg.signal!.id, 'skip')}
                                                         className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 flex items-center gap-1 ${msg.signal.myResponse === 'skip' ? 'bg-[#FF1744] text-white' : 'bg-[#FF1744]/10 text-[#FF1744] border border-[#FF1744]/30 hover:bg-[#FF1744]/20'}`}
                                                     >
                                                         ❌ Skip
                                                     </button>
                                                     <button
-                                                        onClick={() => handleSignalResponse(msg.id, 'watching')}
+                                                        onClick={() => handleSignalResponse(msg.id, msg.signal!.id, 'watching')}
                                                         className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 flex items-center gap-1 ${msg.signal.myResponse === 'watching' ? 'bg-[#FFD740] text-black' : 'bg-[#FFD740]/10 text-[#FFD740] border border-[#FFD740]/30 hover:bg-[#FFD740]/20'}`}
                                                     >
                                                         👀 Watching
@@ -445,7 +600,6 @@ const GroupChat: React.FC = () => {
                                                     <span className="font-mono text-[10px]">{r.count}</span>
                                                 </button>
                                             ))}
-                                            {/* Add reaction button */}
                                             <span className="opacity-0 group-hover/msg:opacity-100 transition-opacity">
                                                 {['👍', '✅', '🔥'].filter(e => !msg.reactions.find(r => r.emoji === e)).map(e => (
                                                     <button key={e} onClick={() => handleReaction(msg.id, e)}
@@ -539,7 +693,7 @@ const GroupChat: React.FC = () => {
                         </div>
                         <button
                             onClick={handleSendMessage}
-                            disabled={!inputText.trim()}
+                            disabled={!inputText.trim() || sending}
                             className="w-10 h-10 rounded-xl bg-[#00BCD4] flex items-center justify-center text-white hover:bg-[#00BCD4]/80 transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
                         >
                             <span className="material-symbols-outlined text-lg">send</span>
@@ -550,7 +704,6 @@ const GroupChat: React.FC = () => {
 
             {/* ─── RIGHT SIDEBAR: Today's Signals ─── */}
             <div className={`${showMobileSignals ? 'fixed inset-0 z-50 bg-[#0D1117]' : 'hidden'} lg:block lg:relative lg:w-[250px] flex-shrink-0 border-l border-[#30363D] flex flex-col`}>
-                {/* Mobile close */}
                 <div className="flex items-center justify-between p-4 border-b border-[#30363D] lg:hidden">
                     <span className="text-sm font-bold">Today's Signals</span>
                     <button onClick={() => setShowMobileSignals(false)} className="text-gray-400 hover:text-white">
@@ -560,11 +713,11 @@ const GroupChat: React.FC = () => {
                 <div className="p-4 border-b border-[#30363D]">
                     <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Today's Signals</span>
-                        <span className="bg-[#00BCD4]/15 text-[#00BCD4] px-1.5 py-0.5 rounded text-[10px] font-bold">{TODAY_SIGNALS.length}</span>
+                        <span className="bg-[#00BCD4]/15 text-[#00BCD4] px-1.5 py-0.5 rounded text-[10px] font-bold">{todaySignals.length}</span>
                     </div>
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                    {TODAY_SIGNALS.map((s, i) => (
+                    {todaySignals.map((s, i) => (
                         <div key={i} className="bg-[#161B22] rounded-xl border border-[#30363D] p-3 hover:border-[#30363D]/80 transition-colors">
                             <div className="flex items-center justify-between mb-1.5">
                                 <div className="flex items-center gap-2">
@@ -588,7 +741,7 @@ const GroupChat: React.FC = () => {
                 <div className="p-3 border-t border-[#30363D]">
                     <div className="bg-[#161B22] rounded-lg px-3 py-2 text-center">
                         <p className="text-[10px] text-gray-400 font-semibold">
-                            Today: <span className="text-white">{TODAY_SIGNALS.length} Signals</span> | <span className="text-[#00C853]">{signalWins} ✅</span> | <span className="text-[#FF1744]">{signalLosses} ❌</span>
+                            Today: <span className="text-white">{todaySignals.length} Signals</span> | <span className="text-[#00C853]">{signalWins} ✅</span> | <span className="text-[#FF1744]">{signalLosses} ❌</span>
                         </p>
                     </div>
                 </div>
@@ -610,13 +763,11 @@ const GroupChat: React.FC = () => {
                         </div>
                         {/* Modal Body */}
                         <div className="px-5 py-4 space-y-4">
-                            {/* Symbol */}
                             <div>
                                 <label className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-1.5">Symbol</label>
                                 <input value={signalForm.symbol} onChange={e => setSignalForm(p => ({ ...p, symbol: e.target.value.toUpperCase() }))}
                                     placeholder="e.g. AAPL" className="w-full bg-[#0D1117] border border-[#30363D] rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#00BCD4]/50" />
                             </div>
-                            {/* Action Toggle */}
                             <div>
                                 <label className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-1.5">Action</label>
                                 <div className="flex gap-2">
@@ -630,7 +781,6 @@ const GroupChat: React.FC = () => {
                                     </button>
                                 </div>
                             </div>
-                            {/* Price Fields */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-1.5">Strike Price</label>
@@ -664,11 +814,11 @@ const GroupChat: React.FC = () => {
                         {/* Modal Footer */}
                         <div className="px-5 py-4 border-t border-[#30363D]">
                             <button onClick={handleShareSignal}
-                                disabled={!signalForm.symbol || !signalForm.strikePrice}
+                                disabled={!signalForm.symbol || !signalForm.strikePrice || sending}
                                 className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#00BCD4] to-[#00C853] text-black text-sm font-bold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                             >
                                 <span className="material-symbols-outlined text-lg">share</span>
-                                Share Signal
+                                {sending ? 'Sharing...' : 'Share Signal'}
                             </button>
                         </div>
                     </div>
