@@ -220,11 +220,6 @@ const Portfolio: React.FC = () => {
         fetchPortfolio();
     }, [selectedBroker?.id]);
 
-    // Auto-refresh every 5 minutes
-    useEffect(() => {
-        const interval = setInterval(fetchPortfolio, 5 * 60 * 1000);
-        return () => clearInterval(interval);
-    }, [fetchPortfolio]);
 
     const handleRefresh = () => {
         setRefreshing(true);
