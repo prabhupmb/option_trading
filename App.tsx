@@ -550,7 +550,11 @@ const App: React.FC = () => {
                     {tab.label}
                   </button>
                 ))}
-                {role === 'admin' && strategies.filter(s => !['iron_gate', 'iron_gate_day'].includes(s.strategy)).map(strategy => (
+                {strategies.filter(s => {
+                  if (['iron_gate', 'iron_gate_day'].includes(s.strategy)) return false;
+                  if (role !== 'admin' && s.strategy !== 'day_trade') return false;
+                  return true;
+                }).map(strategy => (
                   <button
                     key={strategy.strategy}
                     onClick={() => setActiveTab(strategy.strategy)}
