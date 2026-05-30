@@ -1,0 +1,493 @@
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+
+// ─── TYPES ─────────────────────────────────────────────────────
+interface FAQItem {
+  q: string;
+  a: string;
+}
+
+interface FAQSection {
+  id: string;
+  icon: React.ReactNode;
+  title: string;
+  color: string;
+  items: FAQItem[];
+}
+
+// ─── DATA ──────────────────────────────────────────────────────
+const icon = (name: string) => <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{name}</span>;
+
+const SECTIONS: FAQSection[] = [
+  {
+    id: 'getting-started',
+    icon: icon('rocket_launch'),
+    title: 'Getting Started',
+    color: '#00C853',
+    items: [
+      {
+        q: 'What is TradingKarna?',
+        a: 'TradingKarna is an AI-powered personal trading platform that combines real-time options scanning, stock signals, and automated trade execution in one place. It is designed to help both new and experienced traders make faster, smarter decisions without needing to watch the market all day.',
+      },
+      {
+        q: 'Who is this platform for?',
+        a: 'TradingKarna is built for active retail traders who want data-driven signals and automation without the complexity of institutional tools. Whether you are day trading options or swing trading stocks, the platform adapts to your strategy and risk level.',
+      },
+      {
+        q: 'How do I get access?',
+        a: 'You can request access by visiting tradingkarna.com and signing in with your Google account. After submitting your profile, an admin reviews and approves your account — usually within 24 hours. You will receive an email notification once approved.',
+      },
+      {
+        q: 'Is this platform free?',
+        a: 'TradingKarna offers a trial period for new users to explore the platform\'s features. After the trial, a subscription plan is required to continue accessing live signals, auto-trade, and advanced scanning tools. Pricing details are shared during onboarding.',
+      },
+    ],
+  },
+  {
+    id: 'iron-gate',
+    icon: icon('bar_chart'),
+    title: 'Iron Gate (Options Scanning)',
+    color: '#2196F3',
+    items: [
+      {
+        q: 'What is Iron Gate?',
+        a: 'Iron Gate is TradingKarna\'s options scanning engine that continuously monitors the market for high-probability trade setups. It analyzes price action, volume, and momentum to surface actionable alerts in real time.',
+      },
+      {
+        q: 'What kind of signals does Iron Gate generate?',
+        a: 'Iron Gate generates directional options signals — typically calls or puts — based on technical breakouts and pattern recognition. Each alert includes the ticker, strike price, expiry, stop loss, and target so you have everything needed to evaluate the trade.',
+      },
+      {
+        q: 'How do I read Iron Gate alerts?',
+        a: 'Each alert card shows the symbol, direction (CALL/PUT), entry zone, stop loss, and profit target. A green card means a bullish setup; a red card means bearish. You can click any card to see the full signal detail and execute directly through your connected broker.',
+      },
+      {
+        q: 'What is the difference between Iron Gate and Iron Gate Day Trade?',
+        a: 'Iron Gate is optimized for swing trades that may last days to weeks, while Iron Gate Day Trade focuses on intraday setups that typically open and close within the same session. Day Trade mode scans more aggressively during market open hours and targets shorter-duration contracts.',
+      },
+    ],
+  },
+  {
+    id: 'stock-gate',
+    icon: icon('trending_up'),
+    title: 'Stock Gate',
+    color: '#E040FB',
+    items: [
+      {
+        q: 'What is Stock Gate?',
+        a: 'Stock Gate is a momentum-based scanner that identifies high-conviction stock trade setups across the US equity market. It is ideal for traders who prefer equities over options and want clear entry and exit levels.',
+      },
+      {
+        q: 'What stocks does Stock Gate scan?',
+        a: 'Stock Gate covers a broad universe of US-listed equities, with a focus on liquid, high-volume names that are more likely to follow technical patterns. The scanner dynamically adjusts its watchlist based on market conditions and sector rotation.',
+      },
+      {
+        q: 'How are Stock Gate signals different from Iron Gate?',
+        a: 'Stock Gate signals are for buying or shorting the underlying stock directly, while Iron Gate signals are for options contracts. Stock Gate setups generally carry lower risk and are better suited for traders who want to avoid options complexity or leverage.',
+      },
+    ],
+  },
+  {
+    id: 'auto-trade',
+    icon: icon('smart_toy'),
+    title: 'Auto Trade',
+    color: '#FF9800',
+    items: [
+      {
+        q: 'What is Auto Trade?',
+        a: 'Auto Trade lets TradingKarna automatically place, manage, and close trades on your behalf using your connected brokerage account. It follows the same signals generated by Iron Gate and Stock Gate but executes without requiring manual intervention.',
+      },
+      {
+        q: 'Which brokers support Auto Trade?',
+        a: 'Auto Trade currently supports Alpaca and Charles Schwab. Both brokers offer API access that TradingKarna uses to place orders securely. Additional broker integrations are planned for future releases.',
+      },
+      {
+        q: 'How do I enable Auto Trade?',
+        a: 'Go to Settings → Brokers, connect your brokerage account using your API credentials, then navigate to the Auto Trade page and toggle the strategy you want to automate. You can set position size, risk limits, and max daily trades before activating.',
+      },
+      {
+        q: 'Is Auto Trade safe to leave running?',
+        a: 'Auto Trade includes built-in risk controls such as stop losses, max position limits, and daily loss caps. However, all automated trading carries inherent risk. We recommend starting with small position sizes and monitoring performance regularly, especially during volatile market conditions.',
+      },
+    ],
+  },
+  {
+    id: 'group-chat',
+    icon: icon('forum'),
+    title: 'Group Chat',
+    color: '#00BCD4',
+    items: [
+      {
+        q: 'What is the Group Chat?',
+        a: 'Group Chat is a real-time messaging room where TradingKarna members share trade ideas, discuss signals, and post live trading alerts. It keeps you connected with the community and helps you stay on top of what other traders are watching.',
+      },
+      {
+        q: 'How do I share a signal in Group Chat?',
+        a: 'Click the chart icon in the message bar to open the Signal Composer. Fill in the symbol, action, strike price, stop loss, and target — then hit Share Signal. Your signal card will appear in the chat for others to react to and respond.',
+      },
+      {
+        q: 'Can I see who is online in Group Chat?',
+        a: 'Yes. The Group Members panel on the left shows all members with a green dot next to anyone currently active in the chat. The header also displays the live online count so you always know who is in the room.',
+      },
+    ],
+  },
+  {
+    id: 'brokers',
+    icon: icon('account_balance'),
+    title: 'Brokers & Accounts',
+    color: '#FFD740',
+    items: [
+      {
+        q: 'Which brokers are currently supported?',
+        a: 'TradingKarna currently supports Alpaca (paper and live trading) and Charles Schwab (live trading). Alpaca is great for getting started quickly with a paper account, while Schwab suits traders who already use it as their primary brokerage.',
+      },
+      {
+        q: 'How do I connect a new broker?',
+        a: 'Go to Settings → Brokers → Add Broker. Select your broker, enter your API key and secret (for Alpaca) or OAuth credentials (for Schwab), and save. TradingKarna will verify the connection and display your account balance and positions.',
+      },
+      {
+        q: 'Can I use multiple brokers at the same time?',
+        a: 'Yes. You can connect multiple broker accounts and switch between them using the broker selector in the top navigation bar. Each strategy can be configured to route orders to a specific broker.',
+      },
+      {
+        q: 'What happens if my broker connection expires?',
+        a: 'If your API credentials expire or are revoked, TradingKarna will pause any automated trading and display a warning in the broker settings. You will need to reconnect or re-authorize your account to resume. No orders will be placed while the connection is inactive.',
+      },
+    ],
+  },
+  {
+    id: 'settings',
+    icon: icon('settings'),
+    title: 'Platform & Settings',
+    color: '#69F0AE',
+    items: [
+      {
+        q: 'How do I set my risk preferences?',
+        a: 'Navigate to Settings → Risk & Strategy. You can set your risk level (Low, Medium, High), default position size in dollars, and maximum number of open positions. These settings influence how Auto Trade sizes and manages your trades.',
+      },
+      {
+        q: 'How do I manage notifications and alerts?',
+        a: 'Notification preferences are available in Settings → Notifications. You can enable or disable alerts for new signals, trade executions, stop loss triggers, and daily summaries. Alerts can be delivered in-app or via Telegram if you connect your chat ID.',
+      },
+      {
+        q: 'Can multiple users access the platform?',
+        a: 'Each TradingKarna account is individual and tied to a single Google login. If you need team or multi-user access, please contact support — we can explore options for group plans depending on your use case.',
+      },
+    ],
+  },
+  {
+    id: 'safety',
+    icon: icon('shield'),
+    title: 'Safety & Disclaimer',
+    color: '#FF5252',
+    items: [
+      {
+        q: 'Is my brokerage data secure?',
+        a: 'Yes. TradingKarna stores your API credentials encrypted and never shares them with third parties. All communication between the platform and your broker uses HTTPS. We recommend using API keys with trade-only permissions and never sharing your account login credentials.',
+      },
+      {
+        q: 'Is TradingKarna a registered financial advisor?',
+        a: 'No. TradingKarna is a technology platform that provides data-driven trade signals and automation tools. It is not a registered investment advisor or broker-dealer. All trading decisions and their outcomes are your sole responsibility.',
+      },
+      {
+        q: 'What is the risk disclaimer?',
+        a: 'Trading stocks and options involves significant risk of loss and is not suitable for every investor. Past signal performance does not guarantee future results. You should only trade with capital you can afford to lose, and we strongly encourage consulting a licensed financial advisor before making investment decisions.',
+      },
+    ],
+  },
+];
+
+// ─── ACCORDION ITEM ────────────────────────────────────────────
+const AccordionItem: React.FC<{
+  item: FAQItem;
+  color: string;
+  isOpen: boolean;
+  onToggle: () => void;
+}> = ({ item, color, isOpen, onToggle }) => {
+  const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(0);
+
+  useEffect(() => {
+    if (bodyRef.current) {
+      setHeight(isOpen ? bodyRef.current.scrollHeight : 0);
+    }
+  }, [isOpen]);
+
+  return (
+    <div className={`border rounded-xl overflow-hidden transition-all duration-200 ${isOpen ? 'border-opacity-40' : 'border-white/5'}`}
+      style={{ borderColor: isOpen ? color + '60' : undefined, backgroundColor: '#0f1623' }}>
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-5 py-4 text-left gap-3 group"
+      >
+        <span className={`text-sm font-semibold transition-colors duration-200 ${isOpen ? 'text-white' : 'text-gray-300 group-hover:text-white'}`}>
+          {item.q}
+        </span>
+        <span
+          className="material-symbols-outlined flex-shrink-0 text-gray-500 transition-transform duration-300"
+          style={{ fontSize: 16, transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', color: isOpen ? color : undefined }}
+        >expand_more</span>
+      </button>
+
+      <div style={{ height, overflow: 'hidden', transition: 'height 0.3s ease' }}>
+        <div ref={bodyRef} className="px-5 pb-5">
+          <div className="w-full h-px mb-4" style={{ backgroundColor: color + '30' }} />
+          <p className="text-sm text-gray-400 leading-relaxed">{item.a}</p>
+
+          {/* Feedback */}
+          <div className="flex items-center gap-3 mt-4">
+            <span className="text-[11px] text-gray-600 font-medium">Was this helpful?</span>
+            <button
+              onClick={() => setFeedback(f => f === 'up' ? null : 'up')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${feedback === 'up' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-white/5 text-gray-500 border border-white/10 hover:text-gray-300'}`}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 11 }}>thumb_up</span> Yes
+            </button>
+            <button
+              onClick={() => setFeedback(f => f === 'down' ? null : 'down')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${feedback === 'down' ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-white/5 text-gray-500 border border-white/10 hover:text-gray-300'}`}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 11 }}>thumb_down</span> No
+            </button>
+            {feedback && (
+              <span className="text-[11px] text-gray-500 animate-in fade-in">
+                {feedback === 'up' ? 'Thanks for the feedback!' : 'We\'ll work on improving this.'}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── SECTION ───────────────────────────────────────────────────
+const FAQSectionBlock: React.FC<{
+  section: FAQSection;
+  searchQuery: string;
+}> = ({ section, searchQuery }) => {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+
+  const filtered = useMemo(() => {
+    if (!searchQuery) return section.items;
+    const q = searchQuery.toLowerCase();
+    return section.items.filter(
+      item => item.q.toLowerCase().includes(q) || item.a.toLowerCase().includes(q)
+    );
+  }, [section.items, searchQuery]);
+
+  if (filtered.length === 0) return null;
+
+  return (
+    <div id={section.id} className="scroll-mt-24">
+      {/* Section Header */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: section.color + '20', color: section.color }}>
+          {section.icon}
+        </div>
+        <h2 className="text-base font-bold text-white">{section.title}</h2>
+        <div className="flex-1 h-px ml-2" style={{ backgroundColor: section.color + '20' }} />
+      </div>
+
+      {/* FAQ Items */}
+      <div className="space-y-2">
+        {filtered.map((item, i) => (
+          <AccordionItem
+            key={i}
+            item={item}
+            color={section.color}
+            isOpen={openIndex === i}
+            onToggle={() => setOpenIndex(openIndex === i ? null : i)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ─── MAIN COMPONENT ────────────────────────────────────────────
+const FAQPage: React.FC = () => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeSection, setActiveSection] = useState('getting-started');
+
+  // Observe which section is in view
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        entries.forEach(e => {
+          if (e.isIntersecting) setActiveSection(e.target.id);
+        });
+      },
+      { rootMargin: '-30% 0px -60% 0px' }
+    );
+    SECTIONS.forEach(s => {
+      const el = document.getElementById(s.id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  const totalResults = useMemo(() => {
+    if (!searchQuery) return null;
+    const q = searchQuery.toLowerCase();
+    return SECTIONS.reduce((acc, s) => acc + s.items.filter(
+      item => item.q.toLowerCase().includes(q) || item.a.toLowerCase().includes(q)
+    ).length, 0);
+  }, [searchQuery]);
+
+  const scrollTo = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  return (
+    <div className="min-h-screen bg-[#080d16] text-white" style={{ fontFamily: "'Inter', sans-serif" }}>
+
+      {/* ─── STICKY NAV ─── */}
+      <div className="sticky top-0 z-30 bg-[#080d16]/90 backdrop-blur-md border-b border-white/5">
+        <div className="max-w-6xl mx-auto px-4">
+          {/* Top bar */}
+          <div className="flex items-center justify-between py-3">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#00C853] to-[#00BCD4] flex items-center justify-center">
+                <span className="material-symbols-outlined text-black" style={{ fontSize: 13 }}>rocket_launch</span>
+              </div>
+              <span className="text-sm font-bold text-white tracking-tight">TradingKarna</span>
+              <span className="text-xs text-gray-500 ml-1">/ FAQ</span>
+            </div>
+            {/* Search */}
+            <div className="relative w-64 hidden sm:block">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" style={{ fontSize: 13 }}>search</span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search questions..."
+                className="w-full bg-white/5 border border-white/10 rounded-lg pl-8 pr-8 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#00BCD4]/40 focus:bg-white/8 transition-all"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
+                  <span className="material-symbols-outlined" style={{ fontSize: 11 }}>close</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Section nav tabs */}
+          <div className="flex gap-1 overflow-x-auto pb-0 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
+            {SECTIONS.map(s => (
+              <button
+                key={s.id}
+                onClick={() => scrollTo(s.id)}
+                className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-semibold whitespace-nowrap border-b-2 transition-all ${activeSection === s.id ? 'border-current text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
+                style={{ borderColor: activeSection === s.id ? s.color : undefined, color: activeSection === s.id ? s.color : undefined }}
+              >
+                <span style={{ color: activeSection === s.id ? s.color : undefined }}>{s.icon}</span>
+                <span className="hidden md:inline">{s.title}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ─── HERO ─── */}
+      <div className="max-w-6xl mx-auto px-4 pt-14 pb-10 text-center">
+        <div className="inline-flex items-center gap-2 bg-[#00C853]/10 border border-[#00C853]/20 rounded-full px-3 py-1 mb-5">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#00C853] animate-pulse" />
+          <span className="text-[11px] text-[#00C853] font-semibold tracking-wider uppercase">Help Center</span>
+        </div>
+        <h1 className="text-3xl sm:text-4xl font-black text-white mb-3 tracking-tight">
+          Frequently Asked <span className="bg-gradient-to-r from-[#00C853] to-[#00BCD4] bg-clip-text text-transparent">Questions</span>
+        </h1>
+        <p className="text-sm text-gray-400 max-w-xl mx-auto leading-relaxed">
+          Everything you need to know about TradingKarna — from getting started to advanced automation.
+        </p>
+
+        {/* Mobile Search */}
+        <div className="relative max-w-sm mx-auto mt-6 sm:hidden">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" style={{ fontSize: 13 }}>search</span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search questions..."
+            className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-8 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#00BCD4]/40 transition-all"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
+              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>close</span>
+            </button>
+          )}
+        </div>
+
+        {/* Search result count */}
+        {searchQuery && (
+          <p className="text-xs text-gray-500 mt-3">
+            {totalResults === 0
+              ? 'No results found. Try a different search term.'
+              : `Found ${totalResults} result${totalResults !== 1 ? 's' : ''} for "${searchQuery}"`}
+          </p>
+        )}
+      </div>
+
+      {/* ─── CONTENT ─── */}
+      <div className="max-w-6xl mx-auto px-4 pb-20">
+        <div className="flex gap-8">
+
+          {/* Sidebar (desktop) */}
+          <aside className="hidden lg:block w-52 flex-shrink-0">
+            <div className="sticky top-28 space-y-0.5">
+              {SECTIONS.map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => scrollTo(s.id)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-xs font-medium transition-all ${activeSection === s.id ? 'text-white' : 'text-gray-500 hover:text-gray-300 hover:bg-white/3'}`}
+                  style={{ backgroundColor: activeSection === s.id ? s.color + '15' : undefined, color: activeSection === s.id ? s.color : undefined }}
+                >
+                  <span style={{ color: activeSection === s.id ? s.color : 'inherit' }}>{s.icon}</span>
+                  {s.title}
+                </button>
+              ))}
+            </div>
+          </aside>
+
+          {/* FAQ Sections */}
+          <div className="flex-1 space-y-10 min-w-0">
+            {SECTIONS.map(section => (
+              <FAQSectionBlock
+                key={section.id}
+                section={section}
+                searchQuery={searchQuery}
+              />
+            ))}
+
+            {/* No results at all */}
+            {searchQuery && totalResults === 0 && (
+              <div className="text-center py-16">
+                <span className="material-symbols-outlined mx-auto text-gray-700 mb-3 block text-center" style={{ fontSize: 32 }}>search</span>
+                <p className="text-sm text-gray-500">No questions match your search.</p>
+                <button onClick={() => setSearchQuery('')} className="mt-3 text-xs text-[#00BCD4] hover:underline">Clear search</button>
+              </div>
+            )}
+
+            {/* Footer CTA */}
+            {!searchQuery && (
+              <div className="mt-12 rounded-2xl border border-white/5 bg-gradient-to-br from-[#00C853]/10 to-[#00BCD4]/10 p-8 text-center">
+                <h3 className="text-base font-bold text-white mb-2">Still have questions?</h3>
+                <p className="text-sm text-gray-400 mb-5">Can't find what you're looking for? Reach out to the TradingKarna team directly.</p>
+                <a
+                  href="mailto:support@tradingkarna.com"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#00C853] to-[#00BCD4] text-black text-sm font-bold hover:opacity-90 transition-opacity"
+                >
+                  Contact Support
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default FAQPage;

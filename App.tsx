@@ -7,6 +7,7 @@ import OptionSignalFilters from './components/signals/OptionSignalFilters';
 import Navigation, { View } from './components/Navigation';
 import Portfolio from './components/Portfolio';
 import GroupChat from './components/GroupChat';
+import FAQPage from './components/FAQPage';
 import LoginPage from './components/LoginPage';
 import RegisterPage from './components/RegisterPage';
 import AccessDeniedPage from './components/AccessDeniedPage';
@@ -510,6 +511,10 @@ const App: React.FC = () => {
         <div className="flex-1 ml-64 h-screen">
           <GroupChat />
         </div>
+      ) : currentView === 'faq' ? (
+        <div className="flex-1 ml-64 h-screen overflow-y-auto">
+          <FAQPage />
+        </div>
       ) : (
         <div className="flex-1 ml-64 flex flex-col min-w-0">
           <Header
@@ -531,7 +536,7 @@ const App: React.FC = () => {
               <div className="flex items-center gap-1 px-8 pt-5 pb-0 border-b border-gray-100 dark:border-white/5 bg-white dark:bg-transparent">
                 {([
                   { id: 'iron-gate', label: 'Iron Gate', icon: 'lock' },
-                  { id: 'iron-gate-day', label: 'Iron Gate Day', icon: 'bolt' },
+                  ...(role === 'admin' ? [{ id: 'iron-gate-day', label: 'Iron Gate Day', icon: 'bolt' }] : []),
                 ] as const).map(tab => (
                   <button
                     key={tab.id}
@@ -545,7 +550,7 @@ const App: React.FC = () => {
                     {tab.label}
                   </button>
                 ))}
-                {strategies.filter(s => !['iron_gate', 'iron_gate_day'].includes(s.strategy)).map(strategy => (
+                {role === 'admin' && strategies.filter(s => !['iron_gate', 'iron_gate_day'].includes(s.strategy)).map(strategy => (
                   <button
                     key={strategy.strategy}
                     onClick={() => setActiveTab(strategy.strategy)}
