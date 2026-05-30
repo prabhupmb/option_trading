@@ -88,7 +88,7 @@ export function useAuth() {
                     || email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 20)
                 );
 
-                // Fire-and-forget — sign out regardless of n8n response
+                // Fire-and-forget — show pending regardless of n8n response
                 fetch('https://prabhupadala01.app.n8n.cloud/webhook/register-user', {
                     method: 'POST',
                     headers: {
@@ -98,8 +98,10 @@ export function useAuth() {
                     body: JSON.stringify({ userName, fullName, email, phone: '' }),
                 }).catch(() => {});
 
-                await supabase.auth.signOut();
-
+                // Do NOT sign out here — signOut resets verificationStatus to 'idle'
+                // which causes App.tsx to show LoginPage instead of AccessDeniedPage.
+                // The session is kept but the user sees "Pending Approval" and cannot
+                // reach the dashboard. They can sign out via the button on that screen.
                 setAuthState(prev => ({
                     ...prev,
                     verificationStatus: 'denied',
@@ -114,8 +116,8 @@ export function useAuth() {
             console.log('✅ User found in DB:', userProfile);
 
             if (!userProfile.is_active) {
-                // In DB but not yet approved — sign out to prevent session being kept alive
-                await supabase.auth.signOut();
+                // In DB but not yet approved — keep session but block access via 'denied' status.
+                // Do NOT call signOut here — it resets verificationStatus to 'idle' and shows LoginPage.
                 setAuthState(prev => ({
                     ...prev,
                     verificationStatus: 'denied',
