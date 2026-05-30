@@ -68,15 +68,44 @@ export function useAuth() {
                 .single();
 
             if (dbError || !userProfile) {
-                // Not in DB → show signup form so they can request access
-                console.log('📝 User not in DB — showing signup');
+                // Distinguish "not found" (PGRST116) from real DB errors
+                if (dbError && dbError.code !== 'PGRST116') {
+                    console.error('❌ DB error during user lookup:', dbError);
+                    setAuthState(prev => ({
+                        ...prev,
+                        verificationStatus: 'denied',
+                        verificationData: { message: 'Unable to verify access. Please check your connection.' },
+                    }));
+                    return;
+                }
+
+                // User not in DB — auto-register via n8n and sign out immediately
+                // Never show SignupForm (prevents deleted users from self re-registering)
+                console.log('📝 User not in DB — auto-registering via n8n, signing out');
+                const fullName = session.user.user_metadata.full_name || session.user.user_metadata.name || '';
+                const userName = (
+                    fullName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 20)
+                    || email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 20)
+                );
+
+                // Fire-and-forget — sign out regardless of n8n response
+                fetch('https://prabhupadala01.app.n8n.cloud/webhook/register-user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${session.access_token}`,
+                    },
+                    body: JSON.stringify({ userName, fullName, email, phone: '' }),
+                }).catch(() => {});
+
+                await supabase.auth.signOut();
+
                 setAuthState(prev => ({
                     ...prev,
-                    verificationStatus: 'signup',
+                    verificationStatus: 'denied',
                     verificationData: {
-                        email: email,
-                        fullName: session.user.user_metadata.full_name,
-                        avatarUrl: session.user.user_metadata.avatar_url,
+                        email,
+                        message: 'Your account registration is pending admin approval.',
                     },
                 }));
                 return;
@@ -85,7 +114,8 @@ export function useAuth() {
             console.log('✅ User found in DB:', userProfile);
 
             if (!userProfile.is_active) {
-                // In DB but not yet approved by admin
+                // In DB but not yet approved — sign out to prevent session being kept alive
+                await supabase.auth.signOut();
                 setAuthState(prev => ({
                     ...prev,
                     verificationStatus: 'denied',

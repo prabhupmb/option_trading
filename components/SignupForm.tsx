@@ -99,8 +99,8 @@ const SignupForm: React.FC<SignupFormProps> = ({ verificationData, session, onSi
 
     // ═══════════════ SUCCESS SCREEN ═══════════════
     if (submitStatus === 'success') {
-        // Auto sign-out after 5 seconds → back to login
-        setTimeout(() => onSignOut(), 5000);
+        // Sign out immediately — user must wait for admin approval before accessing the app
+        setTimeout(() => onSignOut(), 1500);
 
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex items-center justify-center p-6 relative overflow-hidden">

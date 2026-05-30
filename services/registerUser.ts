@@ -29,13 +29,18 @@ export async function registerUser(payload: RegisterPayload): Promise<RegisterRe
     return { status: 'error', code: 400, message: error.message };
   }
 
-  // Email confirmation required — no session yet
-  if (!data.session) {
+  // Capture token before signing out (n8n needs it for auth verification)
+  const token = data.session?.access_token;
+
+  // Immediately sign out — prevents the new session from being used to bypass admin approval
+  await supabase.auth.signOut();
+
+  // Email confirmation required — no session was issued
+  if (!token) {
     return { status: 'email_confirmation_needed' };
   }
 
   // STEP 2 — Call n8n register-user endpoint
-  const token = data.session.access_token;
   let resp: Response;
   try {
     resp = await fetch(`${N8N_BASE_URL}/webhook/register-user`, {
