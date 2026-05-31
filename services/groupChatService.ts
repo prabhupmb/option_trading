@@ -458,3 +458,30 @@ export const subscribeToPresence = (
 
     return () => { supabase.removeChannel(channel); };
 };
+
+// ─── ADMIN: Clear all messages in a group ──────────────────────
+export const clearGroupMessages = async (groupId: string): Promise<void> => {
+    const { data: msgRows } = await supabase
+        .from('group_messages')
+        .select('id')
+        .eq('group_id', groupId);
+
+    const ids = (msgRows ?? []).map((m: any) => m.id);
+
+    if (ids.length) {
+        await supabase.from('message_reactions').delete().in('message_id', ids);
+    }
+
+    const { data: sigRows } = await supabase
+        .from('group_signals')
+        .select('id')
+        .eq('group_id', groupId);
+
+    const signalIds = (sigRows ?? []).map((s: any) => s.id);
+    if (signalIds.length) {
+        await supabase.from('signal_responses').delete().in('signal_id', signalIds);
+    }
+
+    await supabase.from('group_signals').delete().eq('group_id', groupId);
+    await supabase.from('group_messages').delete().eq('group_id', groupId);
+};

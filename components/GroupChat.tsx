@@ -12,6 +12,7 @@ import {
     subscribeToReactions,
     subscribeToSignalResponses,
     subscribeToPresence,
+    clearGroupMessages as clearGroupMessagesService,
 } from '../services/groupChatService';
 import { supabase } from '../services/supabase';
 
@@ -103,7 +104,7 @@ const renderMessageText = (text: string) => {
 
 // ─── COMPONENT ─────────────────────────────────────────────────
 const GroupChat: React.FC = () => {
-    const { dbUserId, verificationData } = useAuth();
+    const { dbUserId, verificationData, role } = useAuth();
 
     const [groupId, setGroupId] = useState<string | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -118,6 +119,8 @@ const GroupChat: React.FC = () => {
     const [showMobileSignals, setShowMobileSignals] = useState(false);
     const [sending, setSending] = useState(false);
     const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
+    const [clearing, setClearing] = useState(false);
 
     const chatEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -391,6 +394,21 @@ const GroupChat: React.FC = () => {
         }
     };
 
+    const handleClearMessages = async () => {
+        if (!groupId || clearing) return;
+        setClearing(true);
+        try {
+            await clearGroupMessagesService(groupId);
+            setMessages([]);
+            setTodaySignals([]);
+            setShowClearConfirm(false);
+        } catch (e) {
+            console.error('clearGroupMessages error:', e);
+        } finally {
+            setClearing(false);
+        }
+    };
+
     const handleInputChange = (val: string) => {
         setInputText(val);
         const lastAt = val.lastIndexOf('@');
@@ -501,6 +519,15 @@ const GroupChat: React.FC = () => {
                         <button onClick={() => setShowMobileSignals(true)} className="lg:hidden w-8 h-8 rounded-lg hover:bg-[#161B22] flex items-center justify-center text-gray-400 hover:text-white transition-colors">
                             <span className="material-symbols-outlined text-lg">signal_cellular_alt</span>
                         </button>
+                        {role === 'admin' && (
+                            <button
+                                onClick={() => setShowClearConfirm(true)}
+                                className="w-8 h-8 rounded-lg hover:bg-red-500/10 flex items-center justify-center text-gray-400 hover:text-red-400 transition-colors"
+                                title="Clear all messages"
+                            >
+                                <span className="material-symbols-outlined text-lg">delete_sweep</span>
+                            </button>
+                        )}
                         <button className="w-8 h-8 rounded-lg hover:bg-[#161B22] flex items-center justify-center text-gray-400 hover:text-white transition-colors">
                             <span className="material-symbols-outlined text-lg">settings</span>
                         </button>
@@ -746,6 +773,50 @@ const GroupChat: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* ─── CLEAR MESSAGES CONFIRM MODAL (Admin only) ─── */}
+            {showClearConfirm && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowClearConfirm(false)}>
+                    <div className="w-full max-w-sm bg-[#161B22] border border-[#30363D] rounded-2xl shadow-2xl shadow-black/50 overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between px-5 py-4 border-b border-[#30363D]">
+                            <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-red-400 text-xl">delete_sweep</span>
+                                <h3 className="text-sm font-bold text-white">Clear All Messages</h3>
+                            </div>
+                            <button onClick={() => setShowClearConfirm(false)} className="text-gray-400 hover:text-white transition-colors">
+                                <span className="material-symbols-outlined text-lg">close</span>
+                            </button>
+                        </div>
+                        <div className="px-5 py-4 space-y-4">
+                            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-start gap-3">
+                                <span className="material-symbols-outlined text-red-400 text-lg mt-0.5 flex-shrink-0">warning</span>
+                                <p className="text-sm text-red-300 leading-relaxed">
+                                    This will permanently delete <span className="font-bold text-white">all {messages.length} messages</span>, signals, and reactions in this group. This cannot be undone.
+                                </p>
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowClearConfirm(false)}
+                                    className="flex-1 py-2.5 rounded-xl border border-[#30363D] text-gray-400 text-sm font-bold hover:bg-[#0D1117] transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleClearMessages}
+                                    disabled={clearing}
+                                    className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                    {clearing ? (
+                                        <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Clearing...</>
+                                    ) : (
+                                        <><span className="material-symbols-outlined text-sm">delete_forever</span>Clear All</>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ─── SIGNAL COMPOSER MODAL ─── */}
             {showSignalModal && (
