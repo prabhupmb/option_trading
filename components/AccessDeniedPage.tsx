@@ -76,10 +76,10 @@ const AccessDeniedPage: React.FC<AccessDeniedPageProps> = ({ onSignOut, userEmai
                             </p>
                             <p className="text-xs text-slate-500 leading-relaxed">
                                 {isPending
-                                    ? <>Your registration has been received. An administrator will review your account shortly. For faster approval, contact us at <a href="mailto:prabhupadala1982@gmail.com" className="text-rh-green underline">prabhupadala1982@gmail.com</a>.</>
+                                    ? <>Your registration has been received. An administrator will review your account shortly. For faster approval, contact <a href="mailto:tradingkarna.ai@gmail.com" className="text-rh-green underline">prabhu (tradingkarna.ai@gmail.com)</a>.</>
                                     : isDisabled
-                                    ? <>Your account has been deactivated. Contact the administrator at <a href="mailto:prabhupadala1982@gmail.com" className="text-amber-400 underline">prabhupadala1982@gmail.com</a> to restore access.</>
-                                    : <>Contact the administrator at <a href="mailto:prabhupadala1982@gmail.com" className="text-amber-400 underline">prabhupadala1982@gmail.com</a> to request access to the Signal Feed trading terminal.</>}
+                                    ? <>Your account has been deactivated. Contact <a href="mailto:tradingkarna.ai@gmail.com" className="text-amber-400 underline">prabhu (tradingkarna.ai@gmail.com)</a> to restore access.</>
+                                    : <>Contact <a href="mailto:tradingkarna.ai@gmail.com" className="text-amber-400 underline">prabhu (tradingkarna.ai@gmail.com)</a> to request access to the Signal Feed trading terminal.</>}
                             </p>
                         </div>
                     </div>
