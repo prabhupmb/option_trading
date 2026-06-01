@@ -602,16 +602,27 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }>
         setIsClosing(true);
         try {
             const pnl = calcPnl(position);
-            const durationMinutes = Math.floor((Date.now() - new Date(position.opened_at).getTime()) / 60000);
-            await supabase.from('stock_gate_positions').update({ status: 'MANUAL_CLOSE', closed_at: new Date().toISOString(), close_reason: 'MANUAL', pnl_pct: pnl }).eq('id', position.id);
-            await supabase.from('stock_gate_history').insert({
-                position_id: position.id, symbol: position.symbol, trade_direction: position.trade_direction, tier: position.tier,
-                entry_price: position.entry_price, exit_price: position.current_price, pnl_pct: pnl,
-                pnl_dollars: position.pnl_dollars || 0, result: pnl >= 0 ? 'WIN' : 'LOSS', exit_reason: 'MANUAL',
-                duration_minutes: durationMinutes, high_water_mark: position.high_water_mark,
-                low_water_mark: position.low_water_mark, opened_at: position.opened_at,
-                closed_at: new Date().toISOString(), gates_passed: position.gates_passed,
-            });
+            const pnlDollars = position.entry_price
+                ? +((pnl / 100) * position.entry_price).toFixed(2)
+                : 0;
+
+            // DB trigger handles stock_gate_history insert automatically
+            const { error } = await supabase
+                .from('stock_gate_positions')
+                .update({
+                    status: 'MANUAL_CLOSE',
+                    close_reason: 'MANUAL',
+                    closed_at: new Date().toISOString(),
+                    pnl_pct: pnl,
+                    pnl_dollars: pnlDollars,
+                })
+                .eq('id', position.id)
+                .eq('status', 'OPEN');
+
+            if (error) {
+                console.error('[StockGate] Close failed:', error);
+            }
+
             await Promise.all([fetchPositions(), fetchHistory()]);
             setClosingPosition(null);
         } catch (err) { console.error('Manual close failed:', err); }

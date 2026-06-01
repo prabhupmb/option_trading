@@ -702,68 +702,26 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
     const handleManualClose = async (position: IronGatePosition) => {
         setIsClosing(true);
         try {
-            const closedAt = new Date().toISOString();
-
-            // Correct P&L per option type
             const pnlDollars = position.option_type === 'CALL'
                 ? (position.current_price - position.entry_price)
                 : (position.entry_price - position.current_price);
             const pnlPct = +((pnlDollars / position.entry_price) * 100).toFixed(2);
 
-            // Step 1: Update position (no status filter — let backend race-condition be a 23505)
-            const { error: updateError } = await supabase
+            // DB trigger handles iron_gate_history insert automatically
+            const { error } = await supabase
                 .from('iron_gate_positions')
                 .update({
                     status: 'MANUAL_CLOSE',
-                    closed_at: closedAt,
                     close_reason: 'MANUAL',
-                    current_price: position.current_price,
+                    closed_at: new Date().toISOString(),
                     pnl_dollars: +pnlDollars.toFixed(2),
                     pnl_pct: pnlPct,
                 })
-                .eq('id', position.id);
+                .eq('id', position.id)
+                .eq('status', 'OPEN');
 
-            if (updateError) {
-                if (updateError.code === '23505') {
-                    console.log(`[IronGate] ${position.symbol} already closed by backend — continuing`);
-                } else {
-                    throw updateError;
-                }
-            }
-
-            // Step 2: Insert history — all NOT NULL columns included
-            const { error: historyError } = await supabase
-                .from('iron_gate_history')
-                .insert({
-                    position_id: position.id,
-                    symbol: position.symbol,
-                    option_type: position.option_type,
-                    tier: position.tier,
-                    gates_passed: position.gates_passed,
-                    entry_price: position.entry_price,
-                    target_price: position.target_price || position.fib_target1 || 0,
-                    stop_loss: position.stop_loss,
-                    profit_zone_low: position.profit_zone_low,
-                    profit_zone_high: position.profit_zone_high,
-                    exit_price: position.current_price,
-                    exit_reason: 'MANUAL',
-                    result: pnlDollars > 0 ? 'WIN' : pnlDollars < 0 ? 'LOSS' : 'BREAKEVEN',
-                    pnl_dollars: +pnlDollars.toFixed(2),
-                    pnl_pct: pnlPct,
-                    opened_at: position.opened_at,
-                    closed_at: closedAt,
-                    high_water_mark: position.high_water_mark,
-                    low_water_mark: position.low_water_mark,
-                    source: 'iron_gate',
-                    version: 'v2.3_manual',
-                });
-
-            if (historyError) {
-                if (historyError.code === '23505') {
-                    console.log(`[IronGate] History already exists for ${position.symbol}`);
-                } else {
-                    console.error('[IronGate] History insert error:', historyError.code, historyError.message, historyError.hint);
-                }
+            if (error) {
+                console.error('[IronGate] Close failed:', error);
             }
 
             await Promise.all([fetchPositions(), fetchHistory()]);
