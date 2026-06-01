@@ -46,6 +46,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
+    // ── Announcements state ──
+    const [announcements, setAnnouncements] = useState<{ id: string; message: string; type: string; is_active: boolean; created_at: string }[]>([]);
+    const [newMsg, setNewMsg] = useState('');
+    const [newType, setNewType] = useState<'info' | 'warning' | 'success'>('info');
+    const [posting, setPosting] = useState(false);
+    const [announcementsOpen, setAnnouncementsOpen] = useState(true);
+
     const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
         setToast({ msg, type });
         setTimeout(() => setToast(null), 5000);
@@ -90,9 +97,42 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
         }
     };
 
+    const fetchAnnouncements = async () => {
+        const { data } = await supabase
+            .from('announcements')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(10);
+        setAnnouncements(data ?? []);
+    };
+
+    const handlePostAnnouncement = async () => {
+        if (!newMsg.trim() || posting) return;
+        setPosting(true);
+        try {
+            await supabase.from('announcements').insert({ message: newMsg.trim(), type: newType, is_active: true });
+            setNewMsg('');
+            await fetchAnnouncements();
+            showToast('Announcement posted to all customers', 'success');
+        } finally {
+            setPosting(false);
+        }
+    };
+
+    const handleToggleAnnouncement = async (id: string, is_active: boolean) => {
+        await supabase.from('announcements').update({ is_active: !is_active }).eq('id', id);
+        await fetchAnnouncements();
+    };
+
+    const handleDeleteAnnouncement = async (id: string) => {
+        await supabase.from('announcements').delete().eq('id', id);
+        await fetchAnnouncements();
+    };
+
     useEffect(() => {
         fetchUsers();
         fetchUpgradeRequests();
+        fetchAnnouncements();
     }, []);
 
     const fetchUsers = async () => {
@@ -308,6 +348,110 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                     <span className={`material-symbols-outlined text-lg ${refreshing ? 'animate-spin' : ''}`}>sync</span>
                     <span className="text-sm">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
                 </button>
+            </div>
+
+            {/* ── Announcements Section ── */}
+            <div className="mb-6 bg-white dark:bg-[#1e2124] rounded-2xl border border-[#00BCD4]/20 shadow-lg overflow-hidden">
+                <button
+                    onClick={() => setAnnouncementsOpen(!announcementsOpen)}
+                    className="w-full flex items-center justify-between p-5 hover:bg-[#00BCD4]/5 transition-colors"
+                >
+                    <div className="flex items-center gap-3">
+                        <span className="material-symbols-outlined text-[#00BCD4]">campaign</span>
+                        <span className="font-bold text-sm text-slate-900 dark:text-white">Announcements</span>
+                        {announcements.filter(a => a.is_active).length > 0 && (
+                            <span className="bg-[#00BCD4] text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                                {announcements.filter(a => a.is_active).length} active
+                            </span>
+                        )}
+                    </div>
+                    <span className="material-symbols-outlined text-slate-400">{announcementsOpen ? 'expand_less' : 'expand_more'}</span>
+                </button>
+                {announcementsOpen && (
+                    <div className="border-t border-[#00BCD4]/10 p-5 space-y-4">
+                        {/* Compose */}
+                        <div className="space-y-3">
+                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Post a new announcement — all customers see it as a banner when they log in.</p>
+                            <textarea
+                                value={newMsg}
+                                onChange={e => setNewMsg(e.target.value)}
+                                placeholder="Type your announcement message..."
+                                rows={2}
+                                className="w-full bg-slate-50 dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00BCD4]/30 focus:border-[#00BCD4]/50 transition-all resize-none"
+                            />
+                            <div className="flex items-center gap-3">
+                                {/* Type picker */}
+                                <div className="flex gap-2">
+                                    {(['info', 'warning', 'success'] as const).map(t => (
+                                        <button
+                                            key={t}
+                                            onClick={() => setNewType(t)}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${newType === t
+                                                ? t === 'info' ? 'bg-[#00BCD4] text-white'
+                                                    : t === 'warning' ? 'bg-amber-500 text-white'
+                                                        : 'bg-rh-green text-white'
+                                                : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-gray-400 border border-gray-200 dark:border-white/10'
+                                                }`}
+                                        >
+                                            {t === 'info' ? 'Info' : t === 'warning' ? 'Warning' : 'Success'}
+                                        </button>
+                                    ))}
+                                </div>
+                                <button
+                                    onClick={handlePostAnnouncement}
+                                    disabled={!newMsg.trim() || posting}
+                                    className="ml-auto flex items-center gap-2 bg-[#00BCD4] hover:bg-[#00BCD4]/80 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-xl text-sm transition-all active:scale-[0.97]"
+                                >
+                                    {posting ? (
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        <span className="material-symbols-outlined text-lg">send</span>
+                                    )}
+                                    {posting ? 'Posting...' : 'Post'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Existing announcements */}
+                        {announcements.length > 0 && (
+                            <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-white/5">
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Recent</p>
+                                {announcements.map(a => (
+                                    <div key={a.id} className={`flex items-start gap-3 p-3 rounded-xl border transition-colors ${a.is_active
+                                        ? a.type === 'info' ? 'bg-[#00BCD4]/5 border-[#00BCD4]/20'
+                                            : a.type === 'warning' ? 'bg-amber-500/5 border-amber-500/20'
+                                                : 'bg-rh-green/5 border-rh-green/20'
+                                        : 'bg-slate-50 dark:bg-white/[0.02] border-gray-100 dark:border-white/5 opacity-50'
+                                        }`}>
+                                        <span className={`material-symbols-outlined text-lg flex-shrink-0 mt-0.5 ${a.type === 'info' ? 'text-[#00BCD4]' : a.type === 'warning' ? 'text-amber-400' : 'text-rh-green'}`}>
+                                            {a.type === 'info' ? 'info' : a.type === 'warning' ? 'warning' : 'campaign'}
+                                        </span>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm text-slate-900 dark:text-white leading-snug">{a.message}</p>
+                                            <p className="text-[10px] text-slate-400 mt-1">{new Date(a.created_at).toLocaleString()}</p>
+                                        </div>
+                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                            <button
+                                                onClick={() => handleToggleAnnouncement(a.id, a.is_active)}
+                                                title={a.is_active ? 'Deactivate' : 'Activate'}
+                                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${a.is_active ? 'text-rh-green hover:bg-rh-green/10' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5'}`}
+                                            >
+                                                <span className="material-symbols-outlined text-lg">{a.is_active ? 'visibility' : 'visibility_off'}</span>
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteAnnouncement(a.id)}
+                                                title="Delete"
+                                                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                                            >
+                                                <span className="material-symbols-outlined text-lg">delete</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {loading ? (

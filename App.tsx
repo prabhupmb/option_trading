@@ -8,6 +8,7 @@ import Navigation, { View } from './components/Navigation';
 import Portfolio from './components/Portfolio';
 import GroupChat from './components/GroupChat';
 import FAQPage from './components/FAQPage';
+import AnnouncementBanner from './components/AnnouncementBanner';
 import LoginPage from './components/LoginPage';
 import RegisterPage from './components/RegisterPage';
 import AccessDeniedPage from './components/AccessDeniedPage';
@@ -507,16 +508,18 @@ const App: React.FC = () => {
     <div className="flex min-h-screen bg-white dark:bg-[#0a0712] transition-colors font-sans text-slate-900 dark:text-white">
       <Navigation activeView={currentView} onNavigate={setCurrentView} user={user} onSignOut={signOut} role={role} accessLevel={accessLevel} trialDaysLeft={trialDaysLeft} isTrialUser={isTrialUser} />
 
+      <div className="flex-1 ml-64 flex flex-col min-h-screen">
+        <AnnouncementBanner />
       {currentView === 'chat' ? (
-        <div className="flex-1 ml-64 h-screen">
+        <div className="flex-1 overflow-hidden">
           <GroupChat />
         </div>
       ) : currentView === 'faq' ? (
-        <div className="flex-1 ml-64 h-screen overflow-y-auto">
+        <div className="flex-1 overflow-y-auto">
           <FAQPage />
         </div>
       ) : (
-        <div className="flex-1 ml-64 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0">
           <Header
             lastUpdated={lastUpdated}
             onRefresh={handleManualRefresh}
@@ -707,6 +710,7 @@ const App: React.FC = () => {
           )}
         </div>
       )}
+      </div>
 
       {/* Trade Modal */}
       <ExecuteTradeModal
