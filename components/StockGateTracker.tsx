@@ -543,6 +543,7 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }>
     const [isClosing, setIsClosing] = useState(false);
     const [activeSection, setActiveSection] = useState<'positions' | 'history'>('positions');
     const [signalFilter, setSignalFilter] = useState<string | null>(null);
+    const [todayOnly, setTodayOnly] = useState(true);
     const [executingPosition, setExecutingPosition] = useState<StockGatePosition | null>(null);
     const [firedTimes, setFiredTimes] = useState<Set<string>>(new Set());
     const firedTimesRef = useRef<Set<string>>(new Set());
@@ -641,9 +642,13 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }>
         { label: 'SELL', icon: '✅', test: (p: StockGatePosition) => p.trade_direction?.toUpperCase() === 'SHORT' && p.tier === 'A', color: 'text-red-400', ring: 'ring-red-500', bg: 'bg-red-900/10 border-red-800/20', activeBg: 'bg-red-900/25 border-red-700/40' },
     ];
 
-    const filteredPositions = signalFilter
-        ? positions.filter(p => filters.find(f => f.label === signalFilter)?.test(p))
-        : positions;
+    const todayStr = new Date().toDateString();
+    const todayCount = positions.filter(p => new Date(p.opened_at).toDateString() === todayStr).length;
+    const filteredPositions = positions.filter(p => {
+        if (todayOnly && new Date(p.opened_at).toDateString() !== todayStr) return false;
+        if (signalFilter && !filters.find(f => f.label === signalFilter)?.test(p)) return false;
+        return true;
+    });
 
     return (
         <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#080b10] min-h-screen text-slate-900 dark:text-white font-sans">
@@ -770,6 +775,22 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }>
                                 {/* Filter chips */}
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Filter:</span>
+
+                                    {/* TODAY chip */}
+                                    <button
+                                        onClick={() => setTodayOnly(v => !v)}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all ${todayOnly
+                                            ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600/60 text-blue-700 dark:text-blue-300 ring-1 ring-blue-400'
+                                            : 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800/20 text-blue-600 dark:text-blue-400 hover:opacity-80'
+                                        }`}
+                                    >
+                                        <span>📅</span>
+                                        <span className="uppercase tracking-wide">Today</span>
+                                        <span className="font-black bg-black/10 dark:bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{todayCount}</span>
+                                    </button>
+
+                                    <span className="text-slate-700 dark:text-slate-600 text-[10px] select-none">|</span>
+
                                     {filters.map(f => {
                                         const count = positions.filter(f.test).length;
                                         const isActive = signalFilter === f.label;
