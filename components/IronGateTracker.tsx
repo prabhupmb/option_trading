@@ -635,6 +635,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
     const [activeSection, setActiveSection] = useState<'positions' | 'history'>('positions');
     const [signalFilter, setSignalFilter] = useState<string | null>(null);
     const [executionFilter, setExecutionFilter] = useState<'READY' | 'WAIT' | null>(null);
+    const [todayOnly, setTodayOnly] = useState(true);
     const [webhookStatus, setWebhookStatus] = useState<'idle' | 'triggering' | 'ok' | 'err'>('idle');
     const [lastTriggeredTime, setLastTriggeredTime] = useState<string | null>(null);
     const [firedTimes, setFiredTimes] = useState<Set<string>>(new Set());
@@ -747,12 +748,15 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
         { label: 'SELL', icon: '✅', test: (p: IronGatePosition) => p.option_type?.toUpperCase() === 'PUT' && p.tier === 'A', color: 'text-red-600 dark:text-red-400', ring: 'ring-red-500', bg: 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800/20', activeBg: 'bg-red-100 dark:bg-red-900/25 border-red-300 dark:border-red-700/40' },
     ];
 
+    const todayStr = new Date().toDateString();
     const filteredPositions = positions.filter(p => {
+        if (todayOnly && new Date(p.opened_at).toDateString() !== todayStr) return false;
         if (signalFilter && !filters.find(f => f.label === signalFilter)?.test(p)) return false;
         if (executionFilter === 'READY' && p.execution_hint !== 'READY_BUY' && p.execution_hint !== 'READY_SELL') return false;
         if (executionFilter === 'WAIT'  && p.execution_hint !== 'WAIT') return false;
         return true;
     });
+    const todayCount = positions.filter(p => new Date(p.opened_at).toDateString() === todayStr).length;
 
     const readyCount = positions.filter(p => p.execution_hint === 'READY_BUY' || p.execution_hint === 'READY_SELL').length;
     const waitCount  = positions.filter(p => p.execution_hint === 'WAIT').length;
@@ -895,6 +899,21 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Filter:</span>
 
+                                    {/* TODAY chip */}
+                                    <button
+                                        onClick={() => setTodayOnly(v => !v)}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all ${todayOnly
+                                            ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600/60 text-blue-700 dark:text-blue-300 ring-1 ring-blue-400'
+                                            : 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800/20 text-blue-600 dark:text-blue-400 hover:opacity-80'
+                                        }`}
+                                    >
+                                        <span>📅</span>
+                                        <span className="uppercase tracking-wide">Today</span>
+                                        <span className="font-black bg-black/10 dark:bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{todayCount}</span>
+                                    </button>
+
+                                    <span className="text-slate-700 dark:text-slate-600 text-[10px] select-none">|</span>
+
                                     {/* Tier / signal filters */}
                                     {filters.map(f => {
                                         const count = positions.filter(f.test).length;
@@ -951,7 +970,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                             onClick={() => { setSignalFilter(null); setExecutionFilter(null); }}
                                             className="text-[10px] text-slate-500 hover:text-slate-900 dark:hover:text-white font-bold underline transition-colors"
                                         >
-                                            clear all
+                                            clear filters
                                         </button>
                                     )}
 
