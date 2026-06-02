@@ -31,6 +31,7 @@ import { useOptionSignals } from './hooks/useOptionSignals';
 import { useStrategyConfigs } from './hooks/useStrategyConfigs';
 import { useScanProgress } from './hooks/useScanProgress';
 import DataDelayBanner from './components/DataDelayBanner';
+import TrendingStocks from './components/TrendingStocks';
 
 // ─── STOCK FEED VIEW (sub-tabs: Signal Feed + Stock Gate) ─────
 
@@ -695,6 +696,10 @@ const App: React.FC = () => {
           ) : currentView === 'settings' ? (
             <div className="flex-1 overflow-y-auto">
               <UserProfilePage />
+            </div>
+          ) : currentView === 'trending' ? (
+            <div className="flex-1 overflow-y-auto">
+              <TrendingStocks />
             </div>
           ) : currentView === 'admin' && role === 'admin' ? (
             <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#0a0712]">
