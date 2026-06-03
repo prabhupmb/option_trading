@@ -785,12 +785,12 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }>
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Filter:</span>
 
-                                    {/* TODAY chip */}
+                                    {/* TODAY chip — clears signal filters when activated */}
                                     <button
-                                        onClick={() => setTodayOnly(v => !v)}
+                                        onClick={() => { setTodayOnly(v => { if (!v) setSignalFilter(null); return !v; }); }}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all ${todayOnly
                                             ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600/60 text-blue-700 dark:text-blue-300 ring-1 ring-blue-400'
-                                            : 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800/20 text-blue-600 dark:text-blue-400 hover:opacity-80'
+                                            : 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400 hover:opacity-80'
                                         }`}
                                     >
                                         <span>📅</span>
@@ -804,7 +804,7 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }>
                                         const count = positions.filter(f.test).length;
                                         const isActive = signalFilter === f.label;
                                         return (
-                                            <button key={f.label} onClick={() => setSignalFilter(isActive ? null : f.label)}
+                                            <button key={f.label} onClick={() => { if (count === 0) return; setTodayOnly(false); setSignalFilter(isActive ? null : f.label); }}
                                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all ${f.color} ${isActive ? `${f.activeBg} ${f.ring} ring-1` : f.bg} ${count === 0 ? 'opacity-40 cursor-default' : 'hover:opacity-80 cursor-pointer'}`}>
                                                 <span>{f.icon}</span>
                                                 <span className="uppercase tracking-wide">{f.label}</span>

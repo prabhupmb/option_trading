@@ -908,12 +908,12 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Filter:</span>
 
-                                    {/* TODAY chip */}
+                                    {/* TODAY chip — clears signal/execution filters when activated */}
                                     <button
-                                        onClick={() => setTodayOnly(v => !v)}
+                                        onClick={() => { setTodayOnly(v => { if (!v) { setSignalFilter(null); setExecutionFilter(null); } return !v; }); }}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all ${todayOnly
                                             ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600/60 text-blue-700 dark:text-blue-300 ring-1 ring-blue-400'
-                                            : 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800/20 text-blue-600 dark:text-blue-400 hover:opacity-80'
+                                            : 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400 hover:opacity-80'
                                         }`}
                                     >
                                         <span>📅</span>
@@ -923,12 +923,12 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
 
                                     <span className="text-slate-700 dark:text-slate-600 text-[10px] select-none">|</span>
 
-                                    {/* Tier / signal filters */}
+                                    {/* Tier / signal filters — clicking any clears TODAY */}
                                     {filters.map(f => {
                                         const count = positions.filter(f.test).length;
                                         const isActive = signalFilter === f.label;
                                         return (
-                                            <button key={f.label} onClick={() => setSignalFilter(isActive ? null : f.label)}
+                                            <button key={f.label} onClick={() => { if (count === 0) return; setTodayOnly(false); setSignalFilter(isActive ? null : f.label); }}
                                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all ${f.color} ${isActive ? `${f.activeBg} ${f.ring} ring-1` : f.bg} ${count === 0 ? 'opacity-40 cursor-default' : 'hover:opacity-80 cursor-pointer'}`}>
                                                 <span>{f.icon}</span>
                                                 <span className="uppercase tracking-wide">{f.label}</span>
@@ -942,7 +942,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
 
                                     {/* READY chip */}
                                     <button
-                                        onClick={() => setExecutionFilter(executionFilter === 'READY' ? null : 'READY')}
+                                        onClick={() => { setTodayOnly(false); setExecutionFilter(executionFilter === 'READY' ? null : 'READY'); }}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all
                                             text-emerald-600 dark:text-emerald-400
                                             ${executionFilter === 'READY'
@@ -959,7 +959,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
 
                                     {/* WAIT chip */}
                                     <button
-                                        onClick={() => setExecutionFilter(executionFilter === 'WAIT' ? null : 'WAIT')}
+                                        onClick={() => { setTodayOnly(false); setExecutionFilter(executionFilter === 'WAIT' ? null : 'WAIT'); }}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all
                                             text-amber-600 dark:text-amber-400
                                             ${executionFilter === 'WAIT'
