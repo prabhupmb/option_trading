@@ -636,6 +636,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
     const [signalFilter, setSignalFilter] = useState<string | null>(null);
     const [executionFilter, setExecutionFilter] = useState<'READY' | 'WAIT' | null>(null);
     const [todayOnly, setTodayOnly] = useState(true);
+    const [historyTodayOnly, setHistoryTodayOnly] = useState(true);
     const [webhookStatus, setWebhookStatus] = useState<'idle' | 'triggering' | 'ok' | 'err'>('idle');
     const [lastTriggeredTime, setLastTriggeredTime] = useState<string | null>(null);
     const [firedTimes, setFiredTimes] = useState<Set<string>>(new Set());
@@ -1018,9 +1019,31 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                 <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">No Trade History</h3>
                                 <p className="text-slate-600 text-sm">Closed positions will appear here.</p>
                             </div>
-                        ) : (
+                        ) : (() => {
+                            const histTodayStr = new Date().toDateString();
+                            const histTodayCount = history.filter(h => new Date(h.closed_at).toDateString() === histTodayStr).length;
+                            const filteredHistory = historyTodayOnly
+                                ? history.filter(h => new Date(h.closed_at).toDateString() === histTodayStr)
+                                : history;
+                            return (
                             <>
-                                <HistorySummaryStats history={history} />
+                                {/* History filter bar */}
+                                <div className="flex items-center gap-2 mb-4">
+                                    <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Filter:</span>
+                                    <button
+                                        onClick={() => setHistoryTodayOnly(v => !v)}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all ${historyTodayOnly
+                                            ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600/60 text-blue-700 dark:text-blue-300 ring-1 ring-blue-400'
+                                            : 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400 hover:opacity-80'
+                                        }`}
+                                    >
+                                        <span>📅</span>
+                                        <span className="uppercase tracking-wide">Today</span>
+                                        <span className="font-black bg-black/10 dark:bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{histTodayCount}</span>
+                                    </button>
+                                    <span className="ml-auto text-[9px] text-slate-600 font-bold">{filteredHistory.length} of {history.length} shown</span>
+                                </div>
+                                <HistorySummaryStats history={filteredHistory} />
                                 <div className="bg-white dark:bg-[#0d1117] rounded-2xl border border-gray-200 dark:border-[#1e2430] overflow-hidden">
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-xs">
@@ -1032,7 +1055,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {history.map(h => {
+                                                {filteredHistory.map(h => {
                                                     const isWin = h.result === 'WIN';
                                                     return (
                                                         <tr key={h.id} className={`border-b border-gray-100 dark:border-[#111620] transition-colors hover:bg-gray-100 dark:hover:bg-[#111620] ${isWin ? 'bg-[#00d97e]/[0.02]' : 'bg-[#ff4757]/[0.02]'}`}>
@@ -1061,7 +1084,8 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                     </div>
                                 </div>
                             </>
-                        )}
+                            );
+                        })()}
                     </div>
                 )}
             </div>
