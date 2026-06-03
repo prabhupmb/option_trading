@@ -599,6 +599,15 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }>
     useEffect(() => { fetchConfig(); fetchPositions(); fetchHistory(); }, []);
     useEffect(() => { const i = setInterval(fetchPositions, 30000); return () => clearInterval(i); }, []);
 
+    // Auto-disable TODAY filter if no positions were opened today
+    useEffect(() => {
+        if (positions.length > 0) {
+            const todayStr = new Date().toDateString();
+            const hasToday = positions.some(p => new Date(p.opened_at).toDateString() === todayStr);
+            if (!hasToday) setTodayOnly(false);
+        }
+    }, [positions]);
+
     const handleManualClose = async (position: StockGatePosition) => {
         setIsClosing(true);
         try {
