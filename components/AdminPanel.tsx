@@ -83,17 +83,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                 }
             );
 
-            // 409 means user already removed from Auth — just clean up public.users
-            if (response.status === 409) {
+            let result: any = {};
+            try { result = await response.json(); } catch { /* non-JSON body */ }
+
+            // n8n wraps Supabase Auth 409 as a 200 response with error message in body
+            const is409 = response.status === 409 ||
+                (result.error || result.message || '').toString().includes('409');
+
+            if (is409) {
+                // User already removed from Auth — just clean up public.users
                 await supabase.from('users').delete().eq('user_name', userName);
                 showToast(`✅ User "${userName}" removed successfully`, 'success');
                 setDeletingUser(null);
                 await fetchUsers();
                 return;
             }
-
-            let result: any = {};
-            try { result = await response.json(); } catch { /* non-JSON body */ }
 
             if (response.ok && result.success !== false) {
                 showToast(`✅ User "${userName}" deleted successfully`, 'success');
