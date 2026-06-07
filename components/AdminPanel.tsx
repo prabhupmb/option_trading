@@ -82,13 +82,25 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                     body: JSON.stringify({ targetUserName: userName }),
                 }
             );
-            const result = await response.json();
-            if (result.success) {
+
+            // 409 means user already removed from Auth — just clean up public.users
+            if (response.status === 409) {
+                await supabase.from('users').delete().eq('user_name', userName);
+                showToast(`✅ User "${userName}" removed successfully`, 'success');
+                setDeletingUser(null);
+                await fetchUsers();
+                return;
+            }
+
+            let result: any = {};
+            try { result = await response.json(); } catch { /* non-JSON body */ }
+
+            if (response.ok && result.success !== false) {
                 showToast(`✅ User "${userName}" deleted successfully`, 'success');
                 setDeletingUser(null);
                 await fetchUsers();
             } else {
-                showToast(result.error || result.message || 'Delete failed', 'error');
+                showToast(result.error || result.message || `Delete failed (${response.status})`, 'error');
             }
         } catch (err: any) {
             showToast(err?.message || 'Network error during delete', 'error');
