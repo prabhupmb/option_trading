@@ -509,7 +509,7 @@ const App: React.FC = () => {
     <div className="flex min-h-screen bg-white dark:bg-[#0a0712] transition-colors font-sans text-slate-900 dark:text-white">
       <Navigation activeView={currentView} onNavigate={setCurrentView} user={user} onSignOut={signOut} role={role} accessLevel={accessLevel} trialDaysLeft={trialDaysLeft} isTrialUser={isTrialUser} />
 
-      <div className="flex-1 ml-64 flex flex-col min-h-screen">
+      <div className="flex-1 ml-0 md:ml-64 flex flex-col min-h-screen pt-14 md:pt-0 pb-14 md:pb-0">
         <AnnouncementBanner />
       {currentView === 'chat' ? (
         <div className="flex-1 overflow-hidden">
