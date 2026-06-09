@@ -66,7 +66,7 @@ export const ProgressBar: React.FC<Props> = ({ progress, animated = true }) => {
         }} />
         <div style={{
           position: 'absolute',
-          top: -1,
+          top: '50%',
           left: 'calc(50% - 5px)',
           width: 10,
           height: 10,
@@ -74,6 +74,7 @@ export const ProgressBar: React.FC<Props> = ({ progress, animated = true }) => {
           background: '#FFD700',
           border: `2px solid ${C.cardBg}`,
           zIndex: 3,
+          transform: 'translateY(-50%)',
         }} />
 
         {/* Progress label centered */}
