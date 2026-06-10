@@ -134,7 +134,19 @@ export const PositionCard: React.FC<Props> = ({ pos, isFlashing, isUpdated }) =>
         </div>
 
         {/* ─── Progress Bar ─── */}
-        <ProgressBar progress={pos.progress_pct} isBuy={isBuy} />
+        {(() => {
+          // Compute progress from live prices when DB hasn't updated progress_pct yet
+          let progress = pos.progress_pct || 0;
+          if (progress === 0 && pos.entry_price && pos.target_1 && pos.stop_loss) {
+            const current = pos.current_price ?? pos.entry_price;
+            if (isBuy) {
+              progress = Math.max(0, Math.min(100, ((current - pos.stop_loss) / (pos.target_1 - pos.stop_loss)) * 100));
+            } else {
+              progress = Math.max(0, Math.min(100, ((pos.stop_loss - current) / (pos.stop_loss - pos.target_1)) * 100));
+            }
+          }
+          return <ProgressBar progress={progress} isBuy={isBuy} />;
+        })()}
 
         {/* ─── Stats Grid ─── */}
         <div style={{ display: 'flex', gap: 8 }}>
