@@ -85,6 +85,12 @@ interface IronGatePosition {
     st_5m_aligned: boolean | null;
     st_15m_aligned: boolean | null;
     // st_5m_direction / st_15m_direction already declared above (existing fields)
+    // Two-stage exit fields
+    target_stage: number | null;        // 1 = chasing T1, 2 = T1 hit chasing T2
+    t1_hit_at: string | null;           // Timestamp when position advanced to stage 2
+    t1_hit_price: number | null;        // Price at T1 hit moment
+    original_stop_loss: number | null;  // Entry SL (current stop_loss = breakeven in stage 2)
+    round_number: number | null;        // Re-entry round on same ticker
 }
 
 interface IronGateHistory {
@@ -175,10 +181,80 @@ const dirColor = (d: string | null | undefined): string => {
     return 'text-slate-400';
 };
 
+// ─── CLOSE REASON BADGE ──────────────────────────────────────
+
+const CloseReasonBadge: React.FC<{ reason: string | null | undefined }> = ({ reason }) => {
+    if (!reason) return <span className="text-slate-500">—</span>;
+    const r = reason.toUpperCase();
+    if (r === 'TARGET_HIT_T2') return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border text-emerald-600 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/40">
+            🏆 Full Target (T2)
+        </span>
+    );
+    if (r === 'BREAKEVEN_AFTER_T1') return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/60 border-slate-300 dark:border-slate-600/60">
+            🛡️ BE Stop (T1 banked)
+        </span>
+    );
+    if (r === 'TARGET_HIT') return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/30">
+            🎯 T1 Hit
+        </span>
+    );
+    if (r === 'STOP_LOSS') return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 border-red-300 dark:border-red-800/40">
+            ⛔ Stop Loss
+        </span>
+    );
+    if (r === 'ST_1H_FLIP') return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/30">
+            ⚡ 1H Flip
+        </span>
+    );
+    if (r === 'MANUAL') return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-[#1a1f2e] border-slate-300 dark:border-[#252c3b]">
+            Manual
+        </span>
+    );
+    return <span className="text-slate-500 uppercase text-[9px] font-bold">{reason}</span>;
+};
+
+// ─── TARGET LEG BADGE ────────────────────────────────────────
+
+const TargetLegBadge: React.FC<{ position: IronGatePosition }> = ({ position }) => {
+    const { target_stage, t1_hit_at, t1_hit_price, round_number } = position;
+    const stage = target_stage ?? 1;
+    return (
+        <div className="flex items-center gap-2 flex-wrap">
+            {stage === 2 ? (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border
+                    text-emerald-600 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-600/50 ring-1 ring-emerald-400/40"
+                    style={{ boxShadow: '0 0 8px rgba(52,211,153,0.12)' }}>
+                    🎯 T1 Hit · Leg 2 of 2
+                </div>
+            ) : (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border
+                    text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800/30">
+                    Leg 1 of 2
+                </div>
+            )}
+            {round_number != null && round_number > 0 && (
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Round #{round_number}</span>
+            )}
+            {stage === 2 && t1_hit_at && (
+                <span className="text-[9px] text-slate-500 dark:text-slate-500 font-mono">
+                    T1 at {t1_hit_price != null ? fmt(t1_hit_price) : '—'} · {timeSince(t1_hit_at)}
+                </span>
+            )}
+        </div>
+    );
+};
+
 // ─── PROGRESS BAR ────────────────────────────────────────────
 
 const IronGateProgressBar: React.FC<{ position: IronGatePosition }> = ({ position }) => {
     const { entry_price, target_price, stop_loss, progress_pct, high_water_mark, low_water_mark } = position;
+    const stage = position.target_stage ?? 1;
     const pct = Math.max(0, Math.min(100, progress_pct || 0));
     const hwm = Math.max(0, Math.min(100, high_water_mark || 0));
     const lwm = Math.max(0, Math.min(100, low_water_mark || 0));
@@ -190,7 +266,7 @@ const IronGateProgressBar: React.FC<{ position: IronGatePosition }> = ({ positio
     return (
         <div className="space-y-1.5">
             <div className="flex items-center justify-between text-[9px] font-bold text-slate-500 mb-0.5">
-                <span>SL → Target Progress</span>
+                <span>{stage === 2 ? 'Stage 2 progress: BE → T2' : 'SL → Target Progress'}</span>
                 <span className="font-mono" style={{ color: zoneColor }}>{pct.toFixed(1)}%</span>
             </div>
             <div className="relative h-5 rounded-full overflow-visible bg-gray-200 dark:bg-[#0d1117] border border-gray-200 dark:border-[#1e2430]">
@@ -215,9 +291,9 @@ const IronGateProgressBar: React.FC<{ position: IronGatePosition }> = ({ positio
                     style={{ left: `calc(${pct}% - 6px)`, background: zoneColor, boxShadow: `0 0 8px ${zoneColor}80` }} />
             </div>
             <div className="flex justify-between text-[9px] font-bold mt-0.5">
-                <span className="text-red-500 dark:text-red-400">⛔ {fmt(stop_loss)}</span>
+                <span className="text-red-500 dark:text-red-400">{stage === 2 ? '🛡️ BE' : '⛔'} {fmt(stop_loss)}</span>
                 <span className="text-amber-600 dark:text-yellow-400/70">Entry {fmt(entry_price)}</span>
-                <span className="text-emerald-600 dark:text-emerald-400">🎯 {fmt(target_price)}</span>
+                <span className="text-emerald-600 dark:text-emerald-400">{stage === 2 ? '🏁 T2' : '🎯 T1'} {fmt(target_price)}</span>
             </div>
         </div>
     );
@@ -383,7 +459,10 @@ const PositionCard: React.FC<{
                     </div>
                 </div>
 
-                {/* ── Row 2: Signal Badge + Execution Hint ── */}
+                {/* ── Row 2: Leg Badge ── */}
+                <TargetLegBadge position={position} />
+
+                {/* ── Row 3: Signal Badge + Execution Hint ── */}
                 <div className="flex flex-wrap items-center gap-2">
                     <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${isCall
                         ? (isStrong ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/40' : 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border-green-300 dark:border-green-800/30')
@@ -405,14 +484,25 @@ const PositionCard: React.FC<{
                         <span className={`block text-[8px] font-mono font-bold ${profitable ? 'text-[#00d97e]/60' : 'text-[#ff4757]/60'}`}>{profitable ? '▲' : '▼'} {Math.abs(pnl).toFixed(2)}%</span>
                     </div>
                     <div className="bg-gray-100 dark:bg-[#111620] rounded-xl p-2.5 border border-gray-200 dark:border-[#1e2430]">
-                        <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">🎯 Target</span>
+                        <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">
+                            {(position.target_stage ?? 1) === 2 ? '🏁 T2 Final' : '🎯 Target T1'}
+                        </span>
                         <span className="block text-sm font-black font-mono text-emerald-600 dark:text-emerald-400">{fmt(position.target_price)}</span>
                     </div>
                 </div>
 
                 {/* ── Row 4: SL + Profit Zone + R:R ── */}
-                <div className="flex items-center justify-between text-[10px] px-0.5">
-                    <span className="text-slate-500 font-bold">⛔ SL <span className="text-red-400 font-mono font-bold">{fmt(position.stop_loss)}</span></span>
+                <div className="flex items-center justify-between text-[10px] px-0.5 gap-2">
+                    {(position.target_stage ?? 1) === 2 ? (
+                        <div className="flex flex-col">
+                            <span className="text-slate-500 font-bold">🛡️ SL @ BE <span className="text-amber-400 font-mono font-bold">{fmt(position.stop_loss)}</span></span>
+                            {position.original_stop_loss != null && (
+                                <span className="text-[8px] text-slate-500 font-mono ml-4">moved from {fmt(position.original_stop_loss)}</span>
+                            )}
+                        </div>
+                    ) : (
+                        <span className="text-slate-500 font-bold">⛔ SL <span className="text-red-400 font-mono font-bold">{fmt(position.stop_loss)}</span></span>
+                    )}
                     {(position.profit_zone_low || position.profit_zone_high) && (
                         <span className="text-slate-500 font-bold">💰 <span className="text-emerald-400 font-mono font-bold">{fmt(position.profit_zone_low)}–{fmt(position.profit_zone_high)}</span></span>
                     )}
@@ -1074,7 +1164,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                                                 <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${isWin ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/30' : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/30'}`}>{h.result}</span>
                                                             </td>
                                                             <td className="px-4 py-3 text-slate-600 dark:text-slate-400 font-mono font-bold">{formatDuration(h.duration_minutes)}</td>
-                                                            <td className="px-4 py-3 text-slate-500 uppercase text-[9px] font-bold">{h.exit_reason}</td>
+                                                            <td className="px-4 py-3"><CloseReasonBadge reason={h.exit_reason} /></td>
                                                             <td className="px-4 py-3 text-slate-600 font-mono">{h.closed_at ? new Date(h.closed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</td>
                                                         </tr>
                                                     );
