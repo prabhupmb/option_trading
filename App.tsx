@@ -540,7 +540,7 @@ const App: React.FC = () => {
               <div className="flex items-center gap-1 px-8 pt-5 pb-0 border-b border-gray-100 dark:border-white/5 bg-white dark:bg-transparent">
                 {([
                   { id: 'iron-gate', label: 'Iron Gate', icon: 'lock' },
-                  ...(role === 'admin' ? [{ id: 'iron-gate-day', label: 'Iron Gate Day', icon: 'bolt' }] : []),
+                  { id: 'iron-gate-day', label: 'Iron Gate Day', icon: 'bolt' },
                 ] as const).map(tab => (
                   <button
                     key={tab.id}
@@ -556,7 +556,7 @@ const App: React.FC = () => {
                 ))}
                 {strategies.filter(s => {
                   if (['iron_gate', 'iron_gate_day'].includes(s.strategy)) return false;
-                  if (role !== 'admin' && s.strategy !== 'day_trade') return false;
+                  if (role !== 'admin') return false;
                   return true;
                 }).map(strategy => (
                   <button
