@@ -32,6 +32,7 @@ import { useStrategyConfigs } from './hooks/useStrategyConfigs';
 import { useScanProgress } from './hooks/useScanProgress';
 import DataDelayBanner from './components/DataDelayBanner';
 import TrendingStocks from './components/TrendingStocks';
+import MarketNews from './components/MarketNews';
 
 // ─── STOCK FEED VIEW (sub-tabs: Signal Feed + Stock Gate) ─────
 
@@ -701,6 +702,8 @@ const App: React.FC = () => {
             <div className="flex-1 overflow-y-auto">
               <TrendingStocks />
             </div>
+          ) : currentView === 'market-news' ? (
+            <MarketNews fetchNews={async () => { return []; }} />
           ) : currentView === 'admin' && role === 'admin' ? (
             <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#0a0712]">
               <AdminPanel currentUser={user} />

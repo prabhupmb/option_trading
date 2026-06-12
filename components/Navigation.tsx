@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { UserRole, AccessLevel } from '../types';
 
-export type View = 'signals' | 'smart-feed' | 'portfolio' | 'quick-trade' | 'auto-trade' | 'iron-dip' | 'iron-gate' | 'iron-gate-day' | 'ai-hub' | 'chat' | 'watchlist' | 'history' | 'settings' | 'admin' | 'faq' | 'trending';
+export type View = 'signals' | 'smart-feed' | 'portfolio' | 'quick-trade' | 'auto-trade' | 'iron-dip' | 'iron-gate' | 'iron-gate-day' | 'ai-hub' | 'chat' | 'watchlist' | 'history' | 'settings' | 'admin' | 'faq' | 'trending' | 'market-news';
 
 interface NavigationProps {
   activeView: View;
@@ -29,11 +29,12 @@ const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, o
     { id: 'chat', label: 'Group Chat', icon: 'forum' },
     { id: 'settings', label: 'Settings', icon: 'settings' },
     { id: 'faq', label: 'FAQ / Help', icon: 'help' },
-    { id: 'trending', label: 'Trending', icon: 'trending_up' }
+    { id: 'trending', label: 'Trending', icon: 'trending_up' },
+    { id: 'market-news', label: 'Market News', icon: 'newspaper' }
   ];
 
   if (role !== 'admin') {
-    const allowedForCustomer: View[] = ['signals', 'smart-feed', 'portfolio', 'auto-trade', 'chat', 'settings', 'faq', 'trending'];
+    const allowedForCustomer: View[] = ['signals', 'smart-feed', 'portfolio', 'auto-trade', 'chat', 'settings', 'faq', 'trending', 'market-news'];
     tabs = tabs.filter(tab => allowedForCustomer.includes(tab.id));
   }
 
