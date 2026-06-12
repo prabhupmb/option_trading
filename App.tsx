@@ -710,7 +710,8 @@ const App: React.FC = () => {
                 .select('id, headline, summary, author, url, image_url, symbols, published_at')
                 .order('published_at', { ascending: false })
                 .limit(100);
-              if (error) throw new Error(error.message);
+              // Ignore "table not found" so the empty state shows instead of error
+              if (error && error.code !== '42P01') throw new Error(error.message);
               return (data || []) as NewsItem[];
             }} />
           ) : currentView === 'admin' && role === 'admin' ? (

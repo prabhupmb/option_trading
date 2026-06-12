@@ -49,6 +49,17 @@ const fmtTimeAgo = (iso: string) => {
 
 const N8N_SCAN_URL = 'https://prabhupadala01.app.n8n.cloud/webhook/trending-stocks-scan';
 const MIN_MARKET_CAP = 3_000_000_000;
+const AUTO_SCAN_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+
+const isMarketHours = (): boolean => {
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    const day = now.getDay();
+    if (day === 0 || day === 6) return false; // weekend
+    const h = now.getHours();
+    const m = now.getMinutes();
+    const totalMins = h * 60 + m;
+    return totalMins >= 9 * 60 + 30 && totalMins < 16 * 60; // 9:30 AM – 4:00 PM ET
+};
 
 // ─── Sub-components ─────────────────────────────────────────────
 const TypeBadge: React.FC<{ type: string }> = ({ type }) => {
@@ -107,20 +118,33 @@ const TrendingStocks: React.FC = () => {
         }
     }, []);
 
+    const triggerScan = useCallback(async () => {
+        try { await fetch(N8N_SCAN_URL, { method: 'POST' }); } catch { /* ignore */ }
+        scanTimer.current = setTimeout(fetchStocks, 15_000);
+    }, [fetchStocks]);
+
     useEffect(() => {
         fetchStocks();
-        const interval = setInterval(fetchStocks, 60_000);
-        return () => { clearInterval(interval); if (scanTimer.current) clearTimeout(scanTimer.current); };
-    }, [fetchStocks]);
+        // Fetch from DB every 60s
+        const fetchInterval = setInterval(fetchStocks, 60_000);
+        // Auto-trigger n8n scan every 15 min during market hours
+        const scanInterval = setInterval(() => {
+            if (isMarketHours()) triggerScan();
+        }, AUTO_SCAN_INTERVAL_MS);
+        // Trigger immediately on mount if market is open
+        if (isMarketHours()) triggerScan();
+        return () => {
+            clearInterval(fetchInterval);
+            clearInterval(scanInterval);
+            if (scanTimer.current) clearTimeout(scanTimer.current);
+        };
+    }, [fetchStocks, triggerScan]);
 
     const handleScanNow = async () => {
         if (scanning) return;
         setScanning(true);
-        try { await fetch(N8N_SCAN_URL, { method: 'POST' }); } catch { /* network errors are fine */ }
-        scanTimer.current = setTimeout(async () => {
-            await fetchStocks();
-            setScanning(false);
-        }, 15_000);
+        await triggerScan();
+        setTimeout(() => setScanning(false), 16_000);
     };
 
     const handleSort = (col: SortColumn) => {
