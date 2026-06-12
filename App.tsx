@@ -32,7 +32,8 @@ import { useStrategyConfigs } from './hooks/useStrategyConfigs';
 import { useScanProgress } from './hooks/useScanProgress';
 import DataDelayBanner from './components/DataDelayBanner';
 import TrendingStocks from './components/TrendingStocks';
-import MarketNews from './components/MarketNews';
+import MarketNews, { NewsItem } from './components/MarketNews';
+import { supabase } from './services/supabase';
 
 // ─── STOCK FEED VIEW (sub-tabs: Signal Feed + Stock Gate) ─────
 
@@ -703,7 +704,15 @@ const App: React.FC = () => {
               <TrendingStocks />
             </div>
           ) : currentView === 'market-news' ? (
-            <MarketNews fetchNews={async () => { return []; }} />
+            <MarketNews fetchNews={async (): Promise<NewsItem[]> => {
+              const { data, error } = await supabase
+                .from('market_news')
+                .select('id, headline, summary, author, url, image_url, symbols, published_at')
+                .order('published_at', { ascending: false })
+                .limit(100);
+              if (error) throw new Error(error.message);
+              return (data || []) as NewsItem[];
+            }} />
           ) : currentView === 'admin' && role === 'admin' ? (
             <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#0a0712]">
               <AdminPanel currentUser={user} />
