@@ -33,18 +33,20 @@ import { useScanProgress } from './hooks/useScanProgress';
 import DataDelayBanner from './components/DataDelayBanner';
 import TrendingStocks from './components/TrendingStocks';
 import MarketNews, { NewsItem } from './components/MarketNews';
+import StageTrackerDashboard from './components/StageTracker';
 import { supabase } from './services/supabase';
 
 // ─── STOCK FEED VIEW (sub-tabs: Signal Feed + Stock Gate) ─────
 
 const StockFeedView: React.FC<{ onExecute: (s: any) => void }> = ({ onExecute }) => {
-  const [stockTab, setStockTab] = React.useState<'signal-feed' | 'stock-gate'>('stock-gate');
+  const [stockTab, setStockTab] = React.useState<'signal-feed' | 'stock-gate' | 'stage-tracker'>('stock-gate');
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="flex items-center gap-1 px-8 pt-5 pb-0 border-b border-gray-100 dark:border-white/5 bg-white dark:bg-transparent">
         {([
-          { id: 'stock-gate', label: 'Stock Gate', icon: 'trending_up' },
-          { id: 'signal-feed', label: 'Signal Feed', icon: 'query_stats' },
+          { id: 'stock-gate',     label: 'Stock Gate',     icon: 'trending_up' },
+          { id: 'signal-feed',    label: 'Signal Feed',    icon: 'query_stats' },
+          { id: 'stage-tracker',  label: 'Stage Tracker',  icon: 'account_tree' },
         ] as const).map(tab => (
           <button
             key={tab.id}
@@ -67,6 +69,11 @@ const StockFeedView: React.FC<{ onExecute: (s: any) => void }> = ({ onExecute })
       {stockTab === 'signal-feed' && (
         <div className="flex-1 overflow-hidden">
           <SignalFeed />
+        </div>
+      )}
+      {stockTab === 'stage-tracker' && (
+        <div className="flex-1 overflow-hidden">
+          <StageTrackerDashboard />
         </div>
       )}
     </div>

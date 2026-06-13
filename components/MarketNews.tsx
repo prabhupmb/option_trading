@@ -161,7 +161,7 @@ const MarketNews: React.FC<MarketNewsProps> = ({ fetchNews }) => {
       const incoming = new Set(items.map(i => i.id));
       const fresh = new Set<number>();
       if (prevIdsRef.current.size > 0) {
-        incoming.forEach(id => { if (!prevIdsRef.current.has(id)) fresh.add(id); });
+        incoming.forEach((id: number) => { if (!prevIdsRef.current.has(id)) fresh.add(id); });
       }
       prevIdsRef.current = incoming;
       setNews(items);

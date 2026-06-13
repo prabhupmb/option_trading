@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { UserRole, AccessLevel } from '../types';
 
-export type View = 'signals' | 'smart-feed' | 'portfolio' | 'quick-trade' | 'auto-trade' | 'iron-dip' | 'iron-gate' | 'iron-gate-day' | 'ai-hub' | 'chat' | 'watchlist' | 'history' | 'settings' | 'admin' | 'faq' | 'trending' | 'market-news';
+export type View = 'signals' | 'smart-feed' | 'portfolio' | 'quick-trade' | 'auto-trade' | 'iron-dip' | 'iron-gate' | 'iron-gate-day' | 'ai-hub' | 'chat' | 'watchlist' | 'history' | 'settings' | 'admin' | 'faq' | 'trending' | 'market-news' | 'stage-tracker';
 
 interface NavigationProps {
   activeView: View;
