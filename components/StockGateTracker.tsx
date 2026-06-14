@@ -539,6 +539,7 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }>
     const [history, setHistory] = useState<StockGateHistory[]>([]);
     const [loadingPositions, setLoadingPositions] = useState(true);
     const [loadingHistory, setLoadingHistory] = useState(true);
+    const [positionsError, setPositionsError] = useState<string | null>(null);
     const [closingPosition, setClosingPosition] = useState<StockGatePosition | null>(null);
     const [isClosing, setIsClosing] = useState(false);
     const [activeSection, setActiveSection] = useState<'positions' | 'history'>('positions');
@@ -587,7 +588,13 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }>
 
     const fetchPositions = async () => {
         const { data, error } = await supabase.from('stock_gate_positions').select('*').eq('status', 'OPEN').order('opened_at', { ascending: false });
-        if (!error && data) setPositions(data);
+        if (error) {
+            console.error('[StockGate] fetchPositions error:', error);
+            setPositionsError(error.message);
+        } else {
+            setPositions(data ?? []);
+            setPositionsError(null);
+        }
         setLoadingPositions(false);
     };
 
@@ -754,6 +761,15 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }>
                         {loadingPositions ? (
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 {[1, 2, 3, 4].map(i => <PositionSkeleton key={i} />)}
+                            </div>
+                        ) : positionsError ? (
+                            <div className="text-center py-24 bg-gray-50 dark:bg-[#0d1117] rounded-2xl border border-red-900/30">
+                                <div className="w-16 h-16 rounded-2xl bg-red-900/15 border border-red-800/20 flex items-center justify-center text-3xl mx-auto mb-4">⚠️</div>
+                                <h3 className="text-base font-black text-red-400 uppercase tracking-tight mb-2">Failed to Load Positions</h3>
+                                <p className="text-slate-600 text-sm max-w-sm mx-auto mb-4 font-mono">{positionsError}</p>
+                                <button onClick={fetchPositions} className="px-4 py-2 rounded-lg bg-red-900/20 border border-red-800/30 text-red-400 text-xs font-bold hover:bg-red-900/30 transition-colors">
+                                    Retry
+                                </button>
                             </div>
                         ) : positions.length === 0 ? (
                             <div className="text-center py-24 bg-gray-50 dark:bg-[#0d1117] rounded-2xl border border-gray-200 dark:border-[#1e2430]">
