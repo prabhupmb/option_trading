@@ -727,6 +727,8 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
     const [executionFilter, setExecutionFilter] = useState<'READY' | 'WAIT' | null>(null);
     const [todayOnly, setTodayOnly] = useState(true);
     const [historyTodayOnly, setHistoryTodayOnly] = useState(true);
+    const [historyDateFrom, setHistoryDateFrom] = useState<string>('');
+    const [historyDateTo, setHistoryDateTo] = useState<string>('');
     const [webhookStatus, setWebhookStatus] = useState<'idle' | 'triggering' | 'ok' | 'err'>('idle');
     const [lastTriggeredTime, setLastTriggeredTime] = useState<string | null>(null);
     const [firedTimes, setFiredTimes] = useState<Set<string>>(new Set());
@@ -782,7 +784,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
     };
 
     const fetchHistory = async () => {
-        const { data, error } = await supabase.from('iron_gate_history').select('*').order('closed_at', { ascending: false }).limit(50);
+        const { data, error } = await supabase.from('iron_gate_history').select('*').order('closed_at', { ascending: false }).limit(500);
         console.log('[IronGate] fetchHistory:', { count: data?.length, error });
         if (!error && data) setHistory(data);
         setLoadingHistory(false);
@@ -1110,27 +1112,93 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                 <p className="text-slate-600 text-sm">Closed positions will appear here.</p>
                             </div>
                         ) : (() => {
-                            const histTodayStr = new Date().toDateString();
-                            const histTodayCount = history.filter(h => new Date(h.closed_at).toDateString() === histTodayStr).length;
-                            const filteredHistory = historyTodayOnly
-                                ? history.filter(h => new Date(h.closed_at).toDateString() === histTodayStr)
-                                : history;
+                            const todayStr = new Date().toDateString();
+                            const todayCount = history.filter(h => new Date(h.closed_at).toDateString() === todayStr).length;
+
+                            // Preset helpers
+                            const setPreset = (preset: 'today' | 'week' | 'month' | 'all') => {
+                                const now = new Date();
+                                if (preset === 'today') {
+                                    const d = now.toISOString().slice(0, 10);
+                                    setHistoryDateFrom(d); setHistoryDateTo(d); setHistoryTodayOnly(true);
+                                } else if (preset === 'week') {
+                                    const from = new Date(now); from.setDate(now.getDate() - 6);
+                                    setHistoryDateFrom(from.toISOString().slice(0, 10)); setHistoryDateTo(now.toISOString().slice(0, 10)); setHistoryTodayOnly(false);
+                                } else if (preset === 'month') {
+                                    const from = new Date(now); from.setDate(now.getDate() - 29);
+                                    setHistoryDateFrom(from.toISOString().slice(0, 10)); setHistoryDateTo(now.toISOString().slice(0, 10)); setHistoryTodayOnly(false);
+                                } else {
+                                    setHistoryDateFrom(''); setHistoryDateTo(''); setHistoryTodayOnly(false);
+                                }
+                            };
+
+                            const filteredHistory = (() => {
+                                if (historyTodayOnly) return history.filter(h => new Date(h.closed_at).toDateString() === todayStr);
+                                if (!historyDateFrom && !historyDateTo) return history;
+                                return history.filter(h => {
+                                    const d = h.closed_at ? h.closed_at.slice(0, 10) : '';
+                                    if (historyDateFrom && d < historyDateFrom) return false;
+                                    if (historyDateTo && d > historyDateTo) return false;
+                                    return true;
+                                });
+                            })();
+
+                            const activePreset = historyTodayOnly ? 'today'
+                                : !historyDateFrom && !historyDateTo ? 'all'
+                                : null; // custom range
+
                             return (
                             <>
                                 {/* History filter bar */}
-                                <div className="flex items-center gap-2 mb-4">
+                                <div className="flex items-center gap-2 mb-4 flex-wrap">
                                     <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Filter:</span>
-                                    <button
-                                        onClick={() => setHistoryTodayOnly(v => !v)}
-                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all ${historyTodayOnly
-                                            ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600/60 text-blue-700 dark:text-blue-300 ring-1 ring-blue-400'
-                                            : 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400 hover:opacity-80'
-                                        }`}
-                                    >
-                                        <span>📅</span>
-                                        <span className="uppercase tracking-wide">Today</span>
-                                        <span className="font-black bg-black/10 dark:bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{histTodayCount}</span>
-                                    </button>
+
+                                    {/* Preset chips */}
+                                    {[
+                                        { id: 'today', label: 'Today', count: todayCount },
+                                        { id: 'week',  label: 'This Week', count: null },
+                                        { id: 'month', label: '30 Days', count: null },
+                                        { id: 'all',   label: 'All', count: history.length },
+                                    ].map(p => (
+                                        <button key={p.id}
+                                            onClick={() => setPreset(p.id as any)}
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all ${activePreset === p.id
+                                                ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600/60 text-blue-700 dark:text-blue-300 ring-1 ring-blue-400'
+                                                : 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400 hover:opacity-80'
+                                            }`}
+                                        >
+                                            <span className="uppercase tracking-wide">{p.label}</span>
+                                            {p.count != null && <span className="font-black bg-black/10 dark:bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{p.count}</span>}
+                                        </button>
+                                    ))}
+
+                                    <span className="text-slate-700 dark:text-slate-600 text-[10px] select-none">|</span>
+
+                                    {/* Custom date range inputs */}
+                                    <div className="flex items-center gap-1.5">
+                                        <input
+                                            type="date"
+                                            value={historyDateFrom}
+                                            onChange={e => { setHistoryDateFrom(e.target.value); setHistoryTodayOnly(false); }}
+                                            className="px-2 py-1 rounded-lg border text-[10px] font-mono bg-white dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                        />
+                                        <span className="text-[10px] text-slate-500">–</span>
+                                        <input
+                                            type="date"
+                                            value={historyDateTo}
+                                            onChange={e => { setHistoryDateTo(e.target.value); setHistoryTodayOnly(false); }}
+                                            className="px-2 py-1 rounded-lg border text-[10px] font-mono bg-white dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                        />
+                                        {(historyDateFrom || historyDateTo) && !historyTodayOnly && (
+                                            <button
+                                                onClick={() => setPreset('all')}
+                                                className="text-[10px] text-slate-500 hover:text-slate-900 dark:hover:text-white font-bold underline transition-colors"
+                                            >
+                                                clear
+                                            </button>
+                                        )}
+                                    </div>
+
                                     <span className="ml-auto text-[9px] text-slate-600 font-bold">{filteredHistory.length} of {history.length} shown</span>
                                 </div>
                                 <HistorySummaryStats history={filteredHistory} />
