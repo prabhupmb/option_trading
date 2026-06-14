@@ -153,11 +153,42 @@ const IronGateDayDashboard: React.FC<Props> = () => {
   };
 
   const {
-    openPositions, todayHistory,
+    openPositions, todayHistory, allHistory,
     loading, connected, error,
     toasts, flashIds, updatedIds,
     historyPulse, refetch, dismissToast,
   } = useIronGateDay();
+
+  const [historyDateFrom, setHistoryDateFrom] = useState('');
+  const [historyDateTo, setHistoryDateTo] = useState('');
+  const [historyPreset, setHistoryPreset] = useState<'today' | 'week' | 'month' | 'all'>('today');
+
+  const setPreset = (preset: 'today' | 'week' | 'month' | 'all') => {
+    const now = new Date();
+    setHistoryPreset(preset);
+    if (preset === 'today') {
+      setHistoryDateFrom(''); setHistoryDateTo('');
+    } else if (preset === 'week') {
+      const from = new Date(now); from.setDate(now.getDate() - 6);
+      setHistoryDateFrom(from.toISOString().slice(0, 10)); setHistoryDateTo(now.toISOString().slice(0, 10));
+    } else if (preset === 'month') {
+      const from = new Date(now); from.setDate(now.getDate() - 29);
+      setHistoryDateFrom(from.toISOString().slice(0, 10)); setHistoryDateTo(now.toISOString().slice(0, 10));
+    } else {
+      setHistoryDateFrom(''); setHistoryDateTo('');
+    }
+  };
+
+  const filteredHistory = useMemo(() => {
+    if (historyPreset === 'today') return todayHistory;
+    if (!historyDateFrom && !historyDateTo) return allHistory;
+    return allHistory.filter(h => {
+      const d = h.closed_at ? h.closed_at.slice(0, 10) : '';
+      if (historyDateFrom && d < historyDateFrom) return false;
+      if (historyDateTo   && d > historyDateTo)   return false;
+      return true;
+    });
+  }, [historyPreset, historyDateFrom, historyDateTo, todayHistory, allHistory]);
 
   const clock = useETClock();
   const scan = useScanWindow();
@@ -270,10 +301,57 @@ const IronGateDayDashboard: React.FC<Props> = () => {
             scan={scan}
           />
         ) : (
-          <HistoryTable
-            history={todayHistory}
-            loading={loading}
-          />
+          <>
+            {/* History date filter bar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Filter:</span>
+              {(['today', 'week', 'month', 'all'] as const).map(p => {
+                const labels: Record<string, string> = { today: 'Today', week: 'This Week', month: '30 Days', all: 'All' };
+                const counts: Record<string, number> = {
+                  today: todayHistory.length,
+                  week: 0, month: 0,
+                  all: allHistory.length,
+                };
+                const isActive = historyPreset === p && (p !== 'week' && p !== 'month');
+                const isCustomActive = (p === 'week' || p === 'month') && historyPreset === p;
+                return (
+                  <button key={p} onClick={() => setPreset(p)} style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '5px 12px', borderRadius: 20,
+                    border: `1px solid ${(isActive || isCustomActive) ? 'rgba(59,130,246,0.6)' : C.cardBorder}`,
+                    background: (isActive || isCustomActive) ? 'rgba(59,130,246,0.12)' : C.innerRowBg,
+                    color: (isActive || isCustomActive) ? '#60A5FA' : C.textMuted,
+                    fontSize: 10, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
+                  }}>
+                    <span style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>{labels[p]}</span>
+                    {counts[p] > 0 && <span style={{ fontSize: 9, fontWeight: 900, background: 'rgba(0,0,0,0.2)', padding: '1px 5px', borderRadius: 10 }}>{counts[p]}</span>}
+                  </button>
+                );
+              })}
+              <span style={{ color: C.cardBorder, fontSize: 10 }}>|</span>
+              <input
+                type="date"
+                value={historyDateFrom}
+                onChange={e => { setHistoryDateFrom(e.target.value); setHistoryPreset('all'); }}
+                style={{ padding: '4px 8px', borderRadius: 8, border: `1px solid ${C.cardBorder}`, background: C.innerRowBg, color: C.textPrimary, fontSize: 10, fontFamily: 'JetBrains Mono, monospace', outline: 'none' }}
+              />
+              <span style={{ color: C.textMuted, fontSize: 10 }}>–</span>
+              <input
+                type="date"
+                value={historyDateTo}
+                onChange={e => { setHistoryDateTo(e.target.value); setHistoryPreset('all'); }}
+                style={{ padding: '4px 8px', borderRadius: 8, border: `1px solid ${C.cardBorder}`, background: C.innerRowBg, color: C.textPrimary, fontSize: 10, fontFamily: 'JetBrains Mono, monospace', outline: 'none' }}
+              />
+              {(historyDateFrom || historyDateTo) && historyPreset === 'all' && (
+                <button onClick={() => { setHistoryDateFrom(''); setHistoryDateTo(''); }} style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>clear</button>
+              )}
+              <span style={{ marginLeft: 'auto', fontSize: 9, color: C.textMuted, fontWeight: 700 }}>{filteredHistory.length} of {allHistory.length} shown</span>
+            </div>
+            <HistoryTable
+              history={filteredHistory}
+              loading={loading}
+            />
+          </>
         )}
 
         {/* Footer */}

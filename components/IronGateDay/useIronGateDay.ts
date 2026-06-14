@@ -39,6 +39,7 @@ function makeToast(message: string, type: Toast['type']): Toast {
 export interface IronGateDayState {
   openPositions: IronGateDayPosition[];
   todayHistory: IronGateDayHistory[];
+  allHistory: IronGateDayHistory[];
   loading: boolean;
   connected: ConnectionStatus;
   error: string | null;
@@ -53,6 +54,7 @@ export interface IronGateDayState {
 export function useIronGateDay(): IronGateDayState {
   const [openPositions, setOpenPositions] = useState<IronGateDayPosition[]>([]);
   const [todayHistory, setTodayHistory] = useState<IronGateDayHistory[]>([]);
+  const [allHistory, setAllHistory] = useState<IronGateDayHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState<ConnectionStatus>('disconnected');
   const [error, setError] = useState<string | null>(null);
@@ -83,12 +85,13 @@ export function useIronGateDay(): IronGateDayState {
   }, []);
 
   const fetchHistory = useCallback(async () => {
-    const { data, error: e } = await supabase
-      .from('iron_gate_day_history')
-      .select('*')
-      .gte('closed_at', getETMidnightISO())
-      .order('closed_at', { ascending: false });
-    if (!e && data) setTodayHistory(data as IronGateDayHistory[]);
+    const todayISO = getETMidnightISO();
+    const [todayRes, allRes] = await Promise.all([
+      supabase.from('iron_gate_day_history').select('*').gte('closed_at', todayISO).order('closed_at', { ascending: false }),
+      supabase.from('iron_gate_day_history').select('*').order('closed_at', { ascending: false }).limit(500),
+    ]);
+    if (!todayRes.error && todayRes.data) setTodayHistory(todayRes.data as IronGateDayHistory[]);
+    if (!allRes.error && allRes.data) setAllHistory(allRes.data as IronGateDayHistory[]);
   }, []);
 
   const fetchAll = useCallback(async () => {
@@ -169,6 +172,7 @@ export function useIronGateDay(): IronGateDayState {
           lastActivityRef.current = Date.now();
           const row = payload.new as IronGateDayHistory;
           setTodayHistory(prev => [row, ...prev]);
+          setAllHistory(prev => [row, ...prev]);
           setHistoryPulse(true);
           setTimeout(() => setHistoryPulse(false), 3000);
           const sign = (row.pnl_pct || 0) >= 0 ? '+' : '';
@@ -213,6 +217,7 @@ export function useIronGateDay(): IronGateDayState {
   return {
     openPositions,
     todayHistory,
+    allHistory,
     loading,
     connected,
     error,
