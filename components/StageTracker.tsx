@@ -415,9 +415,11 @@ const StageTrackerDashboard: React.FC = () => {
     try {
       const { data, error } = await supabase.from('stock_lifecycle').select('*').order('updated_at', { ascending: false });
       if (error) throw error;
+      console.log('[StageTracker] stock_lifecycle rows:', data?.length, data);
       setLifecycles(data || []);
       setUseMock(false);
-    } catch {
+    } catch (err) {
+      console.error('[StageTracker] stock_lifecycle error:', err);
       setLifecycles(MOCK_LIFECYCLE);
       setUseMock(true);
     } finally {
@@ -429,8 +431,10 @@ const StageTrackerDashboard: React.FC = () => {
     try {
       const { data, error } = await supabase.from('stage_positions').select('*').eq('status', 'OPEN');
       if (error) throw error;
+      console.log('[StageTracker] stage_positions rows:', data?.length, data);
       setPositions(data || []);
-    } catch {
+    } catch (err) {
+      console.error('[StageTracker] stage_positions error:', err);
       setPositions(MOCK_POSITIONS);
     } finally {
       setPosLoading(false);
