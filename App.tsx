@@ -33,12 +33,12 @@ import { useScanProgress } from './hooks/useScanProgress';
 import DataDelayBanner from './components/DataDelayBanner';
 import TrendingStocks from './components/TrendingStocks';
 import MarketNews, { NewsItem } from './components/MarketNews';
-import StageTrackerDashboard from './components/StageTracker';
+import StageTrackerList from './components/StageTrackerList';
 import { supabase } from './services/supabase';
 
 // ─── STOCK FEED VIEW (sub-tabs: Signal Feed + Stock Gate) ─────
 
-const StockFeedView: React.FC<{ onExecute: (s: any) => void }> = ({ onExecute }) => {
+const StockFeedView: React.FC<{ onExecute: (s: any) => void; role?: string }> = ({ onExecute, role }) => {
   const [stockTab, setStockTab] = React.useState<'signal-feed' | 'stock-gate' | 'stage-tracker'>('stock-gate');
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -63,7 +63,7 @@ const StockFeedView: React.FC<{ onExecute: (s: any) => void }> = ({ onExecute })
       </div>
       {stockTab === 'stock-gate' && (
         <div className="flex-1 overflow-y-auto">
-          <StockGateTracker onExecute={onExecute} />
+          <StockGateTracker onExecute={onExecute} role={role} />
         </div>
       )}
       {stockTab === 'signal-feed' && (
@@ -73,7 +73,7 @@ const StockFeedView: React.FC<{ onExecute: (s: any) => void }> = ({ onExecute })
       )}
       {stockTab === 'stage-tracker' && (
         <div className="flex-1 overflow-hidden">
-          <StageTrackerDashboard />
+          <StageTrackerList />
         </div>
       )}
     </div>
@@ -669,7 +669,7 @@ const App: React.FC = () => {
 
               {activeTab === 'iron-gate' && (
                 <div className="flex-1 overflow-y-auto">
-                  <IronGateTracker onExecute={setExecutingSignal} />
+                  <IronGateTracker onExecute={setExecutingSignal} role={role} />
                 </div>
               )}
 
@@ -691,7 +691,7 @@ const App: React.FC = () => {
               <AIHub />
             </div>
           ) : currentView === 'smart-feed' ? (
-            <StockFeedView onExecute={setExecutingSignal} />
+            <StockFeedView onExecute={setExecutingSignal} role={role} />
           ) : currentView === 'quick-trade' ? (
             <div className="flex-1 overflow-hidden">
               <QuickTradePage />

@@ -714,7 +714,7 @@ const isCSTWeekday = () => {
     return day !== 0 && day !== 6;
 };
 
-const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> = ({ onExecute }) => {
+const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; role?: string }> = ({ onExecute, role }) => {
     const [config, setConfig] = useState<StrategyConfig | null>(null);
     const [positions, setPositions] = useState<IronGatePosition[]>([]);
     const [history, setHistory] = useState<IronGateHistory[]>([]);
@@ -1200,6 +1200,41 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void }> 
                                     </div>
 
                                     <span className="ml-auto text-[9px] text-slate-600 font-bold">{filteredHistory.length} of {history.length} shown</span>
+
+                                    {role === 'admin' && (
+                                        <button
+                                            onClick={() => {
+                                                const headers = ['Symbol','Type','Tier','Entry','Exit','P&L%','P&L$','Result','Duration','Exit Reason','Date'];
+                                                const rows = filteredHistory.map(h => [
+                                                    h.symbol,
+                                                    h.option_type?.toUpperCase() ?? '',
+                                                    h.tier,
+                                                    h.entry_price,
+                                                    h.exit_price,
+                                                    `${(h.pnl_pct || 0).toFixed(2)}%`,
+                                                    h.pnl_dollars,
+                                                    h.result,
+                                                    formatDuration(h.duration_minutes),
+                                                    h.exit_reason ?? '',
+                                                    h.closed_at ? new Date(h.closed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+                                                ]);
+                                                const csv = [headers, ...rows].map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+                                                const blob = new Blob([csv], { type: 'text/csv' });
+                                                const url = URL.createObjectURL(blob);
+                                                const a = document.createElement('a');
+                                                a.href = url;
+                                                a.download = `iron-gate-history-${new Date().toISOString().slice(0,10)}.csv`;
+                                                a.click();
+                                                URL.revokeObjectURL(url);
+                                            }}
+                                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-blue-400 dark:border-blue-600/60 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-[10px] font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                                            </svg>
+                                            Export CSV
+                                        </button>
+                                    )}
                                 </div>
                                 <HistorySummaryStats history={filteredHistory} />
                                 <div className="bg-white dark:bg-[#0d1117] rounded-2xl border border-gray-200 dark:border-[#1e2430] overflow-hidden">
