@@ -33,6 +33,7 @@ import { useScanProgress } from './hooks/useScanProgress';
 import DataDelayBanner from './components/DataDelayBanner';
 import TrendingStocks from './components/TrendingStocks';
 import MarketNews, { NewsItem } from './components/MarketNews';
+import NewsFeed from './components/NewsFeed';
 import StageTrackerList from './components/StageTrackerList';
 import StockLifecycleView from './components/StockLifecycleView';
 import { supabase } from './services/supabase';
@@ -712,16 +713,9 @@ const App: React.FC = () => {
               <TrendingStocks />
             </div>
           ) : currentView === 'market-news' ? (
-            <MarketNews fetchNews={async (): Promise<NewsItem[]> => {
-              const { data, error } = await supabase
-                .from('market_news')
-                .select('id, headline, summary, author, url, image_url, symbols, published_at')
-                .order('published_at', { ascending: false })
-                .limit(100);
-              // Ignore "table not found" so the empty state shows instead of error
-              if (error && error.code !== '42P01') throw new Error(error.message);
-              return (data || []) as NewsItem[];
-            }} />
+            <div className="flex-1 overflow-hidden">
+              <NewsFeed />
+            </div>
           ) : currentView === 'lifecycle' ? (
             <div className="flex-1 overflow-hidden">
               <StockLifecycleView />
