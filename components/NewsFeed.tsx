@@ -8,10 +8,12 @@ interface NewsItem {
   headline: string;
   summary: string | null;
   author: string | null;
-  url: string;
+  source: string | null;
+  url: string | null;
   image_url: string | null;
   symbols: string[] | null;
-  published_at: string;
+  published_at: string | null;
+  created_at: string | null;
 }
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
@@ -155,15 +157,17 @@ const NewsCard: React.FC<{
         <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
 
           {/* Source · timestamp */}
-          {item.author && (
+          {(item.author ?? item.source) && (
             <span className="text-[10px] truncate max-w-[110px]" style={{ color: '#52525b' }}>
-              {item.author}
+              {item.author ?? item.source}
             </span>
           )}
-          {item.author && <span style={{ color: '#2a2a30' }} className="text-[10px]">·</span>}
-          <span className="text-[10px] font-mono" style={{ color: '#52525b' }}>
-            {timeAgo(item.published_at)}
-          </span>
+          {(item.author ?? item.source) && <span style={{ color: '#2a2a30' }} className="text-[10px]">·</span>}
+          {(item.published_at ?? item.created_at) && (
+            <span className="text-[10px] font-mono" style={{ color: '#52525b' }}>
+              {timeAgo(item.published_at ?? item.created_at!)}
+            </span>
+          )}
 
           {/* Ticker chips */}
           {visible.length > 0 && (
@@ -223,13 +227,17 @@ const NewsFeed: React.FC = () => {
     try {
       const { data, error: dbErr } = await supabase
         .from('news_items')
-        .select('id, headline, summary, author, url, image_url, symbols, published_at')
-        .order('published_at', { ascending: false })
+        .select('*')
+        .order('created_at', { ascending: false })
         .limit(PAGE_SIZE);
 
       // Treat "table does not exist" as empty rather than an error
-      if (dbErr && dbErr.code !== '42P01') throw dbErr;
+      if (dbErr && dbErr.code !== '42P01') {
+        console.error('[NewsFeed] DB error:', dbErr);
+        throw dbErr;
+      }
 
+      console.log('[NewsFeed] fetched', data?.length ?? 0, 'items', data?.[0]);
       const fresh = (data ?? []) as NewsItem[];
 
       if (knownIds.current.size === 0) {
@@ -250,7 +258,7 @@ const NewsFeed: React.FC = () => {
       setLastRefresh(new Date());
       setError(null);
     } catch (err: any) {
-      if (isManual) setError(err?.message ?? 'Failed to load news. Check your connection.');
+      setError(err?.message ?? 'Failed to load news. Check your connection.');
     } finally {
       setLoading(false);
     }
