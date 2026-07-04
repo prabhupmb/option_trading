@@ -17,7 +17,15 @@ type SupportStatus  = 'holding' | 'untested' | 'broken';
 type BreakoutStatus = 'far' | 'pending' | 'confirming' | 'confirmed';
 
 interface SupportLevel { price: number; status: SupportStatus; }
-interface BuyZone      { lo: number; hi: number; }
+type BuyZoneStatus = 'IN_ZONE' | 'ARMED' | 'INVALIDATED';
+interface BuyZone {
+  lo:            number | null;
+  hi:            number | null;
+  status?:       BuyZoneStatus;
+  reason?:       'supports_broken' | 'no_uptrend' | null;
+  reclaim_level?: number | null;
+  anchor_ratio?: number;
+}
 
 interface LifecycleRow {
   symbol:                string;
@@ -78,7 +86,7 @@ const CONTEXT_CHIPS: CtxChip[] = [
   { id: 'consolidating',  label: 'Consolidating',  test: r => r.state === 'CONSOLIDATING' },
   { id: 'near-breakout',  label: 'Near breakout',  test: r => r.breakout_status === 'pending' || r.breakout_status === 'confirming' },
   { id: 'confirmed',      label: 'Confirmed',      test: r => r.breakout_status === 'confirmed' },
-  { id: 'in-buy-zone',    label: 'In buy zone',    test: r => { const bz = r.buy_zone, p = r.last_price; return bz != null && p != null && p >= bz.lo && p <= bz.hi; } },
+  { id: 'in-buy-zone',    label: 'In buy zone',    test: r => { const bz = r.buy_zone, p = r.last_price; return bz != null && bz.lo != null && bz.hi != null && p != null && p >= bz.lo && p <= bz.hi; } },
   { id: 'support-broken', label: 'Support broken', test: r => (r.support_levels ?? []).some(s => s.status === 'broken') },
 ];
 
@@ -201,6 +209,12 @@ const MOCK: LifecycleRow[] = [
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
+// ─── BUY ZONE KILL SWITCH ────────────────────────────────────────────────────
+// Set to false to suppress the overlay entirely with no other side effects.
+const SHOW_BUY_ZONE = true;
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+
 const timeAgo = (iso: string): string => {
   const ms = Date.now() - new Date(iso).getTime();
   const m  = Math.floor(ms / 60000);
@@ -312,7 +326,6 @@ const PriceTrack: React.FC<{ item: LifecycleRow }> = ({ item }) => {
   const toTop    = (p: number) => `${Math.max(0, Math.min(100, (1 - (p - lo) / range) * 100)).toFixed(2)}%`;
   const toBottom = (p: number) => `${Math.max(0, Math.min(100, ((p - lo) / range) * 100)).toFixed(2)}%`;
 
-  const showBuyZone   = trend_4h === 'UP' && buy_zone != null;
   const safeSupport   = support_levels ?? [];
   const lowestPrice   = safeSupport.length > 0 ? Math.min(...safeSupport.map(s => s.price)) : -Infinity;
   const sortedSupport = [...safeSupport].sort((a, b) => b.price - a.price);
@@ -344,27 +357,74 @@ const PriceTrack: React.FC<{ item: LifecycleRow }> = ({ item }) => {
         style={{ left: '50%', transform: 'translateX(-50%)', background: '#1f1f23' }}
       />
 
-      {/* ── Buy zone band ── */}
-      {showBuyZone && buy_zone && (
-        <div
-          className="absolute inset-x-0 pointer-events-none"
-          style={{
-            top: toTop(buy_zone.hi),
-            bottom: toBottom(buy_zone.lo),
-            background: 'rgba(34,197,94,0.05)',
-            borderTop: '1px solid rgba(34,197,94,0.2)',
-            borderBottom: '1px solid rgba(34,197,94,0.2)',
-            zIndex: 0,
-          }}
-        >
-          <span
-            className="absolute right-2 text-[9px] font-semibold"
-            style={{ top: '50%', transform: 'translateY(-50%)', color: 'rgba(74,222,128,0.45)' }}
-          >
-            Buy zone
-          </span>
-        </div>
-      )}
+      {/* ── Buy Zone overlay (new-shape only; old-shape or null → nothing) ── */}
+      {SHOW_BUY_ZONE && buy_zone != null && 'status' in buy_zone && buy_zone.status != null && (() => {
+        const CHART_H = 320;
+        // pixel-accurate converter (clamps to visible area)
+        const toPx = (p: number) => Math.max(0, Math.min(CHART_H, (1 - (p - lo) / range) * CHART_H));
+
+        const { status, lo: bzLo, hi: bzHi, reason, reclaim_level } = buy_zone;
+
+        if (status === 'IN_ZONE' || status === 'ARMED') {
+          if (bzHi == null || bzLo == null) return null;
+          const bandTopPx = toPx(bzHi);
+          const bandBotPx = toPx(bzLo);
+          const bandH     = Math.max(4, bandBotPx - bandTopPx);
+          const inZone    = status === 'IN_ZONE';
+
+          return (
+            <div
+              className="absolute inset-x-0 pointer-events-none"
+              style={{
+                top:          bandTopPx,
+                height:       bandH,
+                background:   inZone ? 'rgba(52,211,153,0.15)' : 'rgba(52,211,153,0.06)',
+                border:       `1px ${inZone ? 'solid' : 'dashed'} rgba(52,211,153,${inZone ? 0.4 : 0.3})`,
+                borderRadius: 3,
+                zIndex:       0,
+              }}
+            >
+              <span
+                className="absolute right-2 top-1 font-mono text-[9px] font-bold leading-none"
+                style={{ color: inZone ? '#34d399' : 'rgba(52,211,153,0.5)' }}
+              >
+                BUY ZONE {fmt(bzLo)} – {fmt(bzHi)} · {status === 'IN_ZONE' ? 'IN ZONE' : 'ARMED'}
+              </span>
+            </div>
+          );
+        }
+
+        if (status === 'INVALIDATED') {
+          const pillTopPx = reclaim_level != null ? toPx(reclaim_level) : 8;
+          const msg = reason === 'supports_broken'
+            ? reclaim_level != null
+              ? `Buy zone invalid — all supports broken. Reclaim ${fmt(reclaim_level)} first.`
+              : 'Buy zone invalid — all supports broken.'
+            : 'Buy zone inactive — 4h trend is not up.';
+
+          return (
+            <div
+              className="absolute right-3 pointer-events-none"
+              style={{ top: pillTopPx, transform: 'translateY(-50%)', zIndex: 20 }}
+            >
+              <span
+                className="inline-block px-2 py-0.5 rounded-full border font-mono text-[9px] leading-snug"
+                style={{
+                  background:  '#18181b',
+                  borderColor: '#3f3f46',
+                  color:       '#71717a',
+                  maxWidth:    220,
+                  whiteSpace:  'normal',
+                }}
+              >
+                {msg}
+              </span>
+            </div>
+          );
+        }
+
+        return null;
+      })()}
 
       {/* ── Target 2 ── */}
       {disp_target2 != null && (
