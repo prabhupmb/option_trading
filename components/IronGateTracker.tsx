@@ -782,8 +782,8 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
     const [activeSection, setActiveSection] = useState<'positions' | 'history' | 'vetoed'>('positions');
     const [signalFilter, setSignalFilter] = useState<string | null>(null);
     const [executionFilter, setExecutionFilter] = useState<'READY' | 'WAIT' | null>(null);
-    const [todayOnly, setTodayOnly] = useState(true);
-    const [historyTodayOnly, setHistoryTodayOnly] = useState(true);
+    const [todayOnly, setTodayOnly] = useState(false);
+    const [historyTodayOnly, setHistoryTodayOnly] = useState(false);
     const [historyDateFrom, setHistoryDateFrom] = useState<string>('');
     const [historyDateTo, setHistoryDateTo] = useState<string>('');
     const [versionFilter, setVersionFilter] = useState<string>('v1.8');
@@ -1055,7 +1055,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                     <div className="flex bg-gray-100 dark:bg-[#0d1117] rounded-xl border border-gray-200 dark:border-[#1e2430] p-1 gap-1">
                         {[
-                            { id: 'positions', label: `Positions (${positions.length})`, icon: 'radar', color: 'bg-blue-600 shadow-blue-600/25', badge: null },
+                            { id: 'positions', label: `Positions (${versionBase.length})`, icon: 'radar', color: 'bg-blue-600 shadow-blue-600/25', badge: null },
                             { id: 'history',   label: `History (${history.length})`,   icon: 'history', color: 'bg-violet-600 shadow-violet-600/25', badge: null },
                             { id: 'vetoed',    label: 'Vetoed',                        icon: 'block', color: 'bg-rose-600 shadow-rose-600/25', badge: skipsTodayCount },
                         ].map(tab => (
