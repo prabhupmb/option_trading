@@ -935,6 +935,13 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
     ];
 
     const todayStr = new Date().toDateString();
+
+    // Base set used for ALL chip counts — must match the version filter applied in filteredPositions
+    // so that badge numbers equal the row count when that chip is the only active filter.
+    const versionBase = positions.filter(p =>
+        versionFilter === 'all' || !versionFilter || !p.version || p.version === versionFilter
+    );
+
     const filteredPositions = positions.filter(p => {
         if (todayOnly && new Date(p.opened_at).toDateString() !== todayStr) return false;
         if (signalFilter && !filters.find(f => f.label === signalFilter)?.test(p)) return false;
@@ -943,11 +950,11 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
         if (versionFilter !== 'all' && versionFilter && p.version && p.version !== versionFilter) return false;
         return true;
     });
-    const todayCount = positions.filter(p => new Date(p.opened_at).toDateString() === todayStr).length;
+    const todayCount = versionBase.filter(p => new Date(p.opened_at).toDateString() === todayStr).length;
     const skipsTodayCount = skips.filter(s => new Date(s.created_at).toDateString() === todayStr).length;
 
-    const readyCount = positions.filter(p => p.execution_hint === 'READY_BUY' || p.execution_hint === 'READY_SELL').length;
-    const waitCount  = positions.filter(p => p.execution_hint === 'WAIT').length;
+    const readyCount = versionBase.filter(p => p.execution_hint === 'READY_BUY' || p.execution_hint === 'READY_SELL').length;
+    const waitCount  = versionBase.filter(p => p.execution_hint === 'WAIT').length;
 
     return (
         <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#080b10] min-h-screen text-slate-900 dark:text-white font-sans">
