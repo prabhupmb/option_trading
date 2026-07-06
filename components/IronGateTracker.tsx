@@ -1117,7 +1117,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
 
                                     {/* Tier / signal filters — clicking any clears TODAY */}
                                     {filters.map(f => {
-                                        const count = positions.filter(f.test).length;
+                                        const count = versionBase.filter(f.test).length;
                                         const isActive = signalFilter === f.label;
                                         return (
                                             <button key={f.label} onClick={() => { if (count === 0) return; setTodayOnly(false); setSignalFilter(isActive ? null : f.label); }}
