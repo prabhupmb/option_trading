@@ -111,6 +111,17 @@ interface IronGateHistory {
     opened_at: string;
     closed_at: string;
     gates_passed: string;
+    gate_reason?: string | null;
+    version?: string | null;
+}
+
+interface AutoTradeSkip {
+    id: string;
+    symbol: string;
+    reason: string;
+    source: string;
+    details: string | null;
+    created_at: string;
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────
@@ -436,6 +447,7 @@ const PositionCard: React.FC<{
                         <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border ${position.tier?.includes('+') ? 'text-amber-600 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-600/40' : 'text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/60 border-slate-300 dark:border-slate-600/60'}`}>
                             {position.tier}
                         </span>
+                        <LifecycleBadge gateReason={position.gate_reason} />
                         <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/30">
                             {position.gates_passed || '0/6'} ✅
                         </span>
@@ -662,6 +674,44 @@ const PositionSkeleton: React.FC = () => (
     </div>
 );
 
+// ─── LIFECYCLE BADGE ─────────────────────────────────────────
+
+const parseLC = (gateReason: string | null | undefined): string | null => {
+    if (!gateReason) return null;
+    const m = gateReason.match(/LC:([A-Z_]+)\s*$/);
+    return m ? m[1] : null;
+};
+
+const LifecycleBadge: React.FC<{ gateReason?: string | null }> = ({ gateReason }) => {
+    const stage = parseLC(gateReason);
+    if (!stage) return <span className="text-slate-500 dark:text-slate-600 text-[9px] font-bold">—</span>;
+    const isGreen = stage === 'BUY_ZONE' || stage === 'BREAKOUT';
+    const isRed   = stage === 'SUPPORT_BROKEN' || stage === 'BREAKDOWN';
+    return (
+        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+            isGreen ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/30'
+            : isRed ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/20'
+            : 'text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/60 border-slate-300 dark:border-slate-600/60'
+        }`}>
+            {stage.replace(/_/g, ' ')}
+        </span>
+    );
+};
+
+// ─── WIN TYPE PILL ────────────────────────────────────────────
+
+const WinTypePill: React.FC<{ exitReason?: string | null; result?: string }> = ({ exitReason, result }) => {
+    const r = (exitReason || '').toUpperCase();
+    if (r === 'TARGET_HIT' || r === 'TARGET_HIT_T2')
+        return <span className="px-2 py-0.5 rounded-full text-[9px] font-black border text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/30">WIN</span>;
+    if (r === 'BREAKEVEN_AFTER_T1')
+        return <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black border text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-800/30">🛡️ BE WIN</span>;
+    if (r === 'STOP_LOSS' || r === 'ST_1H_FLIP')
+        return <span className="px-2 py-0.5 rounded-full text-[9px] font-black border text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/30">LOSS</span>;
+    const isWin = result === 'WIN';
+    return <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${isWin ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/30' : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/30'}`}>{result || '—'}</span>;
+};
+
 // ─── HISTORY SUMMARY ─────────────────────────────────────────
 
 const HistorySummaryStats: React.FC<{ history: IronGateHistory[] }> = ({ history }) => {
@@ -673,14 +723,19 @@ const HistorySummaryStats: React.FC<{ history: IronGateHistory[] }> = ({ history
     const best = history.reduce((b, h) => (h.pnl_pct || 0) > (b.pnl_pct || 0) ? h : b, history[0]);
     const worst = history.reduce((w, h) => (h.pnl_pct || 0) < (w.pnl_pct || 0) ? h : w, history[0]);
     const avgDur = history.reduce((a, h) => a + (h.duration_minutes || 0), 0) / history.length;
+    const t1Banked = history.filter(h => {
+        const r = (h.exit_reason || '').toUpperCase();
+        return r === 'BREAKEVEN_AFTER_T1' || r === 'TARGET_HIT_T2';
+    }).length;
 
     return (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-5">
             {[
                 { label: 'Total Trades', value: String(history.length), color: 'text-slate-900 dark:text-white' },
                 { label: 'Win Rate', value: `${winRate.toFixed(1)}%`, color: winRate >= 50 ? 'text-[#00d97e]' : 'text-[#ff4757]' },
                 { label: 'Avg P&L', value: `${avgPnl >= 0 ? '+' : ''}${avgPnl.toFixed(1)}%`, color: avgPnl >= 0 ? 'text-[#00d97e]' : 'text-[#ff4757]' },
                 { label: 'Total P&L', value: `${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(0)}`, color: totalPnl >= 0 ? 'text-[#00d97e]' : 'text-[#ff4757]' },
+                { label: 'T1 Banked', value: `${t1Banked}`, color: 'text-teal-600 dark:text-teal-400' },
                 { label: 'Best Trade', value: `${best.symbol} +${(best.pnl_pct || 0).toFixed(1)}%`, color: 'text-[#00d97e]' },
                 { label: 'Worst Trade', value: `${worst.symbol} ${(worst.pnl_pct || 0).toFixed(1)}%`, color: 'text-[#ff4757]' },
                 { label: 'Avg Duration', value: formatDuration(avgDur), color: 'text-slate-900 dark:text-white' },
@@ -718,17 +773,20 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
     const [config, setConfig] = useState<StrategyConfig | null>(null);
     const [positions, setPositions] = useState<IronGatePosition[]>([]);
     const [history, setHistory] = useState<IronGateHistory[]>([]);
+    const [skips, setSkips] = useState<AutoTradeSkip[]>([]);
     const [loadingPositions, setLoadingPositions] = useState(true);
     const [loadingHistory, setLoadingHistory] = useState(true);
+    const [loadingSkips, setLoadingSkips] = useState(true);
     const [closingPosition, setClosingPosition] = useState<IronGatePosition | null>(null);
     const [isClosing, setIsClosing] = useState(false);
-    const [activeSection, setActiveSection] = useState<'positions' | 'history'>('positions');
+    const [activeSection, setActiveSection] = useState<'positions' | 'history' | 'vetoed'>('positions');
     const [signalFilter, setSignalFilter] = useState<string | null>(null);
     const [executionFilter, setExecutionFilter] = useState<'READY' | 'WAIT' | null>(null);
     const [todayOnly, setTodayOnly] = useState(true);
     const [historyTodayOnly, setHistoryTodayOnly] = useState(true);
     const [historyDateFrom, setHistoryDateFrom] = useState<string>('');
     const [historyDateTo, setHistoryDateTo] = useState<string>('');
+    const [versionFilter, setVersionFilter] = useState<string>('v1.8');
     const [webhookStatus, setWebhookStatus] = useState<'idle' | 'triggering' | 'ok' | 'err'>('idle');
     const [lastTriggeredTime, setLastTriggeredTime] = useState<string | null>(null);
     const [firedTimes, setFiredTimes] = useState<Set<string>>(new Set());
@@ -790,8 +848,34 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
         setLoadingHistory(false);
     };
 
-    useEffect(() => { fetchConfig(); fetchPositions(); fetchHistory(); }, []);
+    const fetchSkips = async () => {
+        const { data, error } = await supabase
+            .from('auto_trade_skips')
+            .select('*')
+            .eq('reason', 'LIFECYCLE_GATE')
+            .eq('source', 'iron_gate_scanner_v1.8')
+            .order('created_at', { ascending: false })
+            .limit(100);
+        if (!error && data) setSkips(data);
+        setLoadingSkips(false);
+    };
+
+    useEffect(() => { fetchConfig(); fetchPositions(); fetchHistory(); fetchSkips(); }, []);
     useEffect(() => { const i = setInterval(fetchPositions, 30000); return () => clearInterval(i); }, []);
+    useEffect(() => {
+        fetchSkips();
+        // Try realtime subscription; fall back to 60s polling
+        const channel = supabase
+            .channel('auto_trade_skips_lc')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'auto_trade_skips' }, () => fetchSkips())
+            .subscribe((status) => {
+                if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                    // realtime not available — polling handles it
+                }
+            });
+        const pollInterval = setInterval(fetchSkips, 60000);
+        return () => { supabase.removeChannel(channel); clearInterval(pollInterval); };
+    }, []);
 
     // Auto-disable TODAY filter if no positions were opened today
     useEffect(() => {
@@ -856,9 +940,11 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
         if (signalFilter && !filters.find(f => f.label === signalFilter)?.test(p)) return false;
         if (executionFilter === 'READY' && p.execution_hint !== 'READY_BUY' && p.execution_hint !== 'READY_SELL') return false;
         if (executionFilter === 'WAIT'  && p.execution_hint !== 'WAIT') return false;
+        if (versionFilter !== 'all' && versionFilter && p.version && p.version !== versionFilter) return false;
         return true;
     });
     const todayCount = positions.filter(p => new Date(p.opened_at).toDateString() === todayStr).length;
+    const skipsTodayCount = skips.filter(s => new Date(s.created_at).toDateString() === todayStr).length;
 
     const readyCount = positions.filter(p => p.execution_hint === 'READY_BUY' || p.execution_hint === 'READY_SELL').length;
     const waitCount  = positions.filter(p => p.execution_hint === 'WAIT').length;
@@ -962,13 +1048,19 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                     <div className="flex bg-gray-100 dark:bg-[#0d1117] rounded-xl border border-gray-200 dark:border-[#1e2430] p-1 gap-1">
                         {[
-                            { id: 'positions', label: `Positions (${positions.length})`, icon: 'radar', color: 'bg-blue-600 shadow-blue-600/25' },
-                            { id: 'history', label: `History (${history.length})`, icon: 'history', color: 'bg-violet-600 shadow-violet-600/25' },
+                            { id: 'positions', label: `Positions (${positions.length})`, icon: 'radar', color: 'bg-blue-600 shadow-blue-600/25', badge: null },
+                            { id: 'history',   label: `History (${history.length})`,   icon: 'history', color: 'bg-violet-600 shadow-violet-600/25', badge: null },
+                            { id: 'vetoed',    label: 'Vetoed',                        icon: 'block', color: 'bg-rose-600 shadow-rose-600/25', badge: skipsTodayCount },
                         ].map(tab => (
                             <button key={tab.id} onClick={() => setActiveSection(tab.id as any)}
                                 className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${activeSection === tab.id ? `${tab.color} text-white shadow-lg` : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}>
                                 <span className="material-symbols-outlined text-sm">{tab.icon}</span>
                                 {tab.label}
+                                {tab.badge != null && tab.badge > 0 && (
+                                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${activeSection === tab.id ? 'bg-white/20 text-white' : 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400'}`}>
+                                        {tab.badge}
+                                    </span>
+                                )}
                             </button>
                         ))}
                     </div>
@@ -1133,9 +1225,13 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                             };
 
                             const filteredHistory = (() => {
-                                if (historyTodayOnly) return history.filter(h => new Date(h.closed_at).toDateString() === todayStr);
-                                if (!historyDateFrom && !historyDateTo) return history;
-                                return history.filter(h => {
+                                let base = history;
+                                if (versionFilter !== 'all' && versionFilter) {
+                                    base = base.filter(h => h.version === versionFilter || (!h.version && versionFilter === 'v1.7'));
+                                }
+                                if (historyTodayOnly) return base.filter(h => new Date(h.closed_at).toDateString() === todayStr);
+                                if (!historyDateFrom && !historyDateTo) return base;
+                                return base.filter(h => {
                                     const d = h.closed_at ? h.closed_at.slice(0, 10) : '';
                                     if (historyDateFrom && d < historyDateFrom) return false;
                                     if (historyDateTo && d > historyDateTo) return false;
@@ -1199,6 +1295,20 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                         )}
                                     </div>
 
+                                    {/* Version filter */}
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Version:</span>
+                                        <select
+                                            value={versionFilter}
+                                            onChange={e => setVersionFilter(e.target.value)}
+                                            className="px-2 py-1 rounded-lg border text-[10px] font-mono font-bold bg-white dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                        >
+                                            <option value="all">All</option>
+                                            <option value="v1.7">v1.7</option>
+                                            <option value="v1.8">v1.8</option>
+                                        </select>
+                                    </div>
+
                                     <span className="ml-auto text-[9px] text-slate-600 font-bold">{filteredHistory.length} of {history.length} shown</span>
 
                                     {role === 'admin' && (
@@ -1242,7 +1352,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                         <table className="w-full text-xs">
                                             <thead>
                                                 <tr className="border-b border-gray-100 dark:border-[#1e2430] bg-gray-100 dark:bg-[#080b10]">
-                                                    {['Symbol', 'Type', 'Tier', 'Entry', 'Exit', 'P&L%', 'P&L$', 'Result', 'Duration', 'Exit Reason', 'Date'].map(col => (
+                                                    {['Symbol', 'Type', 'Tier', 'Stage', 'Entry', 'Exit', 'P&L%', 'P&L$', 'Result', 'Duration', 'Exit Reason', 'Date'].map(col => (
                                                         <th key={col} className="px-4 py-3 text-left text-[9px] font-bold text-slate-600 uppercase tracking-wider">{col}</th>
                                                     ))}
                                                 </tr>
@@ -1250,6 +1360,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                             <tbody>
                                                 {filteredHistory.map(h => {
                                                     const isWin = h.result === 'WIN';
+                                                    const pnlColor = isWin ? 'text-[#00d97e]' : 'text-[#ff4757]';
                                                     return (
                                                         <tr key={h.id} className={`border-b border-gray-100 dark:border-[#111620] transition-colors hover:bg-gray-100 dark:hover:bg-[#111620] ${isWin ? 'bg-[#00d97e]/[0.02]' : 'bg-[#ff4757]/[0.02]'}`}>
                                                             <td className="px-4 py-3 font-black text-slate-900 dark:text-white">{h.symbol}</td>
@@ -1259,13 +1370,12 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                                                 </span>
                                                             </td>
                                                             <td className="px-4 py-3 text-slate-500 dark:text-slate-400 font-bold">{h.tier}</td>
+                                                            <td className="px-4 py-3"><LifecycleBadge gateReason={h.gate_reason} /></td>
                                                             <td className="px-4 py-3 text-slate-700 dark:text-slate-300 font-mono font-bold">{fmt(h.entry_price)}</td>
                                                             <td className="px-4 py-3 text-slate-700 dark:text-slate-300 font-mono font-bold">{fmt(h.exit_price)}</td>
-                                                            <td className={`px-4 py-3 font-mono font-bold ${isWin ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>{(h.pnl_pct || 0) >= 0 ? '+' : ''}{(h.pnl_pct || 0).toFixed(2)}%</td>
-                                                            <td className={`px-4 py-3 font-mono font-bold ${isWin ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>{fmt(h.pnl_dollars)}</td>
-                                                            <td className="px-4 py-3">
-                                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${isWin ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/30' : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/30'}`}>{h.result}</span>
-                                                            </td>
+                                                            <td className={`px-4 py-3 font-mono font-bold ${pnlColor}`}>{(h.pnl_pct || 0) >= 0 ? '+' : ''}{(h.pnl_pct || 0).toFixed(2)}%</td>
+                                                            <td className={`px-4 py-3 font-mono font-bold ${pnlColor}`}>{fmt(h.pnl_dollars)}</td>
+                                                            <td className="px-4 py-3"><WinTypePill exitReason={h.exit_reason} result={h.result} /></td>
                                                             <td className="px-4 py-3 text-slate-600 dark:text-slate-400 font-mono font-bold">{formatDuration(h.duration_minutes)}</td>
                                                             <td className="px-4 py-3"><CloseReasonBadge reason={h.exit_reason} /></td>
                                                             <td className="px-4 py-3 text-slate-600 font-mono">{h.closed_at ? new Date(h.closed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</td>
@@ -1279,6 +1389,56 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                             </>
                             );
                         })()}
+                    </div>
+                )}
+
+                {/* ── VETOED ── */}
+                {activeSection === 'vetoed' && (
+                    <div>
+                        {loadingSkips ? (
+                            <div className="space-y-2">
+                                {[1, 2, 3].map(i => <div key={i} className="h-11 bg-white dark:bg-[#0d1117] rounded-lg border border-gray-200 dark:border-[#1e2430] animate-pulse" />)}
+                            </div>
+                        ) : skips.length === 0 ? (
+                            <div className="text-center py-24 bg-gray-50 dark:bg-[#0d1117] rounded-2xl border border-gray-200 dark:border-[#1e2430]">
+                                <div className="text-4xl mb-4">🛡️</div>
+                                <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">No lifecycle vetoes yet today.</h3>
+                                <p className="text-slate-600 text-sm">Signals blocked by the lifecycle gate will appear here.</p>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="flex items-center gap-2 mb-4">
+                                    <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">
+                                        Lifecycle gate vetoes · source: iron_gate_scanner_v1.8
+                                    </span>
+                                    <span className="ml-auto text-[9px] text-slate-600 font-bold">
+                                        {skipsTodayCount} today · {skips.length} total shown
+                                    </span>
+                                </div>
+                                <div className="bg-white dark:bg-[#0d1117] rounded-2xl border border-gray-200 dark:border-[#1e2430] overflow-hidden">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-xs">
+                                            <thead>
+                                                <tr className="border-b border-gray-100 dark:border-[#1e2430] bg-gray-100 dark:bg-[#080b10]">
+                                                    {['Symbol', 'Details', 'Time'].map(col => (
+                                                        <th key={col} className="px-4 py-3 text-left text-[9px] font-bold text-slate-600 uppercase tracking-wider">{col}</th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {skips.map(s => (
+                                                    <tr key={s.id} className="border-b border-gray-100 dark:border-[#111620] hover:bg-gray-50 dark:hover:bg-[#111620] transition-colors">
+                                                        <td className="px-4 py-3 font-black text-slate-900 dark:text-white font-mono">{s.symbol}</td>
+                                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400 font-mono text-[10px] max-w-md break-words leading-relaxed">{s.details || '—'}</td>
+                                                        <td className="px-4 py-3 text-slate-500 dark:text-slate-500 font-mono text-[10px] whitespace-nowrap">{timeSince(s.created_at)}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
             </div>
