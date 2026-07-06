@@ -36,6 +36,7 @@ import MarketNews, { NewsItem } from './components/MarketNews';
 import NewsFeed from './components/NewsFeed';
 import StageTrackerList from './components/StageTrackerList';
 import StockLifecycleView from './components/StockLifecycleView';
+import IndiaSignalTracker from './components/IndiaSignalTracker';
 import { supabase } from './services/supabase';
 
 // ─── STOCK FEED VIEW (sub-tabs: Signal Feed + Stock Gate) ─────
@@ -719,6 +720,10 @@ const App: React.FC = () => {
           ) : currentView === 'lifecycle' ? (
             <div className="flex-1 overflow-hidden">
               <StockLifecycleView />
+            </div>
+          ) : currentView === 'india-signals' ? (
+            <div className="flex-1 overflow-y-auto">
+              <IndiaSignalTracker />
             </div>
           ) : currentView === 'admin' && role === 'admin' ? (
             <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#0a0712]">
