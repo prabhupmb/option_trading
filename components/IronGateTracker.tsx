@@ -118,9 +118,10 @@ interface IronGateHistory {
 interface AutoTradeSkip {
     id: string;
     symbol: string;
-    reason: string;
-    source: string;
-    details: string | null;
+    option_type: string | null;
+    tier: string | null;
+    skip_reason: string;
+    detail: string | null;
     created_at: string;
 }
 
@@ -774,6 +775,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
     const [positions, setPositions] = useState<IronGatePosition[]>([]);
     const [history, setHistory] = useState<IronGateHistory[]>([]);
     const [skips, setSkips] = useState<AutoTradeSkip[]>([]);
+    const [skipsError, setSkipsError] = useState<string | null>(null);
     const [loadingPositions, setLoadingPositions] = useState(true);
     const [loadingHistory, setLoadingHistory] = useState(true);
     const [loadingSkips, setLoadingSkips] = useState(true);
@@ -852,11 +854,12 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
         const { data, error } = await supabase
             .from('auto_trade_skips')
             .select('*')
-            .eq('reason', 'LIFECYCLE_GATE')
-            .eq('source', 'iron_gate_scanner_v1.8')
+            .eq('skip_reason', 'lifecycle_gate')
             .order('created_at', { ascending: false })
-            .limit(100);
-        if (!error && data) setSkips(data);
+            .limit(200);
+        if (error) { setSkipsError(error.message); setLoadingSkips(false); return; }
+        setSkips(data || []);
+        setSkipsError(null);
         setLoadingSkips(false);
     };
 
@@ -951,7 +954,10 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
         return true;
     });
     const todayCount = versionBase.filter(p => new Date(p.opened_at).toDateString() === todayStr).length;
-    const skipsTodayCount = skips.filter(s => new Date(s.created_at).toDateString() === todayStr).length;
+    const cstToday = new Date().toLocaleDateString('en-US', { timeZone: 'America/Chicago' });
+    const isSkipToday = (iso: string) => new Date(iso).toLocaleDateString('en-US', { timeZone: 'America/Chicago' }) === cstToday;
+    const todaySkips = skips.filter(s => isSkipToday(s.created_at));
+    const skipsTodayCount = todaySkips.length;
 
     const readyCount = versionBase.filter(p => p.execution_hint === 'READY_BUY' || p.execution_hint === 'READY_SELL').length;
     const waitCount  = versionBase.filter(p => p.execution_hint === 'WAIT').length;
@@ -1400,54 +1406,98 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                 )}
 
                 {/* ── VETOED ── */}
-                {activeSection === 'vetoed' && (
-                    <div>
-                        {loadingSkips ? (
-                            <div className="space-y-2">
-                                {[1, 2, 3].map(i => <div key={i} className="h-11 bg-white dark:bg-[#0d1117] rounded-lg border border-gray-200 dark:border-[#1e2430] animate-pulse" />)}
-                            </div>
-                        ) : skips.length === 0 ? (
-                            <div className="text-center py-24 bg-gray-50 dark:bg-[#0d1117] rounded-2xl border border-gray-200 dark:border-[#1e2430]">
-                                <div className="text-4xl mb-4">🛡️</div>
-                                <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">No lifecycle vetoes yet today.</h3>
-                                <p className="text-slate-600 text-sm">Signals blocked by the lifecycle gate will appear here.</p>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="flex items-center gap-2 mb-4">
-                                    <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">
-                                        Lifecycle gate vetoes · source: iron_gate_scanner_v1.8
-                                    </span>
-                                    <span className="ml-auto text-[9px] text-slate-600 font-bold">
-                                        {skipsTodayCount} today · {skips.length} total shown
-                                    </span>
+                {activeSection === 'vetoed' && (() => {
+                    // Dedup today's vetoes: group by symbol+option_type, keep latest, count repeats
+                    const dedupMap = new Map<string, { skip: AutoTradeSkip; count: number }>();
+                    for (const s of todaySkips) {
+                        const key = `${s.symbol}|${s.option_type ?? ''}`;
+                        if (!dedupMap.has(key)) {
+                            dedupMap.set(key, { skip: s, count: 1 });
+                        } else {
+                            dedupMap.get(key)!.count++;
+                        }
+                    }
+                    const dedupedSkips = Array.from(dedupMap.values()).sort(
+                        (a, b) => new Date(b.skip.created_at).getTime() - new Date(a.skip.created_at).getTime()
+                    );
+                    const toCST = (iso: string) => new Date(iso).toLocaleTimeString('en-US', {
+                        timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit', second: '2-digit'
+                    });
+                    const stageBlock = (detail: string | null) => {
+                        if (!detail) return '—';
+                        return detail.split('|')[0].trim();
+                    };
+                    return (
+                        <div>
+                            {loadingSkips ? (
+                                <div className="space-y-2">
+                                    {[1, 2, 3].map(i => <div key={i} className="h-11 bg-white dark:bg-[#0d1117] rounded-lg border border-gray-200 dark:border-[#1e2430] animate-pulse" />)}
                                 </div>
-                                <div className="bg-white dark:bg-[#0d1117] rounded-2xl border border-gray-200 dark:border-[#1e2430] overflow-hidden">
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-xs">
-                                            <thead>
-                                                <tr className="border-b border-gray-100 dark:border-[#1e2430] bg-gray-100 dark:bg-[#080b10]">
-                                                    {['Symbol', 'Details', 'Time'].map(col => (
-                                                        <th key={col} className="px-4 py-3 text-left text-[9px] font-bold text-slate-600 uppercase tracking-wider">{col}</th>
-                                                    ))}
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {skips.map(s => (
-                                                    <tr key={s.id} className="border-b border-gray-100 dark:border-[#111620] hover:bg-gray-50 dark:hover:bg-[#111620] transition-colors">
-                                                        <td className="px-4 py-3 font-black text-slate-900 dark:text-white font-mono">{s.symbol}</td>
-                                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400 font-mono text-[10px] max-w-md break-words leading-relaxed">{s.details || '—'}</td>
-                                                        <td className="px-4 py-3 text-slate-500 dark:text-slate-500 font-mono text-[10px] whitespace-nowrap">{timeSince(s.created_at)}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                            ) : skipsError ? (
+                                <div className="text-center py-24 bg-red-950/20 rounded-2xl border border-red-800/30">
+                                    <div className="text-4xl mb-4">⚠️</div>
+                                    <h3 className="text-base font-black text-red-400 uppercase tracking-tight mb-2">Failed to load vetoes</h3>
+                                    <p className="text-red-400/70 text-sm font-mono max-w-md mx-auto">{skipsError}</p>
+                                    <button onClick={fetchSkips} className="mt-4 px-4 py-2 bg-red-900/30 border border-red-700/40 text-red-400 text-xs font-bold rounded-lg hover:bg-red-900/50 transition-colors">Retry</button>
+                                </div>
+                            ) : dedupedSkips.length === 0 ? (
+                                <div className="text-center py-24 bg-gray-50 dark:bg-[#0d1117] rounded-2xl border border-gray-200 dark:border-[#1e2430]">
+                                    <div className="text-4xl mb-4">🛡️</div>
+                                    <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">No lifecycle vetoes yet today</h3>
+                                    <p className="text-slate-600 text-sm">Signals blocked by the lifecycle gate will appear here.</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">
+                                            Lifecycle gate vetoes · today (CST)
+                                        </span>
+                                        <span className="ml-auto text-[9px] text-slate-600 font-bold">
+                                            {dedupedSkips.length} unique · {skipsTodayCount} total events
+                                        </span>
                                     </div>
-                                </div>
-                            </>
-                        )}
-                    </div>
-                )}
+                                    <div className="bg-white dark:bg-[#0d1117] rounded-2xl border border-gray-200 dark:border-[#1e2430] overflow-hidden">
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-xs">
+                                                <thead>
+                                                    <tr className="border-b border-gray-100 dark:border-[#1e2430] bg-gray-100 dark:bg-[#080b10]">
+                                                        {['Symbol', 'Type', 'Tier', 'Stage Blocked', 'Time (CST)'].map(col => (
+                                                            <th key={col} className="px-4 py-3 text-left text-[9px] font-bold text-slate-600 uppercase tracking-wider">{col}</th>
+                                                        ))}
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {dedupedSkips.map(({ skip: s, count }) => (
+                                                        <tr key={s.id} className="border-b border-gray-100 dark:border-[#111620] hover:bg-gray-50 dark:hover:bg-[#111620] transition-colors">
+                                                            <td className="px-4 py-3 font-black text-slate-900 dark:text-white font-mono">
+                                                                {s.symbol}
+                                                                {count > 1 && <span className="ml-1.5 text-[9px] font-bold text-rose-400 bg-rose-900/20 px-1.5 py-0.5 rounded-full">×{count}</span>}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {s.option_type ? (
+                                                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${s.option_type.toUpperCase() === 'CALL' ? 'text-emerald-400 bg-emerald-900/20 border-emerald-700/30' : 'text-red-400 bg-red-900/20 border-red-700/30'}`}>
+                                                                        {s.option_type.toUpperCase()}
+                                                                    </span>
+                                                                ) : <span className="text-slate-500">—</span>}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {s.tier ? (
+                                                                    <span className="text-[9px] font-bold text-amber-400 bg-amber-900/20 border border-amber-700/30 px-2 py-0.5 rounded-full">{s.tier}</span>
+                                                                ) : <span className="text-slate-500">—</span>}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-slate-400 font-mono text-[10px] max-w-xs break-words leading-relaxed">{stageBlock(s.detail)}</td>
+                                                            <td className="px-4 py-3 text-slate-500 font-mono text-[10px] whitespace-nowrap">{toCST(s.created_at)}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    );
+                })()}
             </div>
 
             <ManualCloseModal position={closingPosition} onClose={() => setClosingPosition(null)} onConfirm={handleManualClose} closing={isClosing} />
