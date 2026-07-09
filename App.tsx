@@ -37,12 +37,14 @@ import NewsFeed from './components/NewsFeed';
 import StageTrackerList from './components/StageTrackerList';
 import StockLifecycleView from './components/StockLifecycleView';
 import IndiaSignalTracker from './components/IndiaSignalTracker';
+import DipBuyScreen from './components/DipBuyScreen';
+import { TrendingDown } from 'lucide-react';
 import { supabase } from './services/supabase';
 
 // ─── STOCK FEED VIEW (sub-tabs: Signal Feed + Stock Gate) ─────
 
 const StockFeedView: React.FC<{ onExecute: (s: any) => void; role?: string }> = ({ onExecute, role }) => {
-  const [stockTab, setStockTab] = React.useState<'signal-feed' | 'stock-gate' | 'stage-tracker'>('stock-gate');
+  const [stockTab, setStockTab] = React.useState<'signal-feed' | 'stock-gate' | 'stage-tracker' | 'dip-buy'>('stock-gate');
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="flex items-center gap-1 px-8 pt-5 pb-0 border-b border-gray-100 dark:border-white/5 bg-white dark:bg-transparent">
@@ -63,6 +65,16 @@ const StockFeedView: React.FC<{ onExecute: (s: any) => void; role?: string }> = 
             {tab.label}
           </button>
         ))}
+        <button
+          onClick={() => setStockTab('dip-buy')}
+          className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${stockTab === 'dip-buy'
+            ? 'border-rh-green text-rh-green'
+            : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-white'
+            }`}
+        >
+          <TrendingDown className="w-4 h-4" />
+          Dip Buy
+        </button>
       </div>
       {stockTab === 'stock-gate' && (
         <div className="flex-1 overflow-y-auto">
@@ -77,6 +89,11 @@ const StockFeedView: React.FC<{ onExecute: (s: any) => void; role?: string }> = 
       {stockTab === 'stage-tracker' && (
         <div className="flex-1 overflow-hidden">
           <StageTrackerList />
+        </div>
+      )}
+      {stockTab === 'dip-buy' && (
+        <div className="flex-1 overflow-y-auto">
+          <DipBuyScreen />
         </div>
       )}
     </div>
