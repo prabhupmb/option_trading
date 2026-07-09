@@ -9,14 +9,16 @@ import {
 } from 'lucide-react';
 
 // ─── CONFIG ───────────────────────────────────────────────────
-// Leave baseUrl / apiKey empty to always see demo data.
-const CONFIG = {
-  baseUrl:     '',                    // e.g. 'https://api.yourbackend.com'
-  apiKey:      '',                    // sent as x-api-key header
-  openPath:    '/positions/open',
-  historyPath: '/positions/history',
-  refreshMs:   30_000,
-};
+// Primary: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY env vars.
+// Fallback: hardcoded values so the UI works without an .env file.
+// Demo banner is shown only when env vars are absent.
+const SUPABASE_URL  = (import.meta.env.VITE_SUPABASE_URL  as string | undefined)
+  || 'https://npwnnlxhdpvgfdpvrohi.supabase.co';
+const SUPABASE_ANON = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)
+  || 'sb_publishable_TAykwCsieEVaOafYSUfjYA_FadvFq2t';
+const HAS_ENV_VARS  = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+const TABLE         = 'stock_gate_india_positions';
+const REFRESH_MS    = 60_000;
 
 // ─── TYPES ────────────────────────────────────────────────────
 
@@ -24,7 +26,7 @@ type Direction   = 'BUY' | 'SHORT';
 type MarketState = 'live' | 'pre-open' | 'closed' | 'weekend';
 type ExecHint    = 'READY_BUY' | 'READY_SELL' | 'WAIT';
 type TrendDir    = 'UP' | 'DOWN' | 'NEUTRAL';
-type TradeResult = 'WIN' | 'LOSS';
+type TradeResult = 'WIN' | 'LOSS' | 'MANUAL_CLOSE';
 
 interface Gate {
   label:  string;   // 'G1'–'G6'
@@ -66,7 +68,59 @@ interface HistoryRow {
   closedAt:   string;   // ISO
 }
 
+// Raw row shape returned by Supabase from stock_gate_india_positions
+interface DbRow {
+  id:                     number | string;
+  symbol:                 string;
+  exchange:               string;
+  trade_direction:        string;
+  tier:                   string | null;
+  gates_passed:           number | null;
+  signal:                 string | null;
+  trading_recommendation: string | null;
+  entry_price:            number | null;
+  target_price:           number | null;
+  stop_loss:              number | null;
+  profit_zone_low:        number | null;
+  profit_zone_high:       number | null;
+  risk_reward_ratio:      number | null;
+  fib_target1:            number | null;
+  fib_target2:            number | null;
+  fib_direction:          string | null;
+  g1_sma:                 string | null;
+  g2_1h:                  string | null;
+  g3_15m:                 string | null;
+  g4_5m:                  string | null;
+  g5_vwap:                string | null;
+  g6_adx:                 string | null;
+  gate_reason:            string | null;
+  sma_direction:          string | null;
+  adx_value:              number | null;
+  adx_trend:              string | null;
+  plus_di:                number | null;
+  minus_di:               number | null;
+  vwap_value:             number | null;
+  vwap_trend:             string | null;
+  vwap_position:          string | null;
+  sma20:                  number | null;
+  sma50:                  number | null;
+  st_1h_direction:        string | null;
+  st_15m_direction:       string | null;
+  st_5m_direction:        string | null;
+  execution_hint:         string | null;
+  execution_reason:       string | null;
+  current_price:          number | null;
+  progress_pct:           number | null;
+  high_water_mark:        number | null;
+  low_water_mark:         number | null;
+  status:                 string;
+  close_reason:           string | null;
+  opened_at:              string;
+  closed_at:              string | null;
+}
+
 // ─── DEMO DATA ────────────────────────────────────────────────
+// Shown only when VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are absent.
 
 const DEMO_POSITIONS: Position[] = [
   {
@@ -241,14 +295,102 @@ const timeSince = (iso: string): string => {
   return `${Math.floor(h / 24)}d ago`;
 };
 
-// ─── FETCH ────────────────────────────────────────────────────
+// ─── SUPABASE FETCH ───────────────────────────────────────────
 
-const canFetch = (): boolean => !!(CONFIG.baseUrl && CONFIG.apiKey);
+const supabaseFetch = <T,>(query: string): Promise<T> =>
+  fetch(`${SUPABASE_URL}/rest/v1/${TABLE}${query}`, {
+    headers: {
+      apikey:        SUPABASE_ANON,
+      Authorization: `Bearer ${SUPABASE_ANON}`,
+      'Content-Type': 'application/json',
+    },
+  }).then(r => {
+    if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}`);
+    return r.json() as Promise<T>;
+  });
 
-const apiFetch = <T,>(path: string): Promise<T> =>
-  fetch(`${CONFIG.baseUrl}${path}`, {
-    headers: { 'x-api-key': CONFIG.apiKey, 'Content-Type': 'application/json' },
-  }).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
+// ─── DB → UI TRANSFORMS ───────────────────────────────────────
+
+const parseGate = (label: string, value: string | null, fallbackDesc: string): Gate => ({
+  label,
+  passed: value?.includes('✓') ?? false,
+  desc:   value ?? fallbackDesc,
+});
+
+const parseTrendDir = (s: string | null): TrendDir => {
+  if (!s) return 'NEUTRAL';
+  const u = s.toUpperCase();
+  if (u.includes('UP') || u.includes('BULL')) return 'UP';
+  if (u.includes('DOWN') || u.includes('BEAR')) return 'DOWN';
+  return 'NEUTRAL';
+};
+
+const rowToPosition = (r: DbRow): Position => {
+  const dir   = r.trade_direction as Direction;
+  const entry = r.entry_price ?? 0;
+  const live  = r.current_price ?? entry;
+  const pnlPct = entry === 0 ? 0
+    : dir === 'BUY'
+      ? ((live - entry) / entry) * 100
+      : ((entry - live) / entry) * 100;
+  const rr = r.risk_reward_ratio;
+  return {
+    id:          String(r.id),
+    symbol:      r.symbol,
+    exchange:    (r.exchange as 'NSE' | 'BSE'),
+    direction:   dir,
+    tier:        r.tier ?? '',
+    gates: [
+      parseGate('G1', r.g1_sma,  'SMA trend'),
+      parseGate('G2', r.g2_1h,   '1H SuperTrend'),
+      parseGate('G3', r.g3_15m,  '15m SuperTrend'),
+      parseGate('G4', r.g4_5m,   '5m SuperTrend'),
+      parseGate('G5', r.g5_vwap, 'VWAP position'),
+      parseGate('G6', r.g6_adx,  'ADX strength'),
+    ],
+    trend1h:     parseTrendDir(r.st_1h_direction),
+    trend15m:    parseTrendDir(r.st_15m_direction),
+    trend5m:     parseTrendDir(r.st_5m_direction),
+    livePrice:   live,
+    entryPrice:  entry,
+    targetPrice: r.target_price ?? 0,
+    stopPrice:   r.stop_loss    ?? 0,
+    pnlPct,
+    rrRatio:     rr != null ? `1:${Number(rr).toFixed(1)}` : '—',
+    execHint:    ((r.execution_hint ?? 'WAIT') as ExecHint),
+    openedAt:    r.opened_at,
+  };
+};
+
+const rowToHistory = (r: DbRow): HistoryRow => {
+  const dir    = r.trade_direction as Direction;
+  const entry  = r.entry_price  ?? 0;
+  const exit   = r.current_price ?? entry;
+  const pnlPct = entry === 0 ? 0
+    : dir === 'BUY'
+      ? ((exit - entry) / entry) * 100
+      : ((entry - exit) / entry) * 100;
+  const openMs   = new Date(r.opened_at).getTime();
+  const closeMs  = r.closed_at ? new Date(r.closed_at).getTime() : Date.now();
+  const holdMins = Math.max(0, Math.round((closeMs - openMs) / 60_000));
+  const result: TradeResult =
+    r.status === 'WIN'          ? 'WIN'
+    : r.status === 'LOSS'       ? 'LOSS'
+    : 'MANUAL_CLOSE';
+  return {
+    id:         String(r.id),
+    symbol:     r.symbol,
+    exchange:   (r.exchange as 'NSE' | 'BSE'),
+    direction:  dir,
+    result,
+    entryPrice: entry,
+    exitPrice:  exit,
+    pnlPct,
+    holdMins,
+    exitReason: r.close_reason ?? r.status ?? '—',
+    closedAt:   r.closed_at ?? r.opened_at,
+  };
+};
 
 // ─── MICRO-COMPONENTS ─────────────────────────────────────────
 
@@ -332,8 +474,8 @@ const GateDot: React.FC<{ gate: Gate }> = ({ gate }) => (
 // ─── PROGRESS BAR ─────────────────────────────────────────────
 
 const ProgressBar: React.FC<{ pos: Position }> = ({ pos }) => {
-  const pct     = calcProgress(pos);
-  const isBuy   = pos.direction === 'BUY';
+  const pct      = calcProgress(pos);
+  const isBuy    = pos.direction === 'BUY';
   const barColor = isBuy ? 'bg-emerald-500' : 'bg-rose-500';
   const pctColor = pct >= 70 ? (isBuy ? 'text-emerald-300' : 'text-rose-300')
                  : pct >= 40 ? 'text-amber-400'
@@ -441,7 +583,8 @@ const StatRow: React.FC<{ positions: Position[]; history: HistoryRow[] }> = ({ p
   const readyCount = positions.filter(p => p.execHint !== 'WAIT').length;
   const wins       = history.filter(h => h.result === 'WIN').length;
   const losses     = history.filter(h => h.result === 'LOSS').length;
-  const winRate    = history.length > 0 ? (wins / history.length) * 100 : 0;
+  const wlTotal    = wins + losses;  // excludes MANUAL_CLOSE per spec
+  const winRate    = wlTotal > 0 ? (wins / wlTotal) * 100 : 0;
   const avgHold    = history.length > 0
     ? history.reduce((a, h) => a + h.holdMins, 0) / history.length
     : 0;
@@ -459,12 +602,12 @@ const StatRow: React.FC<{ positions: Position[]; history: HistoryRow[] }> = ({ p
     },
     {
       label: 'Win rate',
-      value: history.length > 0 ? `${winRate.toFixed(1)}%` : '—',
-      color: winRate >= 50 ? 'text-emerald-400' : history.length > 0 ? 'text-rose-400' : 'text-slate-500',
+      value: wlTotal > 0 ? `${winRate.toFixed(1)}%` : '—',
+      color: winRate >= 50 ? 'text-emerald-400' : wlTotal > 0 ? 'text-rose-400' : 'text-slate-500',
     },
     {
       label: 'Wins / Losses',
-      value: history.length > 0 ? `${wins}W / ${losses}L` : '—',
+      value: wlTotal > 0 ? `${wins}W / ${losses}L` : '—',
       color: 'text-slate-300',
     },
     {
@@ -513,8 +656,14 @@ const HistoryTable: React.FC<{ rows: HistoryRow[] }> = ({ rows }) => {
         </thead>
         <tbody>
           {rows.map((row, i) => {
-            const isWin    = row.result === 'WIN';
-            const pnlColor = isWin ? 'text-emerald-400' : 'text-rose-400';
+            const isWin     = row.result === 'WIN';
+            const isManual  = row.result === 'MANUAL_CLOSE';
+            const pnlColor  = isWin ? 'text-emerald-400' : 'text-rose-400';
+            const resultCfg = isWin
+              ? { icon: <CheckCircle2 className="w-2.5 h-2.5" />, cls: 'text-emerald-400 bg-emerald-950/40 border-emerald-700/40', label: 'WIN' }
+              : isManual
+              ? { icon: <Minus className="w-2.5 h-2.5" />,        cls: 'text-slate-400 bg-slate-800/60 border-slate-700/40',       label: 'CLOSED' }
+              : { icon: <XCircle className="w-2.5 h-2.5" />,      cls: 'text-rose-400 bg-rose-950/40 border-rose-700/40',          label: 'LOSS' };
             return (
               <tr
                 key={row.id}
@@ -530,15 +679,9 @@ const HistoryTable: React.FC<{ rows: HistoryRow[] }> = ({ rows }) => {
                   <DirectionBadge direction={row.direction} />
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border ${
-                    isWin
-                      ? 'text-emerald-400 bg-emerald-950/40 border-emerald-700/40'
-                      : 'text-rose-400 bg-rose-950/40 border-rose-700/40'
-                  }`}>
-                    {isWin
-                      ? <CheckCircle2 className="w-2.5 h-2.5" />
-                      : <XCircle     className="w-2.5 h-2.5" />}
-                    {row.result}
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border ${resultCfg.cls}`}>
+                    {resultCfg.icon}
+                    {resultCfg.label}
                   </span>
                 </td>
                 <td className="px-4 py-3 font-mono text-slate-400 whitespace-nowrap">
@@ -567,7 +710,7 @@ const EmptyOpen: React.FC = () => (
   <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-600">
     <Activity className="w-10 h-10" />
     <p className="text-sm font-semibold text-slate-500">No open positions</p>
-    <p className="text-xs text-slate-600">Qualifying signals will appear here automatically.</p>
+    <p className="text-xs text-slate-600">Scanner runs 09:20–15:15 IST · qualifying signals appear here automatically.</p>
   </div>
 );
 
@@ -576,32 +719,38 @@ const EmptyOpen: React.FC = () => (
 // ═══════════════════════════════════════════════════════════════
 
 export default function IndiaSignalTracker() {
-  const [positions,    setPositions]    = useState<Position[]>([]);
-  const [history,      setHistory]      = useState<HistoryRow[]>([]);
-  const [loading,      setLoading]      = useState(false);
-  const [isDemo,       setIsDemo]       = useState(false);
-  const [lastSynced,   setLastSynced]   = useState<Date | null>(null);
-  const [clockStr,     setClockStr]     = useState(() => fmtIST());
-  const [marketState,  setMarketState]  = useState<MarketState>(() => getMarketState());
-  const [activeTab,    setActiveTab]    = useState<'open' | 'history'>('open');
+  const [positions,   setPositions]   = useState<Position[]>([]);
+  const [history,     setHistory]     = useState<HistoryRow[]>([]);
+  const [loading,     setLoading]     = useState(false);
+  const [error,       setError]       = useState<string | null>(null);
+  const [lastSynced,  setLastSynced]  = useState<Date | null>(null);
+  const [clockStr,    setClockStr]    = useState(() => fmtIST());
+  const [marketState, setMarketState] = useState<MarketState>(() => getMarketState());
+  const [activeTab,   setActiveTab]   = useState<'open' | 'history'>('open');
 
   // ── Data fetch ───────────────────────────────────────────────
 
   const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      if (!canFetch()) throw new Error('no config');
-      const [pos, hist] = await Promise.all([
-        apiFetch<Position[]>(CONFIG.openPath),
-        apiFetch<HistoryRow[]>(CONFIG.historyPath),
-      ]);
-      setPositions(pos);
-      setHistory(hist);
-      setIsDemo(false);
-    } catch {
+    // No env vars → show demo data, display demo banner
+    if (!HAS_ENV_VARS) {
       setPositions(DEMO_POSITIONS);
       setHistory(DEMO_HISTORY);
-      setIsDemo(true);
+      setLastSynced(new Date());
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const [openRows, histRows] = await Promise.all([
+        supabaseFetch<DbRow[]>('?status=eq.OPEN&order=opened_at.desc'),
+        supabaseFetch<DbRow[]>('?status=neq.OPEN&order=opened_at.desc&limit=50'),
+      ]);
+      setPositions(openRows.map(rowToPosition));
+      setHistory(histRows.map(rowToHistory));
+      setError(null);
+    } catch (e) {
+      // Non-blocking: keep last-good data, show error banner
+      setError(e instanceof Error ? e.message : 'Fetch failed');
     } finally {
       setLoading(false);
       setLastSynced(new Date());
@@ -610,7 +759,7 @@ export default function IndiaSignalTracker() {
 
   useEffect(() => {
     load();
-    const id = setInterval(load, CONFIG.refreshMs);
+    const id = setInterval(load, REFRESH_MS);
     return () => clearInterval(id);
   }, [load]);
 
@@ -626,9 +775,9 @@ export default function IndiaSignalTracker() {
 
   // ── Derived ──────────────────────────────────────────────────
 
-  const readyCount  = positions.filter(p => p.execHint !== 'WAIT').length;
-  const openLabel   = `Open (${positions.length})`;
-  const histLabel   = `History (${history.length})`;
+  const readyCount = positions.filter(p => p.execHint !== 'WAIT').length;
+  const openLabel  = `Open (${positions.length})`;
+  const histLabel  = `History (${history.length})`;
 
   // ── Render ───────────────────────────────────────────────────
 
@@ -663,14 +812,31 @@ export default function IndiaSignalTracker() {
           </div>
         </header>
 
-        {/* ── Demo banner ── */}
-        {isDemo && (
+        {/* ── Demo banner (only when env vars absent) ── */}
+        {!HAS_ENV_VARS && (
           <div
             role="status"
             className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-amber-950/40 border border-amber-800/40 text-amber-400 text-xs font-medium"
           >
             <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-            Demo data — fill in CONFIG.baseUrl and CONFIG.apiKey to load live positions.
+            Demo data — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env to load live positions.
+          </div>
+        )}
+
+        {/* ── Error banner (non-blocking, keep last-good data) ── */}
+        {error && (
+          <div
+            role="alert"
+            className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-red-950/40 border border-red-800/40 text-red-400 text-xs font-medium"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+            Fetch error — showing last data. {error}
+            <button
+              onClick={load}
+              className="ml-auto font-bold underline underline-offset-2 hover:text-red-300 transition-colors"
+            >
+              Retry
+            </button>
           </div>
         )}
 
@@ -707,14 +873,18 @@ export default function IndiaSignalTracker() {
         {/* ── Open tab ── */}
         {activeTab === 'open' && (
           <section role="tabpanel" aria-label="Open positions">
-            {positions.length === 0
-              ? <EmptyOpen />
-              : (
-                <div className="space-y-3">
-                  {positions.map(p => <PositionCard key={p.id} pos={p} />)}
-                </div>
-              )
-            }
+            {loading && positions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-600">
+                <RefreshCw className="w-8 h-8 animate-spin text-slate-700" />
+                <p className="text-sm text-slate-600">Loading positions…</p>
+              </div>
+            ) : positions.length === 0 ? (
+              <EmptyOpen />
+            ) : (
+              <div className="space-y-3">
+                {positions.map(p => <PositionCard key={p.id} pos={p} />)}
+              </div>
+            )}
           </section>
         )}
 
@@ -728,7 +898,7 @@ export default function IndiaSignalTracker() {
         {/* ── Footer ── */}
         {lastSynced && (
           <footer className="text-center text-[10px] font-mono text-slate-700">
-            Last synced {fmtIST(lastSynced)} IST · auto-refreshes every {CONFIG.refreshMs / 1000}s
+            Last synced {fmtIST(lastSynced)} IST · auto-refreshes every {REFRESH_MS / 1000}s
           </footer>
         )}
 
