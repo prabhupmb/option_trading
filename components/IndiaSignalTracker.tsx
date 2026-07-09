@@ -731,14 +731,8 @@ export default function IndiaSignalTracker() {
   // ── Data fetch ───────────────────────────────────────────────
 
   const load = useCallback(async () => {
-    // No env vars → show demo data, display demo banner
-    if (!HAS_ENV_VARS) {
-      setPositions(DEMO_POSITIONS);
-      setHistory(DEMO_HISTORY);
-      setLastSynced(new Date());
-      return;
-    }
-
+    // Always fetch — SUPABASE_URL/ANON always have values (env var or hardcoded fallback).
+    // HAS_ENV_VARS only controls the demo banner, not whether we fetch.
     setLoading(true);
     try {
       const [openRows, histRows] = await Promise.all([
@@ -749,7 +743,7 @@ export default function IndiaSignalTracker() {
       setHistory(histRows.map(rowToHistory));
       setError(null);
     } catch (e) {
-      // Non-blocking: keep last-good data, show error banner
+      // Non-blocking: keep last-good data on screen, show error banner
       setError(e instanceof Error ? e.message : 'Fetch failed');
     } finally {
       setLoading(false);
