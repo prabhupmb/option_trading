@@ -16,7 +16,6 @@ const SUPABASE_URL  = (import.meta.env.VITE_SUPABASE_URL  as string | undefined)
   || 'https://npwnnlxhdpvgfdpvrohi.supabase.co';
 const SUPABASE_ANON = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)
   || 'sb_publishable_TAykwCsieEVaOafYSUfjYA_FadvFq2t';
-const HAS_ENV_VARS  = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 const TABLE         = 'stock_gate_india_positions';
 const REFRESH_MS    = 60_000;
 
@@ -732,7 +731,6 @@ export default function IndiaSignalTracker() {
 
   const load = useCallback(async () => {
     // Always fetch — SUPABASE_URL/ANON always have values (env var or hardcoded fallback).
-    // HAS_ENV_VARS only controls the demo banner, not whether we fetch.
     setLoading(true);
     try {
       const [openRows, histRows] = await Promise.all([
@@ -805,17 +803,6 @@ export default function IndiaSignalTracker() {
             </button>
           </div>
         </header>
-
-        {/* ── Demo banner (only when env vars absent) ── */}
-        {!HAS_ENV_VARS && (
-          <div
-            role="status"
-            className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-amber-950/40 border border-amber-800/40 text-amber-400 text-xs font-medium"
-          >
-            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-            Demo data — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env to load live positions.
-          </div>
-        )}
 
         {/* ── Error banner (non-blocking, keep last-good data) ── */}
         {error && (
