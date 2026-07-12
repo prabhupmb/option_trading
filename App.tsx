@@ -49,10 +49,10 @@ const StockFeedView: React.FC<{ onExecute: (s: any) => void; role?: string }> = 
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="flex items-center gap-1 px-8 pt-5 pb-0 border-b border-gray-100 dark:border-white/5 bg-white dark:bg-transparent">
         {([
-          { id: 'stock-gate',     label: 'Stock Gate',     icon: 'trending_up',   sub: 'Swing trade · 1–4 weeks' },
-          { id: 'signal-feed',    label: 'Signal Feed',    icon: 'query_stats',   sub: null },
-          { id: 'stage-tracker',  label: 'Stage Tracker',  icon: 'account_tree',  sub: null },
-        ] as const).map(tab => (
+          { id: 'stock-gate',     label: 'Stock Gate',     icon: 'trending_up',   sub: 'Swing trade · 1–4 weeks', adminOnly: false },
+          { id: 'signal-feed',    label: 'Signal Feed',    icon: 'query_stats',   sub: null,                      adminOnly: true  },
+          { id: 'stage-tracker',  label: 'Stage Tracker',  icon: 'account_tree',  sub: null,                      adminOnly: true  },
+        ] as const).filter(tab => !tab.adminOnly || role === 'admin').map(tab => (
           <button
             key={tab.id}
             onClick={() => setStockTab(tab.id)}
