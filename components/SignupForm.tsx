@@ -200,7 +200,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ verificationData, session, onSi
 
                     {/* Full Name — pre-filled */}
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Full Name</label>
+                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Full Name <span className="normal-case text-slate-600 font-medium">(mandatory)</span></label>
                         <input
                             type="text"
                             value={formData.fullName}
@@ -225,7 +225,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ verificationData, session, onSi
 
                     {/* Phone — required */}
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Phone Number</label>
+                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Phone Number <span className="normal-case text-slate-600 font-medium">(mandatory)</span></label>
                         <input
                             type="tel"
                             value={formData.phone}

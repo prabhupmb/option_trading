@@ -205,7 +205,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
 
             {/* Full Name */}
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Full Name</label>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Full Name <span className="normal-case text-slate-600 font-medium">(mandatory)</span></label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-500 text-lg">person</span>
                 <input
@@ -259,7 +259,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
 
             {/* Phone */}
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Phone Number</label>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Phone Number <span className="normal-case text-slate-600 font-medium">(mandatory)</span></label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-500 text-lg">phone</span>
                 <input
