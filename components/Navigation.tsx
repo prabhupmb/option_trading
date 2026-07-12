@@ -18,11 +18,11 @@ interface NavigationProps {
 const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, onSignOut, role, accessLevel, trialDaysLeft, isTrialUser }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  let tabs: { id: View; label: string; icon: string }[] = [
+  let tabs: { id: View; label: string; icon: string; sub?: string }[] = [
     { id: 'signals', label: 'Option Feed', icon: 'dashboard' },
     { id: 'iron-dip', label: 'Iron Dip', icon: 'pool' },
-    { id: 'smart-feed', label: 'Stock Feed', icon: 'query_stats' },
-    { id: 'lifecycle',      label: 'Lifecycle',      icon: 'timeline' },
+    { id: 'smart-feed', label: 'Stock Feed', icon: 'query_stats', sub: 'Swing trade · 1–4 weeks' },
+    { id: 'lifecycle',      label: 'Stock Lifecycle', icon: 'timeline' },
     { id: 'india-signals',  label: 'India Signals',  icon: 'currency_rupee' },
     { id: 'portfolio', label: 'Portfolio', icon: 'analytics' },
     { id: 'quick-trade', label: 'Quick Trade', icon: 'bolt' },
@@ -93,7 +93,10 @@ const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, o
               : 'text-slate-500 dark:text-gray-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'}`}
           >
             <span className={`material-symbols-outlined text-xl ${activeView === tab.id ? 'text-rh-green' : 'text-slate-400 group-hover:text-slate-600 dark:text-gray-500 dark:group-hover:text-gray-300'}`}>{tab.icon}</span>
-            <span className="text-sm uppercase tracking-wide">{tab.label}</span>
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm uppercase tracking-wide leading-tight">{tab.label}</span>
+              {tab.sub && <span className="text-[9px] font-normal normal-case tracking-normal text-slate-500 dark:text-slate-600 leading-tight">{tab.sub}</span>}
+            </div>
             {activeView === tab.id && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-rh-green shadow-[0_0_8px_rgba(0,200,5,0.6)]" />}
           </button>
         ))}
