@@ -40,6 +40,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
     const [pendingOpen, setPendingOpen] = useState(true);
     const [upgradeOpen, setUpgradeOpen] = useState(true);
 
+    // ── Reject user state ──
+    const [rejectDialog, setRejectDialog] = useState<{ userId: string; userName: string; email: string } | null>(null);
+    const [rejectMessage, setRejectMessage] = useState('');
+    const [isRejecting, setIsRejecting] = useState(false);
+
     // ── Delete user state ──
     const [deletingUser, setDeletingUser] = useState<UserProfile | null>(null);
     const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
@@ -282,6 +287,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
         }
     };
 
+    const handleRejectWithMessage = async () => {
+        if (!rejectDialog || !rejectMessage.trim()) return;
+        setIsRejecting(true);
+        try {
+            await quickAction(rejectDialog.userId, { is_active: false, rejection_message: rejectMessage.trim() }, `Rejected: ${rejectMessage.trim()}`);
+            showToast(`User "${rejectDialog.userName}" rejected with message sent.`, 'success');
+            setRejectDialog(null);
+            setRejectMessage('');
+        } finally {
+            setIsRejecting(false);
+        }
+    };
+
     const handleUpgradeAction = async (request: UpgradeRequest, action: 'approved' | 'rejected', newLevel?: string) => {
         const reviewNote = action === 'approved'
             ? `Upgraded to ${newLevel || request.requested_level} access`
@@ -521,7 +539,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                                                         Approve
                                                     </button>
                                                     <button
-                                                        onClick={() => quickAction(user.id, { is_active: false }, 'Rejected new user signup')}
+                                                        onClick={() => { setRejectDialog({ userId: user.id, userName: user.username || user.user_name || '', email: user.email || '' }); setRejectMessage(''); }}
                                                         className="flex items-center gap-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
                                                     >
                                                         <span className="material-symbols-outlined text-sm">close</span>
@@ -789,6 +807,59 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                     </div>
                 </div>
             )}
+            {/* ── Reject with Message Modal ── */}
+            {rejectDialog && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setRejectDialog(null)}>
+                    <div className="w-full max-w-md bg-[#1e2124] rounded-2xl border border-red-500/30 shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="h-px bg-gradient-to-r from-transparent via-red-500/60 to-transparent" />
+                        <div className="p-5 border-b border-red-500/10 flex justify-between items-center">
+                            <h3 className="text-base font-black text-red-400 flex items-center gap-2">
+                                <span className="material-symbols-outlined text-lg">block</span>
+                                Reject Registration
+                            </h3>
+                            <button onClick={() => setRejectDialog(null)} className="text-slate-500 hover:text-white">
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm text-red-200/80">
+                                Rejecting <span className="font-black text-white">{rejectDialog.userName}</span>
+                                <span className="block text-xs text-slate-500 mt-0.5">{rejectDialog.email}</span>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                                    Rejection message <span className="text-red-400">*</span>
+                                </label>
+                                <textarea
+                                    value={rejectMessage}
+                                    onChange={e => setRejectMessage(e.target.value)}
+                                    placeholder="e.g. The email address you provided appears invalid. Please re-register with a valid email ID."
+                                    rows={3}
+                                    autoFocus
+                                    className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-red-500 resize-none"
+                                />
+                                <p className="text-[10px] text-slate-600 mt-1">This message will be sent to the user via email.</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={handleRejectWithMessage}
+                                    disabled={!rejectMessage.trim() || isRejecting}
+                                    className="flex-1 bg-red-500 hover:bg-red-400 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-wide transition-colors"
+                                >
+                                    {isRejecting ? 'Rejecting...' : 'Reject & Send Message'}
+                                </button>
+                                <button
+                                    onClick={() => setRejectDialog(null)}
+                                    className="px-4 bg-white/5 hover:bg-white/10 text-white font-bold py-2.5 rounded-xl text-xs uppercase transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ── Delete Confirm Modal ── */}
             {deletingUser && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setDeletingUser(null)}>
