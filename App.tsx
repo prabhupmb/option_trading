@@ -49,20 +49,23 @@ const StockFeedView: React.FC<{ onExecute: (s: any) => void; role?: string }> = 
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="flex items-center gap-1 px-8 pt-5 pb-0 border-b border-gray-100 dark:border-white/5 bg-white dark:bg-transparent">
         {([
-          { id: 'stock-gate',     label: 'Stock Gate',     icon: 'trending_up' },
-          { id: 'signal-feed',    label: 'Signal Feed',    icon: 'query_stats' },
-          { id: 'stage-tracker',  label: 'Stage Tracker',  icon: 'account_tree' },
+          { id: 'stock-gate',     label: 'Stock Gate',     icon: 'trending_up',   sub: 'Swing trade · 1–4 weeks' },
+          { id: 'signal-feed',    label: 'Signal Feed',    icon: 'query_stats',   sub: null },
+          { id: 'stage-tracker',  label: 'Stage Tracker',  icon: 'account_tree',  sub: null },
         ] as const).map(tab => (
           <button
             key={tab.id}
             onClick={() => setStockTab(tab.id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${stockTab === tab.id
+            className={`flex items-center gap-1.5 px-4 py-2.5 border-b-2 transition-all ${stockTab === tab.id
               ? 'border-rh-green text-rh-green'
               : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-white'
               }`}
           >
             <span className="material-symbols-outlined text-base">{tab.icon}</span>
-            {tab.label}
+            <div className="flex flex-col items-start">
+              <span className="text-xs font-bold uppercase tracking-wider leading-tight">{tab.label}</span>
+              {tab.sub && <span className="text-[9px] font-normal normal-case tracking-normal text-slate-500 leading-tight">{tab.sub}</span>}
+            </div>
           </button>
         ))}
         <button

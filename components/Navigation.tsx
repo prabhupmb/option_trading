@@ -21,7 +21,7 @@ const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, o
   let tabs: { id: View; label: string; icon: string; sub?: string }[] = [
     { id: 'signals', label: 'Option Feed', icon: 'dashboard' },
     { id: 'iron-dip', label: 'Iron Dip', icon: 'pool' },
-    { id: 'smart-feed', label: 'Stock Feed', icon: 'query_stats', sub: 'Swing trade · 1–4 weeks' },
+    { id: 'smart-feed', label: 'Stock Feed', icon: 'query_stats' },
     { id: 'lifecycle',      label: 'Stock Lifecycle', icon: 'timeline' },
     { id: 'india-signals',  label: 'India Signals',  icon: 'currency_rupee' },
     { id: 'portfolio', label: 'Portfolio', icon: 'analytics' },
