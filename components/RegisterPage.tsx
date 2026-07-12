@@ -54,6 +54,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       errs.email = 'Enter a valid email address.';
     }
+    if (!phone.trim()) errs.phone = 'Phone number is required.';
     if (!password) {
       errs.password = 'Password is required.';
     } else if (password.length < 8) {
@@ -71,6 +72,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
     fullName.trim() &&
     USERNAME_REGEX.test(userName) &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) &&
+    phone.trim() &&
     password.length >= 8 &&
     confirmPassword === password;
 
@@ -255,21 +257,20 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
               {errors.email && <p className="text-xs text-red-400 mt-1 ml-1">{errors.email}</p>}
             </div>
 
-            {/* Phone (optional) */}
+            {/* Phone */}
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                Phone <span className="normal-case text-slate-600 font-medium">(optional)</span>
-              </label>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Phone Number</label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-500 text-lg">phone</span>
                 <input
                   type="tel"
                   value={phone}
-                  onChange={e => setPhone(e.target.value)}
+                  onChange={e => { setPhone(e.target.value); if (errors.phone) setErrors(p => ({ ...p, phone: '' })); }}
                   placeholder="+1 555 000 0000"
-                  className="w-full bg-white/[0.04] border border-white/10 rounded-2xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:border-rh-green/50 focus:ring-rh-green/20 transition-all"
+                  className={`w-full bg-white/[0.04] border rounded-2xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 transition-all ${errors.phone ? 'border-red-500/50 focus:ring-red-500/30' : 'border-white/10 focus:border-rh-green/50 focus:ring-rh-green/20'}`}
                 />
               </div>
+              {errors.phone && <p className="text-xs text-red-400 mt-1 ml-1">{errors.phone}</p>}
             </div>
 
             {/* Password */}

@@ -29,7 +29,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ verificationData, session, onSi
                 userName: formData.userName,
                 fullName: formData.fullName,
                 email: verificationData.email,
-                phone: formData.phone || undefined,
+                phone: formData.phone,
             });
 
             const resp = await fetch('https://prabhupadala01.app.n8n.cloud/webhook/register-user', {
@@ -42,7 +42,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ verificationData, session, onSi
                     userName: formData.userName,
                     fullName: formData.fullName,
                     email: verificationData.email,
-                    phone: formData.phone || undefined,
+                    phone: formData.phone,
                 }),
             });
 
@@ -223,15 +223,16 @@ const SignupForm: React.FC<SignupFormProps> = ({ verificationData, session, onSi
                         <p className="text-[10px] text-slate-600 mt-1">From your Google account — cannot be changed</p>
                     </div>
 
-                    {/* Phone — optional */}
+                    {/* Phone — required */}
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Phone Number <span className="text-slate-600">(optional)</span></label>
+                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Phone Number</label>
                         <input
                             type="tel"
                             value={formData.phone}
                             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-rh-green/50 focus:border-rh-green/50 transition-all"
                             placeholder="+1 (555) 000-0000"
+                            required
                         />
                     </div>
 
