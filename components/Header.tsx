@@ -53,21 +53,7 @@ const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading, user, 
           <div className="relative z-50">
             <BrokerSelector onNavigate={onNavigate} />
           </div>
-          <button
-            onClick={() => {
-              const html = document.documentElement;
-              if (html.classList.contains('dark')) {
-                html.classList.remove('dark');
-                localStorage.setItem('theme', 'light');
-              } else {
-                html.classList.add('dark');
-                localStorage.setItem('theme', 'dark');
-              }
-            }}
-            className="text-slate-400 hover:text-slate-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
-          >
-            <span className="material-symbols-outlined text-2xl">contrast</span>
-          </button>
+          {/* Theme toggle hidden — dark mode forced */}
 
           {/* Refresh / Scan Button — Admin Only */}
           {isAdmin && (

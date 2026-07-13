@@ -90,6 +90,23 @@ const CONTEXT_CHIPS: CtxChip[] = [
   { id: 'support-broken', label: 'Support broken', test: r => (r.support_levels ?? []).some(s => s.status === 'broken') },
 ];
 
+// Action List chips — shown only on the "Action List" tab
+interface ActionChip { id: string; label: string; sectionHeader: string; test: (row: LifecycleRow) => boolean; }
+const ACTION_CHIPS: ActionChip[] = [
+  {
+    id: 'strong-support', label: 'Strong support', sectionHeader: 'STRONG SUPPORT',
+    test: r => deepestSupport(r)?.status === 'holding',
+  },
+  {
+    id: 'breaking-out', label: 'Breaking out', sectionHeader: 'BREAKING OUT',
+    test: r => r.breakout_status === 'pending' || r.breakout_status === 'confirming' || r.breakout_status === 'confirmed',
+  },
+  {
+    id: 'in-buy-zone', label: 'Buy zone', sectionHeader: 'BUY ZONE',
+    test: r => { const bz = r.buy_zone, p = r.last_price; return bz != null && bz.lo != null && bz.hi != null && p != null && p >= bz.lo && p <= bz.hi; },
+  },
+];
+
 // ─── MOCK DATA ────────────────────────────────────────────────────────────────
 
 const MOCK: LifecycleRow[] = [
@@ -572,6 +589,8 @@ const StockLifecycleView: React.FC = () => {
   const [search, setSearch]     = useState('');
   const [filter, setFilter]     = useState('all');
   const [activeCtx, setActiveCtx] = useState<Set<string>>(new Set());
+  const [watchlistTab, setWatchlistTab] = useState<'all' | 'action'>('all');
+  const [actionChips, setActionChips]   = useState<Set<string>>(new Set(['strong-support', 'breaking-out', 'in-buy-zone']));
 
   // ── Fetch ────────────────────────────────────────────────────────────────
 
@@ -652,6 +671,21 @@ const StockLifecycleView: React.FC = () => {
     return items;
   }, [stageFiltered, activeCtx, search]);
 
+  const toggleAction = (id: string) =>
+    setActionChips(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const actionSections = useMemo(() => {
+    const q = search.trim().toUpperCase();
+    return ACTION_CHIPS
+      .filter(chip => actionChips.has(chip.id))
+      .map(chip => ({
+        ...chip,
+        count: rows.filter(chip.test).length,
+        items: rows.filter(r => chip.test(r) && (!q || r.symbol.includes(q))),
+      }))
+      .filter(section => section.items.length > 0);
+  }, [rows, actionChips, search]);
+
   const selectedRow = rows.find(r => r.symbol === selected) ?? null;
   const cfg         = selectedRow ? (STATE_CFG[selectedRow.state] ?? STATE_CFG['WATCHING']) : null;
 
@@ -668,6 +702,26 @@ const StockLifecycleView: React.FC = () => {
         {/* Header */}
         <div className="flex-shrink-0 px-4 pt-4 pb-3 border-b" style={{ borderColor: '#1f1f23' }}>
           <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: '#3f3f46' }}>Watchlist</p>
+
+          {/* Tab bar */}
+          <div className="flex gap-1 mb-3 p-0.5 rounded-lg" style={{ background: '#131316', border: '1px solid #1f1f23' }}>
+            {(['all', 'action'] as const).map(tab => {
+              const isActive = watchlistTab === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setWatchlistTab(tab)}
+                  className="flex-1 py-1 text-[10px] font-bold rounded-md transition-all"
+                  style={{
+                    background:  isActive ? '#22c55e' : 'transparent',
+                    color:       isActive ? '#000'    : '#52525b',
+                  }}
+                >
+                  {tab === 'all' ? 'All' : 'Action List'}
+                </button>
+              );
+            })}
+          </div>
 
           {/* Search */}
           <div className="relative">
@@ -704,133 +758,237 @@ const StockLifecycleView: React.FC = () => {
           </div>
         </div>
 
-        {/* ROW 1 — Stage filters (single-select) */}
-        <div className="flex-shrink-0 px-3 pt-2 pb-1.5 flex flex-wrap gap-1.5 border-b" style={{ borderColor: '#1f1f23' }}>
-          {FILTER_CHIPS.map(chip => {
-            const count  = chip.states ? rows.filter(r => chip.states!.includes(r.state)).length : rows.length;
-            const active = filter === chip.id;
-            return (
-              <button
-                key={chip.id}
-                onClick={() => setFilter(chip.id)}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all"
-                style={{
-                  background:  active ? 'rgba(34,197,94,0.08)' : '#131316',
-                  borderColor: active ? '#22c55e'              : '#1f1f23',
-                  color:       active ? '#22c55e'              : '#52525b',
-                }}
-              >
-                {chip.label}
-                <span style={{ opacity: 0.55 }}>{count}</span>
-              </button>
-            );
-          })}
-        </div>
+        {/* Filters — conditional on tab */}
+        {watchlistTab === 'all' ? (
+          <>
+            {/* ROW 1 — Stage filters (single-select) */}
+            <div className="flex-shrink-0 px-3 pt-2 pb-1.5 flex flex-wrap gap-1.5 border-b" style={{ borderColor: '#1f1f23' }}>
+              {FILTER_CHIPS.map(chip => {
+                const count  = chip.states ? rows.filter(r => chip.states!.includes(r.state)).length : rows.length;
+                const active = filter === chip.id;
+                return (
+                  <button
+                    key={chip.id}
+                    onClick={() => setFilter(chip.id)}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all"
+                    style={{
+                      background:  active ? 'rgba(34,197,94,0.08)' : '#131316',
+                      borderColor: active ? '#22c55e'              : '#1f1f23',
+                      color:       active ? '#22c55e'              : '#52525b',
+                    }}
+                  >
+                    {chip.label}
+                    <span style={{ opacity: 0.55 }}>{count}</span>
+                  </button>
+                );
+              })}
+            </div>
 
-        {/* ROW 2 — Context filters (multi-select) */}
-        <div className="flex-shrink-0 px-3 pt-1.5 pb-2 border-b" style={{ borderColor: '#1f1f23' }}>
-          <div className="flex flex-wrap gap-1.5">
-            {CONTEXT_CHIPS.map(chip => {
-              const active = activeCtx.has(chip.id);
-              const count  = stageFiltered.filter(chip.test).length;
+            {/* ROW 2 — Context filters (multi-select) */}
+            <div className="flex-shrink-0 px-3 pt-1.5 pb-2 border-b" style={{ borderColor: '#1f1f23' }}>
+              <div className="flex flex-wrap gap-1.5">
+                {CONTEXT_CHIPS.map(chip => {
+                  const active = activeCtx.has(chip.id);
+                  const count  = stageFiltered.filter(chip.test).length;
+                  return (
+                    <button
+                      key={chip.id}
+                      onClick={() => toggleCtx(chip.id)}
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all"
+                      style={{
+                        background:  active ? 'rgba(34,197,94,0.08)' : 'transparent',
+                        borderColor: active ? '#22c55e'              : '#2a2a2e',
+                        color:       active ? '#22c55e'              : '#3f3f46',
+                      }}
+                    >
+                      {chip.label}
+                      <span style={{ opacity: active ? 0.7 : 0.45 }}>{count}</span>
+                    </button>
+                  );
+                })}
+                {activeCtx.size > 0 && (
+                  <button
+                    onClick={() => setActiveCtx(new Set())}
+                    className="px-2 py-0.5 text-[10px] font-bold transition-colors"
+                    style={{ color: '#52525b' }}
+                    onMouseEnter={e => (e.currentTarget.style.color = '#fb7185')}
+                    onMouseLeave={e => (e.currentTarget.style.color = '#52525b')}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
+        ) : (
+          /* Action List chips */
+          <div className="flex-shrink-0 px-3 pt-2 pb-2 flex flex-wrap gap-1.5 border-b" style={{ borderColor: '#1f1f23' }}>
+            {ACTION_CHIPS.map(chip => {
+              const active = actionChips.has(chip.id);
+              const count  = rows.filter(chip.test).length;
               return (
                 <button
                   key={chip.id}
-                  onClick={() => toggleCtx(chip.id)}
+                  onClick={() => toggleAction(chip.id)}
                   className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all"
                   style={{
-                    background:  active ? 'rgba(34,197,94,0.08)' : 'transparent',
-                    borderColor: active ? '#22c55e'              : '#2a2a2e',
-                    color:       active ? '#22c55e'              : '#3f3f46',
+                    background:  active ? 'rgba(34,197,94,0.08)' : '#131316',
+                    borderColor: active ? '#22c55e'              : '#1f1f23',
+                    color:       active ? '#22c55e'              : '#52525b',
                   }}
                 >
                   {chip.label}
-                  <span style={{ opacity: active ? 0.7 : 0.45 }}>{count}</span>
+                  <span style={{ opacity: 0.55 }}>{count}</span>
                 </button>
               );
             })}
-            {activeCtx.size > 0 && (
-              <button
-                onClick={() => setActiveCtx(new Set())}
-                className="px-2 py-0.5 text-[10px] font-bold transition-colors"
-                style={{ color: '#52525b' }}
-                onMouseEnter={e => (e.currentTarget.style.color = '#fb7185')}
-                onMouseLeave={e => (e.currentTarget.style.color = '#52525b')}
-              >
-                Clear
-              </button>
-            )}
           </div>
-        </div>
+        )}
 
         {/* List */}
         <div className="flex-1 overflow-y-auto">
           {loading ? (
             <RosterSkeleton />
-          ) : visible.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 px-5 gap-2">
-              <span className="material-symbols-outlined text-3xl" style={{ color: '#27272a' }}>search_off</span>
-              <p className="text-xs text-center" style={{ color: '#52525b' }}>
-                {activeCtx.size > 0 ? 'No matches — loosen filters.' : search ? `No match for "${search}"` : 'Nothing in this category.'}
-              </p>
-              {(search || filter !== 'all' || activeCtx.size > 0) && (
-                <button
-                  className="text-xs font-bold mt-1"
-                  style={{ color: '#22c55e' }}
-                  onClick={() => { setSearch(''); setFilter('all'); setActiveCtx(new Set()); }}
-                >
-                  Clear all filters
-                </button>
-              )}
-            </div>
-          ) : (
-            visible.map((row, idx) => {
-              const rc         = STATE_CFG[row.state] ?? STATE_CFG['WATCHING'];
-              const isSelected = row.symbol === selected;
-              const isUp       = row.trend_4h === 'UP';
-              const isDown     = row.trend_4h === 'DOWN';
-              return (
-                <button
-                  key={row.symbol}
-                  onClick={() => setSelected(row.symbol)}
-                  className="w-full text-left flex items-center gap-2 px-3 py-3 border-b border-l-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-green-500"
-                  style={{
-                    borderBottomColor: '#1f1f23',
-                    borderLeftColor:   isSelected ? '#22c55e' : 'transparent',
-                    background:        isSelected
-                      ? '#131316'
-                      : idx % 2 === 0
-                        ? 'transparent'
-                        : 'rgba(255,255,255,0.01)',
-                  }}
-                >
-                  {/* Symbol */}
-                  <span className="font-black text-sm font-mono tracking-tight" style={{ color: '#fafafa', minWidth: 46 }}>
-                    {row.symbol}
-                  </span>
-
-                  {/* Trend arrow */}
-                  {row.trend_4h !== 'UNKNOWN' && (
-                    <span
-                      className="material-symbols-outlined text-[12px] flex-shrink-0"
-                      style={{ color: isUp ? '#4ade80' : '#fb7185' }}
-                    >
-                      {isUp ? 'arrow_upward' : 'arrow_downward'}
+          ) : watchlistTab === 'all' ? (
+            /* ── All tab list ── */
+            visible.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 px-5 gap-2">
+                <span className="material-symbols-outlined text-3xl" style={{ color: '#27272a' }}>search_off</span>
+                <p className="text-xs text-center" style={{ color: '#52525b' }}>
+                  {activeCtx.size > 0 ? 'No matches — loosen filters.' : search ? `No match for "${search}"` : 'Nothing in this category.'}
+                </p>
+                {(search || filter !== 'all' || activeCtx.size > 0) && (
+                  <button
+                    className="text-xs font-bold mt-1"
+                    style={{ color: '#22c55e' }}
+                    onClick={() => { setSearch(''); setFilter('all'); setActiveCtx(new Set()); }}
+                  >
+                    Clear all filters
+                  </button>
+                )}
+              </div>
+            ) : (
+              visible.map((row, idx) => {
+                const rc         = STATE_CFG[row.state] ?? STATE_CFG['WATCHING'];
+                const isSelected = row.symbol === selected;
+                const isUp       = row.trend_4h === 'UP';
+                const isDown     = row.trend_4h === 'DOWN';
+                return (
+                  <button
+                    key={row.symbol}
+                    onClick={() => setSelected(row.symbol)}
+                    className="w-full text-left flex items-center gap-2 px-3 py-3 border-b border-l-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-green-500"
+                    style={{
+                      borderBottomColor: '#1f1f23',
+                      borderLeftColor:   isSelected ? '#22c55e' : 'transparent',
+                      background:        isSelected
+                        ? '#131316'
+                        : idx % 2 === 0
+                          ? 'transparent'
+                          : 'rgba(255,255,255,0.01)',
+                    }}
+                  >
+                    <span className="font-black text-sm font-mono tracking-tight" style={{ color: '#fafafa', minWidth: 46 }}>
+                      {row.symbol}
                     </span>
-                  )}
-
-                  {/* State headline */}
-                  <span className="text-[10px] font-bold flex-1 min-w-0 truncate" style={{ color: rc.tone }}>
-                    {rc.headline}
-                  </span>
-
-                  {/* Price */}
-                  <span className="font-mono text-[10px] flex-shrink-0" style={{ color: '#52525b' }}>
-                    {fmt(row.last_price)}
-                  </span>
-                </button>
-              );
-            })
+                    {row.trend_4h !== 'UNKNOWN' && (
+                      <span
+                        className="material-symbols-outlined text-[12px] flex-shrink-0"
+                        style={{ color: isUp ? '#4ade80' : '#fb7185' }}
+                      >
+                        {isUp ? 'arrow_upward' : 'arrow_downward'}
+                      </span>
+                    )}
+                    <span className="text-[10px] font-bold flex-1 min-w-0 truncate" style={{ color: rc.tone }}>
+                      {rc.headline}
+                    </span>
+                    <span className="font-mono text-[10px] flex-shrink-0" style={{ color: '#52525b' }}>
+                      {fmt(row.last_price)}
+                    </span>
+                  </button>
+                );
+              })
+            )
+          ) : (
+            /* ── Action List tab grouped view ── */
+            actionChips.size === 0 || actionSections.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 px-5 gap-2">
+                <span className="material-symbols-outlined text-3xl" style={{ color: '#27272a' }}>search_off</span>
+                <p className="text-xs text-center" style={{ color: '#52525b' }}>
+                  {actionChips.size === 0
+                    ? 'No filters active — tap a chip above.'
+                    : search
+                      ? `No match for "${search}"`
+                      : 'Nothing qualifies right now.'}
+                </p>
+                {(search || actionChips.size === 0) && (
+                  <button
+                    className="text-xs font-bold mt-1"
+                    style={{ color: '#22c55e' }}
+                    onClick={() => { setSearch(''); setActionChips(new Set(['strong-support', 'breaking-out', 'in-buy-zone'])); }}
+                  >
+                    Clear all filters
+                  </button>
+                )}
+              </div>
+            ) : (
+              actionSections.map(section => (
+                <div key={section.id}>
+                  {/* Section header */}
+                  <div
+                    className="px-3 py-1.5 sticky top-0"
+                    style={{ background: '#0d0d10', borderBottom: '1px solid #1f1f23', zIndex: 1 }}
+                  >
+                    <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#3f3f46' }}>
+                      {section.sectionHeader}
+                    </span>
+                    <span className="ml-2 text-[9px] font-bold" style={{ color: '#27272a' }}>
+                      {section.items.length}
+                    </span>
+                  </div>
+                  {/* Section rows */}
+                  {section.items.map((row, idx) => {
+                    const rc         = STATE_CFG[row.state] ?? STATE_CFG['WATCHING'];
+                    const isSelected = row.symbol === selected;
+                    const isUp       = row.trend_4h === 'UP';
+                    return (
+                      <button
+                        key={`${section.id}-${row.symbol}`}
+                        onClick={() => setSelected(row.symbol)}
+                        className="w-full text-left flex items-center gap-2 px-3 py-3 border-b border-l-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-green-500"
+                        style={{
+                          borderBottomColor: '#1f1f23',
+                          borderLeftColor:   isSelected ? '#22c55e' : 'transparent',
+                          background:        isSelected
+                            ? '#131316'
+                            : idx % 2 === 0
+                              ? 'transparent'
+                              : 'rgba(255,255,255,0.01)',
+                        }}
+                      >
+                        <span className="font-black text-sm font-mono tracking-tight" style={{ color: '#fafafa', minWidth: 46 }}>
+                          {row.symbol}
+                        </span>
+                        {row.trend_4h !== 'UNKNOWN' && (
+                          <span
+                            className="material-symbols-outlined text-[12px] flex-shrink-0"
+                            style={{ color: isUp ? '#4ade80' : '#fb7185' }}
+                          >
+                            {isUp ? 'arrow_upward' : 'arrow_downward'}
+                          </span>
+                        )}
+                        <span className="text-[10px] font-bold flex-1 min-w-0 truncate" style={{ color: rc.tone }}>
+                          {rc.headline}
+                        </span>
+                        <span className="font-mono text-[10px] flex-shrink-0" style={{ color: '#52525b' }}>
+                          {fmt(row.last_price)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))
+            )
           )}
         </div>
 
