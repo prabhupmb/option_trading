@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import QuickTradeForm from './quicktrade/QuickTradeForm';
+import IndiaTradeTicket from './india/IndiaTradeTicket';
+
+type Market = 'us' | 'india';
 
 interface DayTradeStock {
     id: string;
@@ -24,6 +27,7 @@ interface RecentTrade {
 }
 
 const QuickTradePage: React.FC = () => {
+    const [market, setMarket] = useState<Market>('us');
     const [stocks, setStocks] = useState<DayTradeStock[]>([]);
     const [recentTrades, setRecentTrades] = useState<RecentTrade[]>([]);
     const [selectedStock, setSelectedStock] = useState<DayTradeStock | null>(null);
@@ -98,7 +102,38 @@ const QuickTradePage: React.FC = () => {
 
     return (
         <div className="flex-1 overflow-hidden bg-slate-50 dark:bg-[#0a0712] flex flex-col">
-            {/* Top Section: Stock List + Trade Form */}
+            {/* Market tab switcher */}
+            <div className="flex items-center gap-0 border-b border-gray-100 dark:border-white/5 bg-white dark:bg-[#0f1219] px-4">
+                {([['us', 'US'], ['india', 'India · Zerodha']] as [Market, string][]).map(([m, label]) => (
+                    <button
+                        key={m}
+                        onClick={() => setMarket(m)}
+                        className={`px-5 py-3 text-xs font-black uppercase tracking-wide border-b-2 -mb-px transition-colors ${market === m
+                            ? m === 'india'
+                                ? 'text-emerald-400 border-emerald-500'
+                                : 'text-purple-400 border-purple-500'
+                            : 'text-gray-500 border-transparent hover:text-gray-300'}`}
+                    >
+                        {label}
+                    </button>
+                ))}
+            </div>
+
+            {/* India tab */}
+            {market === 'india' && (
+                <div className="flex-1 overflow-y-auto p-6 flex justify-center">
+                    <div className="w-full max-w-md">
+                        <div className="mb-4">
+                            <h2 className="text-white font-black text-base uppercase tracking-tight">India · Zerodha</h2>
+                            <p className="text-slate-500 text-xs mt-0.5">NSE/BSE manual trade via Kite Connect</p>
+                        </div>
+                        <IndiaTradeTicket />
+                    </div>
+                </div>
+            )}
+
+            {/* US tab: Stock List + Trade Form */}
+            {market === 'us' && (
             <div className="flex-1 flex min-h-0">
 
                 {/* Left Panel: Stock List */}
@@ -205,8 +240,10 @@ const QuickTradePage: React.FC = () => {
                     )}
                 </div>
             </div>
+            )} {/* end US tab */}
 
-            {/* Bottom: Recent Trades */}
+            {/* Bottom: Recent Trades (US only) */}
+            {market === 'us' && (
             <div className="border-t border-gray-100 dark:border-white/5 bg-white dark:bg-[#0f1219]">
                 <div className="px-6 py-3 flex items-center justify-between border-b border-gray-50 dark:border-white/5">
                     <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
@@ -268,6 +305,7 @@ const QuickTradePage: React.FC = () => {
                     )}
                 </div>
             </div>
+            )} {/* end US recent trades */}
         </div>
     );
 };

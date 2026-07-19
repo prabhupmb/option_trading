@@ -7,6 +7,7 @@ import {
   RefreshCw, TrendingUp, TrendingDown, CheckCircle2, XCircle,
   AlertTriangle, Activity, BarChart2, ArrowUp, ArrowDown, Minus,
 } from 'lucide-react';
+import IndiaTradeTicket, { type IndiaTicketPrefill } from './india/IndiaTradeTicket';
 
 // ─── CONFIG ───────────────────────────────────────────────────
 // Primary: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY env vars.
@@ -355,7 +356,7 @@ const rowToPosition = (r: DbRow): Position => {
     targetPrice: r.target_price ?? 0,
     stopPrice:   r.stop_loss    ?? 0,
     pnlPct,
-    rrRatio:     rr != null ? `1:${Number(rr).toFixed(1)}` : '—',
+    rrRatio:     rr != null && !isNaN(Number(rr)) && Number(rr) > 0 ? `1:${Number(rr).toFixed(1)}` : '—',
     execHint:    ((r.execution_hint ?? 'WAIT') as ExecHint),
     openedAt:    r.opened_at,
   };
@@ -499,7 +500,11 @@ const ProgressBar: React.FC<{ pos: Position }> = ({ pos }) => {
 
 // ─── POSITION CARD ────────────────────────────────────────────
 
-const PositionCard: React.FC<{ pos: Position }> = ({ pos }) => {
+const PositionCard: React.FC<{
+  pos:     Position;
+  onTrade: (pos: Position) => void;
+  traded:  boolean;
+}> = ({ pos, onTrade, traded }) => {
   const isBuy     = pos.direction === 'BUY';
   const isReady   = pos.execHint !== 'WAIT';
   const gatesPass = pos.gates.filter(g => g.passed).length;
@@ -530,9 +535,31 @@ const PositionCard: React.FC<{ pos: Position }> = ({ pos }) => {
           <span className="px-1.5 py-0.5 rounded text-[9px] font-bold text-slate-400 bg-slate-800 border border-slate-700 font-mono">
             {gatesPass}/6 ✓
           </span>
+          {pos.direction === 'SHORT' && (
+            <span className="px-1.5 py-0.5 rounded text-[9px] text-slate-500 bg-slate-800/60 border border-slate-700/60">
+              intraday only (MIS)
+            </span>
+          )}
         </div>
         <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
           <ExecHintPill hint={pos.execHint} />
+          {isReady && !traded && (
+            <button
+              onClick={() => onTrade(pos)}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide border transition-colors focus-visible:outline focus-visible:outline-2 ${
+                isBuy
+                  ? 'bg-emerald-950/60 border-emerald-700/50 text-emerald-300 hover:bg-emerald-900/60'
+                  : 'bg-rose-950/60 border-rose-700/50 text-rose-300 hover:bg-rose-900/60'
+              }`}
+            >
+              Trade
+            </button>
+          )}
+          {traded && (
+            <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wide bg-sky-900/40 border border-sky-700/40 text-sky-300">
+              TRADED · MANUAL
+            </span>
+          )}
           <span className={`font-mono text-sm font-black ${pnlPos ? 'text-emerald-400' : 'text-rose-400'}`}>
             {pnlPos ? '+' : ''}{pos.pnlPct.toFixed(2)}%
           </span>
@@ -718,14 +745,17 @@ const EmptyOpen: React.FC = () => (
 // ═══════════════════════════════════════════════════════════════
 
 export default function IndiaSignalTracker() {
-  const [positions,   setPositions]   = useState<Position[]>([]);
-  const [history,     setHistory]     = useState<HistoryRow[]>([]);
-  const [loading,     setLoading]     = useState(false);
-  const [error,       setError]       = useState<string | null>(null);
-  const [lastSynced,  setLastSynced]  = useState<Date | null>(null);
-  const [clockStr,    setClockStr]    = useState(() => fmtIST());
-  const [marketState, setMarketState] = useState<MarketState>(() => getMarketState());
-  const [activeTab,   setActiveTab]   = useState<'open' | 'history'>('open');
+  const [positions,    setPositions]   = useState<Position[]>([]);
+  const [history,      setHistory]     = useState<HistoryRow[]>([]);
+  const [loading,      setLoading]     = useState(false);
+  const [error,        setError]       = useState<string | null>(null);
+  const [lastSynced,   setLastSynced]  = useState<Date | null>(null);
+  const [clockStr,     setClockStr]    = useState(() => fmtIST());
+  const [marketState,  setMarketState] = useState<MarketState>(() => getMarketState());
+  const [activeTab,    setActiveTab]   = useState<'open' | 'history'>('open');
+  const [tradePos,     setTradePos]    = useState<Position | null>(null);
+  const [tradedIds,    setTradedIds]   = useState<Set<string>>(new Set());
+  const [toast,        setToast]       = useState<string | null>(null);
 
   // ── Data fetch ───────────────────────────────────────────────
 
@@ -863,7 +893,14 @@ export default function IndiaSignalTracker() {
               <EmptyOpen />
             ) : (
               <div className="space-y-3">
-                {positions.map(p => <PositionCard key={p.id} pos={p} />)}
+                {positions.map(p => (
+                  <PositionCard
+                    key={p.id}
+                    pos={p}
+                    onTrade={setTradePos}
+                    traded={tradedIds.has(p.id)}
+                  />
+                ))}
               </div>
             )}
           </section>
@@ -884,6 +921,65 @@ export default function IndiaSignalTracker() {
         )}
 
       </div>
+
+      {/* ── Trade modal ── */}
+      {tradePos && (() => {
+        const prefill: IndiaTicketPrefill = {
+          symbol:    tradePos.symbol,
+          direction: tradePos.direction === 'BUY' ? 'BUY' : 'SELL',
+          product:   tradePos.direction === 'SHORT' ? 'MIS' : 'CNC',
+          target:    tradePos.targetPrice > 0 ? tradePos.targetPrice : undefined,
+          stop:      tradePos.stopPrice   > 0 ? tradePos.stopPrice   : undefined,
+        };
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => setTradePos(null)}
+          >
+            <div
+              className="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+                <div>
+                  <h3 className="text-white font-black text-sm uppercase tracking-tight">
+                    {tradePos.direction === 'BUY' ? 'Buy' : 'Short'} · {tradePos.symbol}
+                  </h3>
+                  <p className="text-slate-500 text-[10px] mt-0.5 font-mono">India · Zerodha</p>
+                </div>
+                <button
+                  onClick={() => setTradePos(null)}
+                  className="text-slate-500 hover:text-white transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-500 rounded"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-5 max-h-[80vh] overflow-y-auto">
+                <IndiaTradeTicket
+                  key={tradePos.id}
+                  prefill={prefill}
+                  onSuccess={r => {
+                    setTradedIds(prev => new Set([...prev, tradePos.id]));
+                    const msg = `Order placed · ${r.symbol ?? tradePos.symbol} × ${r.qty ?? '?'}`;
+                    setToast(msg);
+                    setTimeout(() => setToast(null), 4_000);
+                    setTradePos(null);
+                  }}
+                  onClose={() => setTradePos(null)}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Toast ── */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold shadow-2xl whitespace-nowrap">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

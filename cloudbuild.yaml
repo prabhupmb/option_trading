@@ -1,0 +1,53 @@
+# Cloud Build config for Signal Feed AI
+# Builds the Docker image with Vite build-time env vars, then deploys to Cloud Run.
+#
+# Usage:
+#   gcloud builds submit \
+#     --config cloudbuild.yaml \
+#     --substitutions=_VITE_INDIA_TRADE_SECRET=<your_secret>
+#
+# The substitution is passed as a Docker --build-arg so Vite bakes it into
+# the bundle at build time (import.meta.env.VITE_INDIA_TRADE_SECRET).
+
+substitutions:
+  _SERVICE_NAME: signal-feed-ai
+  _REGION: us-central1
+  _VITE_INDIA_TRADE_SECRET: ''   # required — pass via --substitutions
+
+steps:
+  # 1. Build Docker image, injecting the Vite secret as a build arg
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg
+      - VITE_INDIA_TRADE_SECRET=${_VITE_INDIA_TRADE_SECRET}
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/${_SERVICE_NAME}:$COMMIT_SHA
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/${_SERVICE_NAME}:latest
+      - .
+
+  # 2. Push both tags
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - --all-tags
+      - us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/${_SERVICE_NAME}
+
+  # 3. Deploy the new image to Cloud Run
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE_NAME}
+      - --image=us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/${_SERVICE_NAME}:$COMMIT_SHA
+      - --region=${_REGION}
+      - --platform=managed
+      - --quiet
+
+images:
+  - us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/${_SERVICE_NAME}
+
+options:
+  logging: CLOUD_LOGGING_ONLY

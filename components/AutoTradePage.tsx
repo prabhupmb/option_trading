@@ -15,6 +15,13 @@ const MONO = "'JetBrains Mono','SF Mono','Fira Code',monospace";
 const SANS = "'Inter',-apple-system,BlinkMacSystemFont,sans-serif";
 const CARD: React.CSSProperties = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '18px 22px', marginBottom: 14 };
 
+// ─── India helpers (after C so Rollup sees them in order) ──
+const inrFmt = (n: number) =>
+    '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const fmtIST = (iso: string) =>
+    new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false, month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' IST';
+
 /* ─── SHARED PRIMITIVES ─────────────────────────────────── */
 
 const Row: React.FC<{ label: string; hint?: string; last?: boolean; children: React.ReactNode }> =
@@ -846,9 +853,180 @@ const AdminPanel: React.FC = () => {
     );
 };
 
+/* ─── INDIA PANEL ───────────────────────────────────────── */
+
+interface IndiaSettings {
+    enabled:           boolean;
+    capital_per_trade: number;
+    max_open_trades:   number;
+}
+
+interface IndiaPosition {
+    id:          string;
+    symbol:      string;
+    direction:   string;
+    product:     string;
+    qty:         number;
+    entry_price: number;
+    target_price: number;
+    stop_price:  number;
+    status:      string;
+    source:      string;
+    opened_at:   string;
+}
+
+const INDIA_DEF: IndiaSettings = { enabled: false, capital_per_trade: 20000, max_open_trades: 5 };
+
+const IndiaPanel: React.FC<{ userId: string }> = ({ userId }) => {
+    const [loading,   setLoading]   = useState(true);
+    const [saving,    setSaving]    = useState(false);
+    const [toast,     setToast]     = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+    const [enabled,   setEnabled]   = useState(INDIA_DEF.enabled);
+    const [capital,   setCapital]   = useState(String(INDIA_DEF.capital_per_trade));
+    const [maxTrades, setMaxTrades] = useState(String(INDIA_DEF.max_open_trades));
+    const [positions, setPositions] = useState<IndiaPosition[]>([]);
+
+    const showToast = (msg: string, type: 'success' | 'error') => {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 3000);
+    };
+
+    const fetchSettings = useCallback(async () => {
+        try {
+            setLoading(true);
+            const { data } = await supabase
+                .from('india_auto_trade_settings')
+                .select('*')
+                .eq('user_id', userId)
+                .maybeSingle();
+            if (data) {
+                setEnabled(data.enabled ?? INDIA_DEF.enabled);
+                setCapital(String(data.capital_per_trade ?? INDIA_DEF.capital_per_trade));
+                setMaxTrades(String(data.max_open_trades ?? INDIA_DEF.max_open_trades));
+            }
+        } catch { /* silent */ } finally { setLoading(false); }
+    }, [userId]);
+
+    const fetchPositions = useCallback(async () => {
+        const { data } = await supabase
+            .from('india_auto_trades')
+            .select('*')
+            .eq('status', 'OPEN')
+            .order('opened_at', { ascending: false });
+        setPositions(data || []);
+    }, []);
+
+    useEffect(() => { fetchSettings(); fetchPositions(); }, [fetchSettings, fetchPositions]);
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const { error } = await supabase
+                .from('india_auto_trade_settings')
+                .upsert({
+                    user_id:           userId,
+                    enabled,
+                    capital_per_trade: parseFloat(capital) || INDIA_DEF.capital_per_trade,
+                    max_open_trades:   parseInt(maxTrades)  || INDIA_DEF.max_open_trades,
+                    updated_at:        new Date().toISOString(),
+                }, { onConflict: 'user_id' });
+            if (error) throw error;
+            showToast('India auto-trade settings saved', 'success');
+        } catch { showToast('Failed to save settings', 'error'); } finally { setSaving(false); }
+    };
+
+    if (loading) return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200 }}>
+            <span style={{ color: C.textMuted, fontFamily: MONO, fontSize: 12 }}>Loading...</span>
+        </div>
+    );
+
+    return (
+        <div>
+            {toast && <Toast msg={toast.msg} type={toast.type} />}
+
+            {/* Toggle */}
+            <div style={{ ...CARD, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: C.text, fontFamily: SANS }}>India Auto-Trade</div>
+                    <div style={{ fontSize: 11, color: C.textMuted, fontFamily: SANS }}>NSE longs via Zerodha · GTT OCO protection</div>
+                </div>
+                <Toggle on={enabled} onToggle={() => setEnabled(e => !e)} />
+            </div>
+
+            <StatusBar enabled={enabled} message={enabled ? 'Active — executor runs 9:20 AM – 3:00 PM IST, Mon–Fri' : 'Disabled — no India orders will be placed'} />
+
+            {/* Settings */}
+            <div style={CARD}>
+                <SectionTitle icon="⚙" label="Trade Parameters" />
+                <Row label="Capital per Trade" hint="₹ amount per NSE trade">
+                    <NumInput value={capital} onChange={setCapital} prefix="₹" width={96} />
+                </Row>
+                <Row label="Max Open Trades" hint="Maximum simultaneous open positions" last>
+                    <NumInput value={maxTrades} onChange={setMaxTrades} width={56} />
+                </Row>
+            </div>
+
+            {/* Phase note */}
+            <div style={{ ...CARD, background: C.bg, border: `1px solid ${C.border}` }}>
+                <div style={{ fontSize: 11, color: C.textSec, fontFamily: SANS, lineHeight: 1.7 }}>
+                    <span style={{ color: C.amber, fontWeight: 700 }}>Phase 1:</span> CNC longs with GTT OCO.
+                    SHORT signals are skipped (options later).
+                </div>
+            </div>
+
+            <SaveButton saving={saving} label="Save India Auto-Trade Settings" onClick={handleSave} color={C.green} />
+
+            {/* Open positions */}
+            <div style={CARD}>
+                <SectionTitle icon="🇮🇳" label="Open India Positions" />
+                {positions.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '20px 0', color: C.textFaint, fontSize: 12, fontFamily: MONO }}>
+                        No open India positions. The executor runs 9:20 AM – 3:00 PM IST, Mon–Fri.
+                    </div>
+                ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                            <thead>
+                                <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+                                    {['Symbol', 'Source', 'Qty', 'Entry', 'Target', 'Stop', 'Opened'].map(col => (
+                                        <th key={col} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', color: C.textFaint, fontFamily: MONO, textTransform: 'uppercase' }}>{col}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {positions.map(p => {
+                                    const isAuto   = p.source === 'AUTO';
+                                    const srcColor = isAuto ? '#a78bfa' : '#38bdf8';
+                                    const srcBg    = isAuto ? 'rgba(167,139,250,0.15)' : 'rgba(56,189,248,0.15)';
+                                    return (
+                                        <tr key={p.id} style={{ borderBottom: `1px solid ${C.border}30` }}>
+                                            <td style={{ padding: '7px 8px', fontWeight: 700, color: C.text, fontFamily: MONO }}>{p.symbol}</td>
+                                            <td style={{ padding: '7px 8px' }}>
+                                                <span style={{ padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 700, fontFamily: MONO, color: srcColor, background: srcBg }}>
+                                                    {p.source}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '7px 8px', fontFamily: MONO, color: C.text }}>{p.qty}</td>
+                                            <td style={{ padding: '7px 8px', fontFamily: MONO, color: C.amber }}>{inrFmt(p.entry_price)}</td>
+                                            <td style={{ padding: '7px 8px', fontFamily: MONO, color: C.green }}>{inrFmt(p.target_price)}</td>
+                                            <td style={{ padding: '7px 8px', fontFamily: MONO, color: C.red }}>{inrFmt(p.stop_price)}</td>
+                                            <td style={{ padding: '7px 8px', fontFamily: MONO, color: C.textMuted, fontSize: 10 }}>{fmtIST(p.opened_at)}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 /* ─── COMBINED PAGE ─────────────────────────────────────── */
 
-type Tab = 'options' | 'stock' | 'admin';
+type Tab = 'options' | 'stock' | 'india' | 'admin';
 
 interface AutoTradePageProps { userId: string; isAdmin?: boolean; }
 
@@ -857,7 +1035,8 @@ const AutoTradePage: React.FC<AutoTradePageProps> = ({ userId, isAdmin = false }
 
     const tabs: { id: Tab; label: string; sub: string; color: string; adminOnly?: boolean }[] = [
         { id: 'options', label: 'OPTIONS AUTO-TRADE', sub: 'Iron Gate · Schwab/Alpaca · % TP/SL', color: C.purple },
-        { id: 'stock', label: 'STOCK AUTO-TRADE', sub: 'Stock Gate · Alpaca · Signal TP/SL', color: C.cyan },
+        { id: 'stock',   label: 'STOCK AUTO-TRADE',   sub: 'Stock Gate · Alpaca · Signal TP/SL',  color: C.cyan },
+        { id: 'india',   label: 'INDIA AUTO-TRADE',   sub: 'NSE · Zerodha · GTT OCO',             color: C.green },
         ...(isAdmin ? [{ id: 'admin' as Tab, label: 'ADMIN PANEL', sub: 'Manage all users', color: C.amber, adminOnly: true }] : []),
     ];
 
@@ -888,8 +1067,9 @@ const AutoTradePage: React.FC<AutoTradePageProps> = ({ userId, isAdmin = false }
                 </div>
 
                 {activeTab === 'options' && <OptionsPanel userId={userId} />}
-                {activeTab === 'stock' && <StockPanel userId={userId} />}
-                {activeTab === 'admin' && isAdmin && <AdminPanel />}
+                {activeTab === 'stock'   && <StockPanel   userId={userId} />}
+                {activeTab === 'india'   && <IndiaPanel   userId={userId} />}
+                {activeTab === 'admin'   && isAdmin && <AdminPanel />}
             </div>
         </div>
     );

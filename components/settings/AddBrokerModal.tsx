@@ -94,6 +94,11 @@ const AddBrokerModal: React.FC<Props> = ({ isOpen, onClose, onSave, initialData 
                 brokerData.api_secret = apiSecret || 'ibkr';
                 brokerData.settings = { port };
                 brokerData.base_url = `https://localhost:${port}`;
+            } else if (brokerName === 'zerodha') {
+                if (!apiKey || !apiSecret) throw new Error('API Key and Access Token are required for Zerodha');
+                brokerData.api_key = apiKey;
+                brokerData.api_secret = apiSecret;
+                brokerData.base_url = 'https://api.kite.trade';
             }
 
             await onSave(initialData ? { ...initialData, ...brokerData } : brokerData);
@@ -121,18 +126,16 @@ const AddBrokerModal: React.FC<Props> = ({ isOpen, onClose, onSave, initialData 
                     {/* Broker Name */}
                     <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Broker</label>
-                        <div className="grid grid-cols-3 gap-2">
-                            {['alpaca', 'schwab', 'ibkr'].map((b) => (
-                                <button
-                                    key={b}
-                                    type="button"
-                                    onClick={() => setBrokerName(b as BrokerName)}
-                                    className={`px-3 py-2 rounded-lg text-sm font-bold capitalize border ${brokerName === b ? 'bg-blue-600 border-blue-500 text-white' : 'bg-[#0f1219] border-gray-700 text-gray-400 hover:border-gray-500'}`}
-                                >
-                                    {b}
-                                </button>
-                            ))}
-                        </div>
+                        <select
+                            value={brokerName}
+                            onChange={e => setBrokerName(e.target.value as BrokerName)}
+                            className="w-full bg-[#0f1219] border border-gray-700 rounded-lg px-3 py-2 text-white text-sm font-bold focus:border-blue-500 outline-none cursor-pointer"
+                        >
+                            <option value="alpaca">Alpaca</option>
+                            <option value="schwab">Schwab</option>
+                            <option value="ibkr">IBKR</option>
+                            <option value="zerodha">Zerodha</option>
+                        </select>
                     </div>
 
                     {/* Mode */}
@@ -215,6 +218,23 @@ const AddBrokerModal: React.FC<Props> = ({ isOpen, onClose, onSave, initialData 
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Local API Port</label>
                                 <input type="number" value={port} onChange={e => setPort(e.target.value)} className="w-full bg-[#0f1219] border border-gray-700 rounded-lg px-3 py-2 text-white text-sm font-mono" placeholder="5000" />
                             </div>
+                        </div>
+                    )}
+
+                    {brokerName === 'zerodha' && (
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">API Key</label>
+                                <input type="text" value={apiKey} onChange={e => setApiKey(e.target.value)} className="w-full bg-[#0f1219] border border-gray-700 rounded-lg px-3 py-2 text-white text-sm font-mono" placeholder="Kite API Key..." />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Access Token</label>
+                                <div className="relative">
+                                    <input type={showSecret ? "text" : "password"} value={apiSecret} onChange={e => setApiSecret(e.target.value)} className="w-full bg-[#0f1219] border border-gray-700 rounded-lg px-3 py-2 text-white text-sm font-mono" placeholder="Access token..." />
+                                    <button type="button" onClick={() => setShowSecret(!showSecret)} className="absolute right-3 top-2 text-gray-500 hover:text-white"><span className="material-symbols-outlined text-sm">{showSecret ? 'visibility_off' : 'visibility'}</span></button>
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-yellow-400 font-bold">⚠️ Zerodha access tokens expire daily. You'll need to update this each trading day.</p>
                         </div>
                     )}
 

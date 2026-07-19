@@ -58,7 +58,7 @@ export interface UserProfile {
   created_at?: string;
 }
 
-export type BrokerName = 'alpaca' | 'schwab' | 'ibkr';
+export type BrokerName = 'alpaca' | 'schwab' | 'ibkr' | 'zerodha';
 export type BrokerMode = 'paper' | 'live';
 
 export interface BrokerCredential {

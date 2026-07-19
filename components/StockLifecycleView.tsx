@@ -90,22 +90,32 @@ const CONTEXT_CHIPS: CtxChip[] = [
   { id: 'support-broken', label: 'Support broken', test: r => (r.support_levels ?? []).some(s => s.status === 'broken') },
 ];
 
-// Action List chips — shown only on the "Action List" tab
-interface ActionChip { id: string; label: string; sectionHeader: string; test: (row: LifecycleRow) => boolean; }
+// Action chips — used by both the "Action List" watchlist tab and the "Action Board" view
+interface ActionChip { id: string; label: string; sectionHeader: string; badge: string; color: string; test: (row: LifecycleRow) => boolean; }
 const ACTION_CHIPS: ActionChip[] = [
   {
-    id: 'strong-support', label: 'Strong support', sectionHeader: 'STRONG SUPPORT',
+    id: 'strong-support', label: 'Strong support', sectionHeader: 'STRONG SUPPORT', badge: 'STRONG SUPPORT', color: '#22c55e',
     test: r => deepestSupport(r)?.status === 'holding',
   },
   {
-    id: 'breaking-out', label: 'Breaking out', sectionHeader: 'BREAKING OUT',
+    id: 'breaking-out', label: 'Breaking out', sectionHeader: 'BREAKING OUT', badge: 'BREAKING OUT', color: '#38bdf8',
     test: r => r.breakout_status === 'pending' || r.breakout_status === 'confirming' || r.breakout_status === 'confirmed',
   },
   {
-    id: 'in-buy-zone', label: 'Buy zone', sectionHeader: 'BUY ZONE',
+    id: 'in-buy-zone', label: 'Buy zone', sectionHeader: 'BUY ZONE', badge: 'BUY ZONE', color: '#fbbf24',
     test: r => { const bz = r.buy_zone, p = r.last_price; return bz != null && bz.lo != null && bz.hi != null && p != null && p >= bz.lo && p <= bz.hi; },
   },
 ];
+
+// Priority order for Action Board primary badge: breaking-out > in-buy-zone > strong-support
+const AB_PRIORITY = ['breaking-out', 'in-buy-zone', 'strong-support'];
+const getAbPrimaryChip = (row: LifecycleRow): ActionChip | null => {
+  for (const id of AB_PRIORITY) {
+    const chip = ACTION_CHIPS.find(c => c.id === id)!;
+    if (chip.test(row)) return chip;
+  }
+  return null;
+};
 
 // ─── MOCK DATA ────────────────────────────────────────────────────────────────
 
@@ -578,6 +588,252 @@ const DetailSkeleton: React.FC = () => (
   </div>
 );
 
+// ─── ACTION BOARD COMPONENTS ──────────────────────────────────────────────────
+
+const LevelBar: React.FC<{ row: LifecycleRow }> = ({ row }) => {
+  const support    = deepestSupport(row);
+  const supportPx  = support?.status === 'holding' ? support.price : (row.swing_low ?? null);
+  const breakoutPx = row.breakout_level ?? row.swing_high;
+  if (!supportPx || !breakoutPx || breakoutPx <= supportPx) return null;
+
+  const range  = breakoutPx - supportPx;
+  const toPct  = (p: number) => Math.max(0, Math.min(100, ((p - supportPx) / range) * 100));
+  const curPct = toPct(row.last_price);
+  const bz     = row.buy_zone;
+  const bzLo   = bz?.lo != null ? toPct(bz.lo)   : null;
+  const bzHi   = bz?.hi != null ? toPct(bz.hi)   : null;
+
+  return (
+    <div className="space-y-1">
+      <div className="relative h-4 rounded-full" style={{ background: '#131316', border: '1px solid #1f1f23' }}>
+        {bzLo != null && bzHi != null && (
+          <div
+            className="absolute top-0 bottom-0 rounded-full"
+            style={{
+              left: `${bzLo}%`,
+              width: `${bzHi - bzLo}%`,
+              background: 'rgba(251,191,36,0.18)',
+              borderLeft:  '1px solid rgba(251,191,36,0.35)',
+              borderRight: '1px solid rgba(251,191,36,0.35)',
+            }}
+          />
+        )}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full z-10"
+          style={{
+            left: `calc(${curPct}% - 6px)`,
+            background: '#22c55e',
+            boxShadow: '0 0 6px rgba(34,197,94,0.6)',
+          }}
+        />
+      </div>
+      <div className="flex justify-between text-[9px] font-mono font-bold">
+        <span style={{ color: '#22c55e' }}>{fmt(supportPx)}</span>
+        <span style={{ color: '#71717a' }}>{fmt(row.last_price)}</span>
+        <span style={{ color: '#38bdf8' }}>{fmt(breakoutPx)}</span>
+      </div>
+    </div>
+  );
+};
+
+const ActionCard: React.FC<{ row: LifecycleRow; activeChips: Set<string>; onClick: () => void }> = ({ row, activeChips, onClick }) => {
+  // Badge: highest-priority chip that is BOTH active AND matches this row
+  let primary: ActionChip | null = null;
+  for (const id of AB_PRIORITY) {
+    const chip = ACTION_CHIPS.find(c => c.id === id)!;
+    if (activeChips.has(chip.id) && chip.test(row)) { primary = chip; break; }
+  }
+  if (!primary) primary = getAbPrimaryChip(row); // fallback (should never hit)
+  if (!primary) return null;
+
+  const rc   = STATE_CFG[row.state] ?? STATE_CFG['WATCHING'];
+  const isUp = row.trend_4h === 'UP';
+  const support = deepestSupport(row);
+
+  return (
+    <button
+      onClick={onClick}
+      className="relative text-left rounded-2xl overflow-hidden border transition-all duration-200 w-full"
+      style={{ background: '#0d0d10', borderColor: '#1f1f23' }}
+      onMouseEnter={e => (e.currentTarget.style.borderColor = primary.color + '50')}
+      onMouseLeave={e => (e.currentTarget.style.borderColor = '#1f1f23')}
+    >
+      {/* Left accent edge */}
+      <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-2xl" style={{ background: primary.color }} />
+
+      <div className="pl-5 pr-4 pt-4 pb-4 space-y-3">
+        {/* Header row */}
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xl font-black font-mono tracking-tight" style={{ color: '#fafafa' }}>
+                {row.symbol}
+              </span>
+              <span
+                className="px-2 py-0.5 rounded-md text-[10px] font-black border"
+                style={{ color: primary.color, background: primary.color + '14', borderColor: primary.color + '35' }}
+              >
+                {primary.badge}
+              </span>
+              {row.trend_4h !== 'UNKNOWN' && (
+                <span
+                  className="material-symbols-outlined text-[13px] flex-shrink-0"
+                  style={{ color: isUp ? '#4ade80' : '#fb7185' }}
+                >
+                  {isUp ? 'arrow_upward' : 'arrow_downward'}
+                </span>
+              )}
+            </div>
+            <div className="text-[9px] mt-0.5" style={{ color: '#3f3f46' }}>
+              updated {timeAgo(row.updated_at)}
+            </div>
+          </div>
+          <span className="font-mono text-lg font-black flex-shrink-0" style={{ color: '#fafafa' }}>
+            {fmt(row.last_price)}
+          </span>
+        </div>
+
+        {/* Price level trio */}
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-xl p-2.5 border" style={{ background: '#111318', borderColor: '#1f1f23' }}>
+            <span className="block text-[8px] font-bold uppercase tracking-widest mb-1" style={{ color: '#52525b' }}>Support</span>
+            <span className="block text-sm font-black font-mono" style={{ color: '#22c55e' }}>
+              {support ? fmt(support.price) : '—'}
+            </span>
+          </div>
+          <div className="rounded-xl p-2.5 border" style={{ background: '#111318', borderColor: '#1f1f23' }}>
+            <span className="block text-[8px] font-bold uppercase tracking-widest mb-1" style={{ color: '#52525b' }}>Current</span>
+            <span className="block text-sm font-black font-mono" style={{ color: '#fafafa' }}>
+              {fmt(row.last_price)}
+            </span>
+          </div>
+          <div className="rounded-xl p-2.5 border" style={{ background: '#111318', borderColor: '#1f1f23' }}>
+            <span className="block text-[8px] font-bold uppercase tracking-widest mb-1" style={{ color: '#52525b' }}>Breakout</span>
+            <span className="block text-sm font-black font-mono" style={{ color: '#38bdf8' }}>
+              {fmt(row.breakout_level)}
+            </span>
+          </div>
+        </div>
+
+        {/* Level bar */}
+        <LevelBar row={row} />
+
+        {/* Status message */}
+        <p className="text-[10px] leading-relaxed" style={{ color: '#71717a' }}>
+          {rc.sub}
+        </p>
+      </div>
+    </button>
+  );
+};
+
+const ActionBoard: React.FC<{
+  rows:           LifecycleRow[];
+  loading:        boolean;
+  onSelectSymbol: (symbol: string) => void;
+  activeChips:    Set<string>;
+  setActiveChips: (s: Set<string>) => void;
+}> = ({ rows, loading, onSelectSymbol, activeChips, setActiveChips }) => {
+  const toggleAb = (id: string) =>
+    setActiveChips((() => { const n = new Set(activeChips); n.has(id) ? n.delete(id) : n.add(id); return n; })());
+
+  const allEntries     = useMemo(() => rows.filter(r => ACTION_CHIPS.some(c => c.test(r))), [rows]);
+  const visibleEntries = useMemo(
+    () => allEntries.filter(r => ACTION_CHIPS.some(c => activeChips.has(c.id) && c.test(r))),
+    [allEntries, activeChips],
+  );
+
+  return (
+    <div className="flex-1 overflow-y-auto" style={{ background: '#0a0a0b' }}>
+      <div className="p-5 max-w-5xl mx-auto space-y-5">
+
+        {/* Header card */}
+        <div className="rounded-2xl p-5 border" style={{ background: '#0d0d10', borderColor: '#1f1f23' }}>
+          <div className="flex items-start justify-between flex-wrap gap-4">
+            <div>
+              <h2 className="text-sm font-black uppercase tracking-widest" style={{ color: '#22c55e' }}>
+                Action Board
+              </h2>
+              <p className="text-xs mt-1" style={{ color: '#71717a' }}>
+                Stocks at key decision levels
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {ACTION_CHIPS.map(chip => (
+                <span
+                  key={chip.id}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold border"
+                  style={{ color: chip.color, background: chip.color + '12', borderColor: chip.color + '30' }}
+                >
+                  {chip.label}
+                  <span className="font-mono font-black">{rows.filter(chip.test).length}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Filter row */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            {ACTION_CHIPS.map(chip => {
+              const isActive = activeChips.has(chip.id);
+              return (
+                <button
+                  key={chip.id}
+                  onClick={() => toggleAb(chip.id)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all"
+                  style={{
+                    background:  isActive ? chip.color + '12' : '#131316',
+                    borderColor: isActive ? chip.color + '55' : '#1f1f23',
+                    color:       isActive ? chip.color        : '#52525b',
+                  }}
+                >
+                  {chip.label}
+                  <span style={{ opacity: isActive ? 0.7 : 0.45 }}>{rows.filter(chip.test).length}</span>
+                </button>
+              );
+            })}
+          </div>
+          <span className="text-[10px] font-bold" style={{ color: '#3f3f46' }}>
+            {visibleEntries.length} of {allEntries.length} shown
+          </span>
+        </div>
+
+        {/* Grid / empty state */}
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Array.from({ length: 4 }, (_, i) => (
+              <div key={i} className="rounded-2xl border animate-pulse" style={{ background: '#0d0d10', borderColor: '#1f1f23', height: 220 }} />
+            ))}
+          </div>
+        ) : visibleEntries.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-3">
+            <span className="material-symbols-outlined text-4xl" style={{ color: '#27272a' }}>candlestick_chart</span>
+            <p className="text-sm font-bold" style={{ color: '#3f3f46' }}>No stocks at key levels right now</p>
+            {activeChips.size < ACTION_CHIPS.length && (
+              <button
+                className="text-xs font-bold"
+                style={{ color: '#22c55e' }}
+                onClick={() => setActiveChips(new Set(ACTION_CHIPS.map(c => c.id)))}
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {visibleEntries.map(row => (
+              <ActionCard key={row.symbol} row={row} activeChips={activeChips} onClick={() => onSelectSymbol(row.symbol)} />
+            ))}
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+};
+
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 const StockLifecycleView: React.FC = () => {
@@ -591,6 +847,8 @@ const StockLifecycleView: React.FC = () => {
   const [activeCtx, setActiveCtx] = useState<Set<string>>(new Set());
   const [watchlistTab, setWatchlistTab] = useState<'all' | 'action'>('all');
   const [actionChips, setActionChips]   = useState<Set<string>>(new Set(['strong-support', 'breaking-out', 'in-buy-zone']));
+  const [view, setView]                 = useState<'watchlist' | 'action-board'>('watchlist');
+  const [abChips, setAbChips]           = useState<Set<string>>(new Set(ACTION_CHIPS.map(c => c.id)));
 
   // ── Fetch ────────────────────────────────────────────────────────────────
 
@@ -692,7 +950,29 @@ const StockLifecycleView: React.FC = () => {
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full overflow-hidden" style={{ background: '#0a0a0b', color: '#fafafa' }}>
+    <div className="flex flex-col h-full overflow-hidden" style={{ background: '#0a0a0b', color: '#fafafa' }}>
+
+      {/* ── View switcher ─────────────────────────────────────────────────── */}
+      <div className="flex-shrink-0 flex items-center border-b" style={{ borderColor: '#1f1f23', background: '#0d0d10' }}>
+        {(['watchlist', 'action-board'] as const).map(v => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${view === v
+              ? 'border-[#22c55e] text-[#22c55e]'
+              : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">
+              {v === 'watchlist' ? 'format_list_bulleted' : 'dashboard'}
+            </span>
+            {v === 'watchlist' ? 'Watchlist' : 'Action Board'}
+          </button>
+        ))}
+      </div>
+
+      {view === 'watchlist' ? (
+        <div className="flex flex-1 overflow-hidden min-h-0">
 
       {/* ══ LEFT ROSTER ══════════════════════════════════════════════════════ */}
       <div
@@ -1110,6 +1390,16 @@ const StockLifecycleView: React.FC = () => {
           </div>
         )}
       </div>
+        </div>
+      ) : (
+        <ActionBoard
+          rows={rows}
+          loading={loading}
+          onSelectSymbol={(sym) => { setSelected(sym); setView('watchlist'); }}
+          activeChips={abChips}
+          setActiveChips={setAbChips}
+        />
+      )}
     </div>
   );
 };

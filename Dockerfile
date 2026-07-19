@@ -12,7 +12,12 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build the app
+# Receive the Vite build-time secret as a Docker build arg.
+# Must be declared before RUN npm run build so Vite can see it.
+ARG VITE_INDIA_TRADE_SECRET
+ENV VITE_INDIA_TRADE_SECRET=$VITE_INDIA_TRADE_SECRET
+
+# Build the app (Vite bakes import.meta.env.* here)
 RUN npm run build
 
 # Production stage

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import BrokerSelector from './layout/BrokerSelector';
+import ZerodhaTokenChip from './india/ZerodhaTokenChip';
 import type { ScanStatus } from '../hooks/useScanProgress';
 
 interface ScanProgressData {
@@ -49,6 +50,8 @@ const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading, user, 
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {/* Zerodha token status */}
+          <ZerodhaTokenChip />
           {/* Brokerage Selector */}
           <div className="relative z-50">
             <BrokerSelector onNavigate={onNavigate} />
