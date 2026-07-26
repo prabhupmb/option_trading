@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import BrokerSelector from './layout/BrokerSelector';
 import ZerodhaTokenChip from './india/ZerodhaTokenChip';
+import { useBrokerContext } from '../context/BrokerContext';
 import type { ScanStatus } from '../hooks/useScanProgress';
 
 interface ScanProgressData {
@@ -27,6 +28,7 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading, user, onSignOut, selectedBrokerage, onBrokerageChange, onNavigate, scanProgress, isAdmin }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const { selectedBroker } = useBrokerContext();
 
   const userAvatar = user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
   const userName = user?.user_metadata?.full_name || user?.email || 'User';
@@ -50,8 +52,8 @@ const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading, user, 
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {/* Zerodha token status */}
-          <ZerodhaTokenChip />
+          {/* Zerodha token status — only when Zerodha broker is selected */}
+          {selectedBroker?.broker_name === 'zerodha' && <ZerodhaTokenChip />}
           {/* Brokerage Selector */}
           <div className="relative z-50">
             <BrokerSelector onNavigate={onNavigate} />

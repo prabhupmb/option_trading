@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { UserRole, AccessLevel } from '../types';
 
-export type View = 'signals' | 'smart-feed' | 'portfolio' | 'quick-trade' | 'auto-trade' | 'iron-dip' | 'iron-gate' | 'iron-gate-day' | 'ai-hub' | 'chat' | 'watchlist' | 'history' | 'settings' | 'admin' | 'faq' | 'trending' | 'market-news' | 'stage-tracker' | 'lifecycle' | 'india-signals';
+export type View = 'signals' | 'smart-feed' | 'portfolio' | 'quick-trade' | 'auto-trade' | 'iron-dip' | 'iron-gate' | 'iron-gate-day' | 'ai-hub' | 'chat' | 'watchlist' | 'history' | 'settings' | 'admin' | 'faq' | 'trending' | 'market-news' | 'stage-tracker' | 'lifecycle' | 'india-signals' | 'disclosure' | 'presence';
 
 interface NavigationProps {
   activeView: View;
@@ -42,6 +42,7 @@ const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, o
 
   if (role === 'admin') {
     tabs.push({ id: 'admin', label: 'Admin Panel', icon: 'admin_panel_settings' });
+    tabs.push({ id: 'presence', label: 'Active Now', icon: 'groups' });
   }
 
   // Bottom tab bar: 5 most important tabs
@@ -100,6 +101,21 @@ const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, o
             {activeView === tab.id && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-rh-green shadow-[0_0_8px_rgba(0,200,5,0.6)]" />}
           </button>
         ))}
+      </div>
+
+      {/* Legal link */}
+      <div className="px-4 pb-1 flex-shrink-0">
+        <button
+          onClick={() => navigate('disclosure')}
+          className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-colors ${
+            activeView === 'disclosure'
+              ? 'text-amber-400'
+              : 'text-slate-600 hover:text-slate-400'
+          }`}
+        >
+          <span className="material-symbols-outlined text-sm">gavel</span>
+          Legal & Risk Disclosure
+        </button>
       </div>
 
       {/* User Profile */}

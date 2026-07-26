@@ -380,7 +380,7 @@ const ExecutionHintBadge: React.FC<{ position: IronGatePosition }> = ({ position
                 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700/40"
         >
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
-            🟡 Wait
+            🟡 Stale
             {execution_reason && (
                 <span className="opacity-70 text-[9px] font-mono ml-0.5 normal-case">{execution_reason}</span>
             )}
@@ -396,7 +396,8 @@ const PositionCard: React.FC<{
     position: IronGatePosition;
     onManualClose: (p: IronGatePosition) => void;
     onExecute?: (signal: OptionSignal) => void;
-}> = ({ position, onManualClose, onExecute }) => {
+    onNavigateToLifecycle?: (symbol: string) => void;
+}> = ({ position, onManualClose, onExecute, onNavigateToLifecycle }) => {
     const [expanded, setExpanded] = useState(false);
     const isCall = position.option_type?.toUpperCase() === 'CALL';
     const pnl = calcPnl(position);
@@ -452,11 +453,6 @@ const PositionCard: React.FC<{
                         <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/30">
                             {position.gates_passed || '0/6'} ✅
                         </span>
-                        {position.consensus_vote && (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800/30">
-                                {position.consensus_vote}
-                            </span>
-                        )}
                     </div>
                     {/* P&L — prominent top right */}
                     <div className="flex-shrink-0 text-right">
@@ -472,10 +468,7 @@ const PositionCard: React.FC<{
                     </div>
                 </div>
 
-                {/* ── Row 2: Leg Badge ── */}
-                <TargetLegBadge position={position} />
-
-                {/* ── Row 3: Signal Badge + Execution Hint ── */}
+                {/* ── Row 2: Signal Badge + Execution Hint ── */}
                 <div className="flex flex-wrap items-center gap-2">
                     <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${isCall
                         ? (isStrong ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/40' : 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border-green-300 dark:border-green-800/30')
@@ -504,8 +497,8 @@ const PositionCard: React.FC<{
                     </div>
                 </div>
 
-                {/* ── Row 4: SL + Profit Zone + R:R ── */}
-                <div className="flex items-center justify-between text-[10px] px-0.5 gap-2">
+                {/* ── Row 4: SL + R:R ── */}
+                <div className="flex items-center justify-between text-[10px] px-0.5">
                     {(position.target_stage ?? 1) === 2 ? (
                         <div className="flex flex-col">
                             <span className="text-slate-500 font-bold">🛡️ SL @ BE <span className="text-amber-400 font-mono font-bold">{fmt(position.stop_loss)}</span></span>
@@ -515,9 +508,6 @@ const PositionCard: React.FC<{
                         </div>
                     ) : (
                         <span className="text-slate-500 font-bold">⛔ SL <span className="text-red-400 font-mono font-bold">{fmt(position.stop_loss)}</span></span>
-                    )}
-                    {(position.profit_zone_low || position.profit_zone_high) && (
-                        <span className="text-slate-500 font-bold">💰 <span className="text-emerald-400 font-mono font-bold">{fmt(position.profit_zone_low)}–{fmt(position.profit_zone_high)}</span></span>
                     )}
                     <span className="text-slate-500 font-bold">R:R <span className="text-slate-900 dark:text-white font-mono font-bold">{position.risk_reward_ratio || '—'}</span></span>
                 </div>
@@ -542,6 +532,13 @@ const PositionCard: React.FC<{
                 {/* ── Row 9: Actions ── */}
                 <div className="flex items-center gap-2 pt-0.5">
                     <div className="ml-auto flex items-center gap-2">
+                        {onNavigateToLifecycle && (
+                            <button onClick={() => onNavigateToLifecycle(position.symbol)}
+                                className="px-3 py-1.5 rounded-lg bg-gray-200 dark:bg-[#1a1f2e] border border-gray-300 dark:border-[#252c3b] text-slate-500 dark:text-slate-400 text-[10px] font-bold hover:text-blue-400 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-500/40 transition-all flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-sm">timeline</span>
+                                Lifecycle
+                            </button>
+                        )}
                         <button onClick={() => onManualClose(position)}
                             className="px-3 py-1.5 rounded-lg bg-gray-200 dark:bg-[#1a1f2e] border border-gray-300 dark:border-[#252c3b] text-slate-500 dark:text-slate-400 text-[10px] font-bold hover:text-red-500 dark:hover:text-white hover:border-red-300 dark:hover:border-slate-500 transition-all flex items-center gap-1.5">
                             <span className="material-symbols-outlined text-sm">close</span>
@@ -770,7 +767,7 @@ const isCSTWeekday = () => {
     return day !== 0 && day !== 6;
 };
 
-const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; role?: string }> = ({ onExecute, role }) => {
+const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; role?: string; onNavigateToLifecycle?: (symbol: string) => void }> = ({ onExecute, role, onNavigateToLifecycle }) => {
     const [config, setConfig] = useState<StrategyConfig | null>(null);
     const [positions, setPositions] = useState<IronGatePosition[]>([]);
     const [history, setHistory] = useState<IronGateHistory[]>([]);
@@ -1155,7 +1152,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                         <span className="font-black bg-black/10 dark:bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{readyCount}</span>
                                     </button>
 
-                                    {/* WAIT chip */}
+                                    {/* STALE chip */}
                                     <button
                                         onClick={() => { setTodayOnly(false); setExecutionFilter(executionFilter === 'WAIT' ? null : 'WAIT'); }}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all
@@ -1167,7 +1164,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                             ${waitCount === 0 ? 'opacity-40 cursor-default' : 'hover:opacity-80 cursor-pointer'}`}
                                     >
                                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                        <span className="uppercase tracking-wide">Wait</span>
+                                        <span className="uppercase tracking-wide">Stale</span>
                                         <span className="font-black bg-black/10 dark:bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{waitCount}</span>
                                     </button>
 
@@ -1189,7 +1186,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                 {/* Position grid */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {filteredPositions.map(p => (
-                                        <PositionCard key={p.id} position={p} onManualClose={setClosingPosition} onExecute={onExecute} />
+                                        <PositionCard key={p.id} position={p} onManualClose={setClosingPosition} onExecute={onExecute} onNavigateToLifecycle={onNavigateToLifecycle} />
                                     ))}
                                 </div>
 

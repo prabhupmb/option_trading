@@ -40,10 +40,16 @@ import IndiaSignalTracker from './components/IndiaSignalTracker';
 import DipBuyScreen from './components/DipBuyScreen';
 import { TrendingDown } from 'lucide-react';
 import { supabase } from './services/supabase';
+import { hasAcceptedCurrentDisclaimer } from './services/disclaimer';
+import DisclaimerGate from './components/DisclaimerGate';
+import DisclaimerPage from './components/DisclaimerPage';
+import AdminPresence from './components/AdminPresence';
+import { usePresenceHeartbeat } from './hooks/usePresenceHeartbeat';
+import { useBrokerContext } from './context/BrokerContext';
 
 // ─── STOCK FEED VIEW (sub-tabs: Signal Feed + Stock Gate) ─────
 
-const StockFeedView: React.FC<{ onExecute: (s: any) => void; role?: string }> = ({ onExecute, role }) => {
+const StockFeedView: React.FC<{ onExecute: (s: any) => void; role?: string; onNavigateToLifecycle?: (symbol: string) => void }> = ({ onExecute, role, onNavigateToLifecycle }) => {
   const [stockTab, setStockTab] = React.useState<'signal-feed' | 'stock-gate' | 'stage-tracker' | 'dip-buy'>('stock-gate');
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -81,7 +87,7 @@ const StockFeedView: React.FC<{ onExecute: (s: any) => void; role?: string }> = 
       </div>
       {stockTab === 'stock-gate' && (
         <div className="flex-1 overflow-y-auto">
-          <StockGateTracker onExecute={onExecute} role={role} />
+          <StockGateTracker onExecute={onExecute} role={role} onNavigateToLifecycle={onNavigateToLifecycle} />
         </div>
       )}
       {stockTab === 'signal-feed' && (
@@ -231,6 +237,16 @@ const App: React.FC = () => {
   const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut, role, accessLevel, trialDaysLeft, isTrialUser } = useAuth();
   const [showRegister, setShowRegister] = useState(false);
 
+  // Disclaimer gate
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!user?.id || verificationStatus !== 'allowed') {
+      setDisclaimerAccepted(null);
+      return;
+    }
+    hasAcceptedCurrentDisclaimer(user.id).then(r => setDisclaimerAccepted(r !== null));
+  }, [user?.id, verificationStatus]);
+
   // Strategy filter
   const [activeTab, setActiveTab] = useState<string>('iron-gate');
   const selectedStrategy = ['iron-gate', 'iron-gate-day'].includes(activeTab) ? null : activeTab;
@@ -245,10 +261,16 @@ const App: React.FC = () => {
   const [quickTradeSignal, setQuickTradeSignal] = useState<OptionSignal | null>(null);
 
   const [currentView, setCurrentView] = useState<View>('signals');
+  const [lifecycleSymbol, setLifecycleSymbol] = useState<string | null>(null);
+  const [lifecycleFrom, setLifecycleFrom] = useState<View | null>(null);
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState('Tier');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrokerage, setSelectedBrokerage] = useState<string>('Alpaca');
+
+  // Presence heartbeat
+  const { selectedBroker } = useBrokerContext();
+  usePresenceHeartbeat(user?.id, currentView, selectedBroker?.broker_mode?.toUpperCase());
 
   // ─── AUTO-REFRESH on Option Feed ───
   const autoRefreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -537,6 +559,11 @@ const App: React.FC = () => {
     return <TrialExpiredPage onSignOut={signOut} userEmail={verificationData.email || user?.email || undefined} userId={user?.id} fullName={user?.user_metadata?.full_name} />;
   }
 
+  // Disclaimer gate — block entire app until accepted
+  if (disclaimerAccepted === false && user?.id) {
+    return <DisclaimerGate userId={user.id} onAccepted={() => setDisclaimerAccepted(true)} />;
+  }
+
   return (
     <div className="flex min-h-screen bg-white dark:bg-[#0a0712] transition-colors font-sans text-slate-900 dark:text-white">
       <Navigation activeView={currentView} onNavigate={setCurrentView} user={user} onSignOut={signOut} role={role} accessLevel={accessLevel} trialDaysLeft={trialDaysLeft} isTrialUser={isTrialUser} />
@@ -692,7 +719,7 @@ const App: React.FC = () => {
 
               {activeTab === 'iron-gate' && (
                 <div className="flex-1 overflow-y-auto">
-                  <IronGateTracker onExecute={setExecutingSignal} role={role} />
+                  <IronGateTracker onExecute={setExecutingSignal} role={role} onNavigateToLifecycle={(sym) => { setLifecycleSymbol(sym); setLifecycleFrom('signals'); setCurrentView('lifecycle'); }} />
                 </div>
               )}
 
@@ -714,7 +741,7 @@ const App: React.FC = () => {
               <AIHub />
             </div>
           ) : currentView === 'smart-feed' ? (
-            <StockFeedView onExecute={setExecutingSignal} role={role} />
+            <StockFeedView onExecute={setExecutingSignal} role={role} onNavigateToLifecycle={(sym) => { setLifecycleSymbol(sym); setLifecycleFrom('smart-feed'); setCurrentView('lifecycle'); }} />
           ) : currentView === 'quick-trade' ? (
             <div className="flex-1 overflow-hidden">
               <QuickTradePage />
@@ -739,12 +766,21 @@ const App: React.FC = () => {
             </div>
           ) : currentView === 'lifecycle' ? (
             <div className="flex-1 overflow-hidden">
-              <StockLifecycleView />
+              <StockLifecycleView
+                initialSymbol={lifecycleSymbol}
+                onBack={lifecycleFrom ? () => { setCurrentView(lifecycleFrom!); setLifecycleSymbol(null); setLifecycleFrom(null); } : undefined}
+                backLabel={lifecycleFrom === 'smart-feed' ? 'Stock Feed' : lifecycleFrom === 'signals' ? 'Option Feed' : undefined}
+                onSymbolConsumed={() => setLifecycleSymbol(null)}
+              />
             </div>
           ) : currentView === 'india-signals' ? (
             <div className="flex-1 overflow-y-auto">
               <IndiaSignalTracker />
             </div>
+          ) : currentView === 'disclosure' ? (
+            <DisclaimerPage userId={user?.id} onBack={() => setCurrentView('signals')} />
+          ) : currentView === 'presence' && role === 'admin' ? (
+            <AdminPresence />
           ) : currentView === 'admin' && role === 'admin' ? (
             <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#0a0712]">
               <AdminPanel currentUser={user} />
