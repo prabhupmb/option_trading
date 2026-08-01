@@ -5,7 +5,7 @@ import StockSignalCard from './components/StockSignalCard';
 import OptionSignalStats from './components/signals/OptionSignalStats';
 import OptionSignalFilters from './components/signals/OptionSignalFilters';
 import Navigation, { View } from './components/Navigation';
-import Portfolio from './components/Portfolio';
+// Portfolio (legacy) — replaced by BrokerPortfolioView
 import GroupChat from './components/GroupChat';
 import FAQPage from './components/FAQPage';
 import AnnouncementBanner from './components/AnnouncementBanner';
@@ -38,6 +38,9 @@ import StageTrackerList from './components/StageTrackerList';
 import StockLifecycleView from './components/StockLifecycleView';
 import IndiaSignalTracker from './components/IndiaSignalTracker';
 import DipBuyScreen from './components/DipBuyScreen';
+import AddToPortfolio from './components/AddToPortfolio';
+import PortfolioAdvisor from './components/PortfolioAdvisor';
+import BrokerPortfolioView from './components/BrokerPortfolio';
 import { TrendingDown } from 'lucide-react';
 import { supabase } from './services/supabase';
 import { hasAcceptedCurrentDisclaimer } from './services/disclaimer';
@@ -255,6 +258,10 @@ const App: React.FC = () => {
   // New Hook
   const { signals, loading, error, refresh, lastUpdated } = useOptionSignals(selectedStrategy);
   const { progress: scanProgress, startScan } = useScanProgress(user?.email || undefined, selectedStrategy);
+
+  // Portfolio Advisor tab state
+  const [portfolioTab, setPortfolioTab] = useState<'broker' | 'advisor'>('broker');
+  const [advisorRefreshKey, setAdvisorRefreshKey] = useState(0);
 
   // Execution Modal State
   const [executingSignal, setExecutingSignal] = useState<OptionSignal | null>(null);
@@ -733,8 +740,107 @@ const App: React.FC = () => {
 
             </div>
           ) : currentView === 'portfolio' ? (
-            <div className="flex-1 overflow-y-auto">
-              <Portfolio />
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Portfolio sub-tabs */}
+              <div className="flex gap-1 px-6 pt-4 pb-2 border-b border-zinc-800/60">
+                {([['broker', 'analytics', 'Broker Portfolio'], ['advisor', 'psychology', 'Advisor']] as const).map(([id, icon, label]) => (
+                  <button
+                    key={id}
+                    onClick={() => setPortfolioTab(id as 'broker' | 'advisor')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 ${
+                      portfolioTab === id
+                        ? 'bg-emerald-500/15 text-emerald-400'
+                        : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-base">{icon}</span>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                {portfolioTab === 'broker' ? (
+                  <BrokerPortfolioView
+                    fetchPortfolio={async () => {
+                      if (!selectedBroker) return null;
+                      const resp = await fetch('https://prabhupadala01.app.n8n.cloud/webhook/portfolio', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          broker_id: selectedBroker.id,
+                          broker_name: selectedBroker.broker_name,
+                          broker_mode: selectedBroker.broker_mode,
+                          user_email: user?.email,
+                        }),
+                      });
+                      const json = await resp.json();
+                      if (!json.success) throw new Error(json.error || 'Failed to load portfolio');
+                      const acct = json.account || {};
+                      const pos = json.positions || {};
+                      const allOrders = json.orders?.[json.broker] || json.orders?.alpaca || json.orders?.schwab || [];
+                      const orderCount = typeof json.orders?.count === 'number' ? json.orders.count : allOrders.length;
+                      return {
+                        broker_label: json.displayName || selectedBroker.display_name,
+                        broker_name: (json.broker || selectedBroker.broker_name || '').toUpperCase(),
+                        mode: (json.brokerMode || selectedBroker.broker_mode || 'paper').toUpperCase() as 'LIVE' | 'PAPER',
+                        total_equity: acct.totalEquity || 0,
+                        day_change_dollar: acct.dayPL || 0,
+                        day_change_pct: acct.totalEquity ? ((acct.dayPL || 0) / ((acct.totalEquity || 1) - (acct.dayPL || 0))) * 100 : 0,
+                        cash_balance: acct.cashBalance || 0,
+                        buying_power: acct.buyingPower || 0,
+                        open_positions: pos.totalCount || 0,
+                        open_options: pos.optionCount || 0,
+                        open_stocks: pos.stockCount || 0,
+                        orders_7d: orderCount,
+                        orders_filled: allOrders.filter((o: any) => o.status === 'FILLED').length,
+                        orders_pending: allOrders.filter((o: any) => ['QUEUED', 'WORKING', 'NEW', 'ACCEPTED'].includes(o.status)).length,
+                        last_synced: json.timestamp || new Date().toISOString(),
+                        positions: (pos.all || []).map((p: any) => {
+                          const parsed = p.symbol?.match(/^([A-Z]+)(\d{6})([CP])(\d{8})$/);
+                          const isOpt = p.isOption || !!parsed;
+                          let strike = p.strikePrice, expiry = p.expirationDate, dte: number | undefined, optType: string = 'STOCK';
+                          if (parsed) {
+                            const [, , dateStr, cp, strikeRaw] = parsed;
+                            optType = cp === 'C' ? 'CALL' : 'PUT';
+                            strike = parseInt(strikeRaw, 10) / 1000;
+                            expiry = `20${dateStr.slice(0,2)}-${dateStr.slice(2,4)}-${dateStr.slice(4,6)}`;
+                            const ed = new Date(`${expiry}T16:00:00`);
+                            const td = new Date(); td.setHours(0,0,0,0);
+                            dte = Math.max(0, Math.ceil((ed.getTime() - td.getTime()) / 86400000));
+                          } else if (p.putCall) {
+                            optType = p.putCall;
+                          }
+                          return {
+                            symbol: parsed ? parsed[1] : (p.underlying || p.symbol),
+                            name: isOpt ? p.symbol : undefined,
+                            type: isOpt ? optType as 'CALL' | 'PUT' : 'STOCK',
+                            strike: isOpt ? strike : undefined,
+                            expiry: isOpt ? expiry : undefined,
+                            dte: isOpt ? dte : undefined,
+                            qty: p.quantity || 0,
+                            avg_cost: p.avgPrice || 0,
+                            mkt_value: p.marketValue || 0,
+                            pl_dollar: p.dayPL || 0,
+                            pl_pct: p.dayPLPct || 0,
+                          };
+                        }),
+                        orders: allOrders,
+                      };
+                    }}
+                    onConnect={() => setCurrentView('settings')}
+                    onClosePosition={(p) => {
+                      // Reuse existing sell modal if present by navigating to old Portfolio
+                      // For now, log the close request
+                      console.log('Close position requested:', p);
+                    }}
+                  />
+                ) : (
+                  <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
+                    <AddToPortfolio supabase={supabase} userId={user?.id || ''} onChange={() => setAdvisorRefreshKey(k => k + 1)} />
+                    <PortfolioAdvisor supabase={supabase} userId={user?.id || ''} refreshKey={advisorRefreshKey} />
+                  </div>
+                )}
+              </div>
             </div>
           ) : currentView === 'ai-hub' ? (
             <div className="flex-1 overflow-hidden relative flex flex-col">
