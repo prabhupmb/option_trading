@@ -16,6 +16,7 @@ substitutions:
   _VITE_API_KEY: ''
   _VITE_WEBHOOK_APPROVE_USER: ''
   _VITE_WEBHOOK_UPGRADE_USER: ''
+  _VITE_WEBHOOK_PORTFOLIO_REFRESH: ''
 
 steps:
   # 1. Build Docker image, injecting Vite env vars as build args
@@ -30,6 +31,8 @@ steps:
       - VITE_WEBHOOK_APPROVE_USER=${_VITE_WEBHOOK_APPROVE_USER}
       - --build-arg
       - VITE_WEBHOOK_UPGRADE_USER=${_VITE_WEBHOOK_UPGRADE_USER}
+      - --build-arg
+      - VITE_WEBHOOK_PORTFOLIO_REFRESH=${_VITE_WEBHOOK_PORTFOLIO_REFRESH}
       - -t
       - us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/${_SERVICE_NAME}:$BUILD_ID
       - -t

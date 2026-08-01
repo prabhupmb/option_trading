@@ -260,7 +260,7 @@ const App: React.FC = () => {
   const { progress: scanProgress, startScan } = useScanProgress(user?.email || undefined, selectedStrategy);
 
   // Portfolio Advisor tab state
-  const [portfolioTab, setPortfolioTab] = useState<'broker' | 'advisor'>('broker');
+  const [portfolioTab, setPortfolioTab] = useState<'broker' | 'advisor'>('advisor');
   const [advisorRefreshKey, setAdvisorRefreshKey] = useState(0);
 
   // Execution Modal State

@@ -56,8 +56,17 @@ const COOLDOWN_MS = 10_000;
 
 // ─── HELPERS ───────────────────────────────────────────────
 
-const prettifyAction = (a: Action): string =>
-  a === 'BUY_DIP' ? 'Buy dip' : a.charAt(0) + a.slice(1).toLowerCase();
+const ACTION_LABELS: Record<Action, string> = {
+  BUY_DIP: 'Buy dip',
+  ADD: 'Add',
+  HOLD: 'Keep holding',
+  TRIM: 'Trim',
+  SELL: 'Sell',
+  WAIT: 'Wait',
+  AVOID: 'Stay out',
+};
+
+const prettifyAction = (a: Action): string => ACTION_LABELS[a] ?? a;
 
 const prettifyState = (s: string | null): string => {
   if (!s) return '\u2014';
@@ -68,7 +77,8 @@ const prettifyLevelKey = (key: string): string =>
   key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
 const fmtPct = (pct: number): string => {
-  const rounded = Math.round(pct * 100) / 100;
+  const clamped = Math.max(-999.9, Math.min(999.9, pct));
+  const rounded = Math.round(clamped * 100) / 100;
   const sign = rounded >= 0 ? '+' : '';
   return `${sign}${rounded.toFixed(1)}%`;
 };
@@ -174,18 +184,21 @@ const PortfolioAdvisor: React.FC<PortfolioAdvisorProps> = ({
   // ─── REFRESH HANDLER ──────────────────────────────────
 
   const handleRefresh = useCallback(async () => {
-    if (refreshing || cooldown || !webhookUrl) return;
+    if (refreshing || cooldown) return;
     setRefreshing(true);
     setRefreshError(null);
 
     try {
-      const resp = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId }),
-      });
-      if (!resp.ok) throw new Error(`Server error (${resp.status})`);
-      // Webhook finished — re-fetch fresh rows
+      // If webhook is configured, trigger server-side recompute first
+      if (webhookUrl) {
+        const resp = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId }),
+        });
+        if (!resp.ok) throw new Error(`Server error (${resp.status})`);
+      }
+      // Re-fetch fresh rows from Supabase
       await fetchData(false);
     } catch (e: any) {
       if (mountedRef.current) {
@@ -247,7 +260,7 @@ const PortfolioAdvisor: React.FC<PortfolioAdvisorProps> = ({
     );
   }
 
-  const refreshDisabled = refreshing || cooldown || !webhookUrl;
+  const refreshDisabled = refreshing || cooldown;
 
   return (
     <div className="bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden">
@@ -268,8 +281,7 @@ const PortfolioAdvisor: React.FC<PortfolioAdvisorProps> = ({
           )}
 
           {/* Refresh button */}
-          {webhookUrl && (
-            <button
+          <button
               onClick={handleRefresh}
               disabled={refreshDisabled}
               aria-label="Refresh portfolio signals"
@@ -283,7 +295,6 @@ const PortfolioAdvisor: React.FC<PortfolioAdvisorProps> = ({
               <span className={`material-symbols-outlined text-sm ${refreshing ? 'animate-spin' : ''}`}>refresh</span>
               {refreshing ? 'Refreshing\u2026' : 'Refresh'}
             </button>
-          )}
         </div>
       </div>
 
