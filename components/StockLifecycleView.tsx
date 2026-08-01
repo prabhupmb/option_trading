@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../services/supabase';
+import { deriveHealth, invalidatedTooltip, type Health, type HealthResult } from '../lib/lifecycleHealth';
 
 // ─── ENDPOINT PLACEHOLDERS ────────────────────────────────────────────────────
 // Fetching is done via the shared supabase client (services/supabase.ts).
@@ -32,6 +33,7 @@ interface LifecycleRow {
   last_price:            number;
   trend_4h:              TrendDir;
   state:                 StockState;
+  current_stage?:        string;
   support_levels:        SupportLevel[];
   buy_zone:              BuyZone | null;
   breakout_level:        number | null;
@@ -42,6 +44,11 @@ interface LifecycleRow {
   swing_high:            number;
   swing_low:             number;
   updated_at:            string;
+  price_as_of?:          string | null;
+  bar_dt?:               string | null;
+  data_stale?:           boolean;
+  fetch_fail_count?:     number;
+  last_error?:           string | null;
 }
 
 // ─── STATE CONFIG ─────────────────────────────────────────────────────────────
@@ -87,7 +94,7 @@ const CONTEXT_CHIPS: CtxChip[] = [
   { id: 'near-breakout',  label: 'Near breakout',  test: r => r.breakout_status === 'pending' || r.breakout_status === 'confirming' },
   { id: 'confirmed',      label: 'Confirmed',      test: r => r.breakout_status === 'confirmed' },
   { id: 'in-buy-zone',    label: 'In buy zone',    test: r => { const bz = r.buy_zone, p = r.last_price; return bz != null && bz.lo != null && bz.hi != null && p != null && p >= bz.lo && p <= bz.hi; } },
-  { id: 'support-broken', label: 'Support broken', test: r => (r.support_levels ?? []).some(s => s.status === 'broken') },
+  { id: 'support-broken', label: 'Support broken', test: r => deriveHealth(r).health === 'BROKEN' },
 ];
 
 // Action chips — used by both the "Action List" watchlist tab and the "Action Board" view
@@ -254,6 +261,10 @@ const timeAgo = (iso: string): string => {
 
 const fmt = (n: number | null | undefined) => n != null ? `$${n.toFixed(2)}` : '—';
 
+/** Best freshness timestamp: price_as_of > bar_dt > updated_at */
+const freshness = (row: LifecycleRow): string =>
+  row.price_as_of ?? row.bar_dt ?? row.updated_at;
+
 // ─── TREND BADGE ─────────────────────────────────────────────────────────────
 
 const TrendBadge: React.FC<{ dir: TrendDir }> = ({ dir }) => {
@@ -277,54 +288,84 @@ const TrendBadge: React.FC<{ dir: TrendDir }> = ({ dir }) => {
 
 // ─── JOURNEY STEPPER ──────────────────────────────────────────────────────────
 
-const StepperBar: React.FC<{ step: number }> = ({ step }) => (
-  <div>
-    {/* Dots + connectors */}
-    <div className="flex items-center">
-      {STEPS.map((_, i) => {
-        const active = i === step;
-        const done   = i < step;
-        return (
-          <React.Fragment key={i}>
-            <div
-              className="w-2.5 h-2.5 rounded-full flex-shrink-0 transition-all duration-500"
-              style={{
-                background: active ? '#22c55e' : done ? '#166534' : '#27272a',
-                boxShadow: active ? '0 0 0 3px rgba(34,197,94,0.18), 0 0 10px rgba(34,197,94,0.5)' : 'none',
-              }}
-            />
-            {i < STEPS.length - 1 && (
+const StepperBar: React.FC<{ step: number; health: Health }> = ({ step, health }) => {
+  // BROKEN while at Breakout/Running → dim forward dots, show "now" at Pullback
+  const isBrokenPullback = health === 'BROKEN' && step >= 3; // step 3=Breakout, 4=Running
+  const effectiveStep    = isBrokenPullback ? 1 : step; // Pullback = step 1
+
+  return (
+    <div>
+      {/* Dots + connectors */}
+      <div className="flex items-center">
+        {STEPS.map((_, i) => {
+          const active = i === effectiveStep;
+          const done   = i < effectiveStep;
+          // "was here" dots: dimmed/hollow for steps beyond current when broken
+          const wasHere = isBrokenPullback && i >= 3 && i <= step;
+
+          let bg = active ? '#22c55e' : done ? '#166534' : '#27272a';
+          let shadow = 'none';
+          if (active && health === 'BROKEN') {
+            bg = '#ef4444'; shadow = '0 0 0 3px rgba(239,68,68,0.18), 0 0 10px rgba(239,68,68,0.5)';
+          } else if (active && health === 'CAUTION') {
+            bg = '#fbbf24'; shadow = '0 0 0 3px rgba(251,191,36,0.18), 0 0 10px rgba(251,191,36,0.5)';
+          } else if (active) {
+            shadow = '0 0 0 3px rgba(34,197,94,0.18), 0 0 10px rgba(34,197,94,0.5)';
+          }
+          if (wasHere) { bg = 'transparent'; shadow = 'none'; }
+
+          return (
+            <React.Fragment key={i}>
               <div
-                className="flex-1 h-px transition-all duration-500"
-                style={{ background: done ? '#166534' : '#27272a' }}
+                className="relative w-2.5 h-2.5 rounded-full flex-shrink-0 transition-all duration-500"
+                style={{
+                  background: bg,
+                  boxShadow: shadow,
+                  border: wasHere ? '1.5px solid #52525b' : 'none',
+                }}
               />
-            )}
-          </React.Fragment>
-        );
-      })}
+              {i < STEPS.length - 1 && (
+                <div
+                  className="flex-1 h-px transition-all duration-500"
+                  style={{ background: done ? '#166534' : '#27272a' }}
+                />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+      {/* Labels */}
+      <div className="flex mt-2">
+        {STEPS.map((label, i) => {
+          const active = i === effectiveStep;
+          const done   = i < effectiveStep;
+          const wasHere = isBrokenPullback && i >= 3 && i <= step;
+          let color = active ? '#22c55e' : done ? '#4ade80' : '#3f3f46';
+          if (active && health === 'BROKEN') color = '#ef4444';
+          if (active && health === 'CAUTION') color = '#fbbf24';
+          if (wasHere) color = '#52525b';
+
+          return (
+            <span
+              key={label}
+              className="text-[9px] font-bold uppercase tracking-wide transition-colors duration-300"
+              style={{
+                flex: 1,
+                color,
+                textAlign: i === 0 ? 'left' : i === STEPS.length - 1 ? 'right' : 'center',
+              }}
+            >
+              {label}
+              {active && isBrokenPullback && (
+                <span className="ml-1 text-[8px]" style={{ color: '#ef4444' }}>now</span>
+              )}
+            </span>
+          );
+        })}
+      </div>
     </div>
-    {/* Labels */}
-    <div className="flex mt-2">
-      {STEPS.map((label, i) => {
-        const active = i === step;
-        const done   = i < step;
-        return (
-          <span
-            key={label}
-            className="text-[9px] font-bold uppercase tracking-wide transition-colors duration-300"
-            style={{
-              flex: 1,
-              color: active ? '#22c55e' : done ? '#4ade80' : '#3f3f46',
-              textAlign: i === 0 ? 'left' : i === STEPS.length - 1 ? 'right' : 'center',
-            }}
-          >
-            {label}
-          </span>
-        );
-      })}
-    </div>
-  </div>
-);
+  );
+};
 
 // ─── PRICE TRACK ─────────────────────────────────────────────────────────────
 
@@ -424,9 +465,7 @@ const PriceTrack: React.FC<{ item: LifecycleRow }> = ({ item }) => {
         if (status === 'INVALIDATED') {
           const pillTopPx = reclaim_level != null ? toPx(reclaim_level) : 8;
           const msg = reason === 'supports_broken'
-            ? reclaim_level != null
-              ? `Buy zone invalid — all supports broken. Reclaim ${fmt(reclaim_level)} first.`
-              : 'Buy zone invalid — all supports broken.'
+            ? invalidatedTooltip(reclaim_level ?? null, fmt)
             : 'Buy zone inactive — 4h trend is not up.';
 
           return (
@@ -685,7 +724,7 @@ const ActionCard: React.FC<{ row: LifecycleRow; activeChips: Set<string>; onClic
               )}
             </div>
             <div className="text-[9px] mt-0.5" style={{ color: '#3f3f46' }}>
-              updated {timeAgo(row.updated_at)}
+              updated {timeAgo(freshness(row))}
             </div>
           </div>
           <span className="font-mono text-lg font-black flex-shrink-0" style={{ color: '#fafafa' }}>
@@ -836,12 +875,19 @@ const ActionBoard: React.FC<{
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
-const StockLifecycleView: React.FC = () => {
+interface StockLifecycleProps {
+  initialSymbol?: string | null;
+  onBack?: () => void;
+  backLabel?: string;
+  onSymbolConsumed?: () => void;
+}
+
+const StockLifecycleView: React.FC<StockLifecycleProps> = ({ initialSymbol, onBack, backLabel, onSymbolConsumed }) => {
   const [rows, setRows]       = useState<LifecycleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
   const [useMock, setUseMock] = useState(false);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialSymbol ?? null);
   const [search, setSearch]     = useState('');
   const [filter, setFilter]     = useState('all');
   const [activeCtx, setActiveCtx] = useState<Set<string>>(new Set());
@@ -856,7 +902,7 @@ const StockLifecycleView: React.FC = () => {
     try {
       const { data, error: dbErr } = await supabase
         .from('stock_lifecycle')
-        .select('symbol,last_price,trend_4h,current_stage,state,support_levels,buy_zone,breakout_level,breakout_status,breakout_confirm_bars,disp_target1,disp_target2,swing_high,swing_low,updated_at')
+        .select('symbol,last_price,trend_4h,current_stage,state,support_levels,buy_zone,breakout_level,breakout_status,breakout_confirm_bars,disp_target1,disp_target2,swing_high,swing_low,updated_at,price_as_of,bar_dt,data_stale,fetch_fail_count,last_error')
         .order('symbol', { ascending: true });
 
       if (dbErr) throw dbErr;
@@ -899,7 +945,21 @@ const StockLifecycleView: React.FC = () => {
     return () => clearInterval(t);
   }, [fetchData]);
 
-  // Auto-select first row once data is ready
+  // Deep-link: select initialSymbol when data arrives
+  useEffect(() => {
+    if (initialSymbol && rows.length > 0) {
+      const match = rows.find(r => r.symbol.toUpperCase() === initialSymbol.toUpperCase());
+      if (match) {
+        setSelected(match.symbol);
+        setSearch('');
+        setFilter('all');
+        setActiveCtx(new Set());
+      }
+      onSymbolConsumed?.();
+    }
+  }, [initialSymbol, rows]);
+
+  // Auto-select first row once data is ready (only if no deep-link)
   useEffect(() => {
     if (!selected && rows.length > 0) setSelected(rows[0].symbol);
   }, [rows, selected]);
@@ -946,11 +1006,25 @@ const StockLifecycleView: React.FC = () => {
 
   const selectedRow = rows.find(r => r.symbol === selected) ?? null;
   const cfg         = selectedRow ? (STATE_CFG[selectedRow.state] ?? STATE_CFG['WATCHING']) : null;
+  const selectedHealth = selectedRow ? deriveHealth(selectedRow) : null;
 
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ background: '#0a0a0b', color: '#fafafa' }}>
+
+      {/* ── Back affordance (shown when arrived via deep-link) ──────────── */}
+      {onBack && (
+        <div className="flex-shrink-0 px-4 py-2 border-b flex items-center gap-1" style={{ borderColor: '#1f1f23', background: '#0d0d10' }}>
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-[#22c55e] transition-colors"
+          >
+            <span className="material-symbols-outlined text-sm">arrow_back</span>
+            Back to {backLabel || 'previous'}
+          </button>
+        </div>
+      )}
 
       {/* ── View switcher ─────────────────────────────────────────────────── */}
       <div className="flex-shrink-0 flex items-center border-b" style={{ borderColor: '#1f1f23', background: '#0d0d10' }}>
@@ -1150,9 +1224,23 @@ const StockLifecycleView: React.FC = () => {
             ) : (
               visible.map((row, idx) => {
                 const rc         = STATE_CFG[row.state] ?? STATE_CFG['WATCHING'];
+                const hr         = deriveHealth(row);
                 const isSelected = row.symbol === selected;
-                const isUp       = row.trend_4h === 'UP';
-                const isDown     = row.trend_4h === 'DOWN';
+
+                // Health-driven label + icon
+                let rowLabel = rc.headline;
+                let rowColor = rc.tone;
+                let iconName = row.trend_4h === 'UP' ? 'arrow_upward' : row.trend_4h === 'DOWN' ? 'arrow_downward' : '';
+                let iconColor = row.trend_4h === 'UP' ? '#4ade80' : '#fb7185';
+
+                if (hr.health === 'BROKEN') {
+                  rowLabel = 'Support broken'; rowColor = '#fb7185';
+                  iconName = 'arrow_downward'; iconColor = '#fb7185';
+                } else if (hr.health === 'CAUTION') {
+                  rowLabel = 'Pulling back'; rowColor = '#fbbf24';
+                  iconName = 'radio_button_checked'; iconColor = '#fbbf24';
+                }
+
                 return (
                   <button
                     key={row.symbol}
@@ -1171,16 +1259,16 @@ const StockLifecycleView: React.FC = () => {
                     <span className="font-black text-sm font-mono tracking-tight" style={{ color: '#fafafa', minWidth: 46 }}>
                       {row.symbol}
                     </span>
-                    {row.trend_4h !== 'UNKNOWN' && (
+                    {iconName && (
                       <span
                         className="material-symbols-outlined text-[12px] flex-shrink-0"
-                        style={{ color: isUp ? '#4ade80' : '#fb7185' }}
+                        style={{ color: iconColor }}
                       >
-                        {isUp ? 'arrow_upward' : 'arrow_downward'}
+                        {iconName}
                       </span>
                     )}
-                    <span className="text-[10px] font-bold flex-1 min-w-0 truncate" style={{ color: rc.tone }}>
-                      {rc.headline}
+                    <span className="text-[10px] font-bold flex-1 min-w-0 truncate" style={{ color: rowColor }}>
+                      {rowLabel}
                     </span>
                     <span className="font-mono text-[10px] flex-shrink-0" style={{ color: '#52525b' }}>
                       {fmt(row.last_price)}
@@ -1321,8 +1409,17 @@ const StockLifecycleView: React.FC = () => {
                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                   <TrendBadge dir={selectedRow.trend_4h} />
                   <span className="text-[10px]" style={{ color: '#52525b' }}>
-                    Updated {timeAgo(selectedRow.updated_at)}
+                    Updated {timeAgo(freshness(selectedRow))}
                   </span>
+                  {selectedRow.data_stale && (
+                    <span
+                      className="text-[9px] font-bold px-1.5 py-0.5 rounded-full border cursor-help"
+                      style={{ color: '#71717a', borderColor: '#3f3f46', background: 'rgba(113,113,122,0.08)' }}
+                      title={`${selectedRow.last_error ?? 'Unknown error'} (fail count: ${selectedRow.fetch_fail_count ?? 0})`}
+                    >
+                      Data stale
+                    </span>
+                  )}
                 </div>
               </div>
               <button
@@ -1337,33 +1434,58 @@ const StockLifecycleView: React.FC = () => {
               </button>
             </div>
 
-            {/* ── Hero status card ────────────────────────────────────────── */}
-            <div
-              className="rounded-2xl p-5 border"
-              style={{
-                background:   `${cfg.tone}0c`,
-                borderColor:  `${cfg.tone}22`,
-              }}
-            >
-              <div className="flex items-start gap-4">
+            {/* ── Hero status card (driven by health) ─────────────────────── */}
+            {(() => {
+              const h = selectedHealth!;
+              let tone = cfg.tone;
+              let icon = cfg.icon;
+              let headline = cfg.headline;
+              let sub = cfg.sub;
+
+              if (h.health === 'BROKEN') {
+                tone = '#ef4444'; icon = 'error';
+                headline = 'Breakout under pressure';
+                sub = h.reclaimLevel != null
+                  ? `All supports broken — reclaim ${fmt(h.reclaimLevel)} to revalidate.`
+                  : 'All supports broken — buy zone invalid.';
+              } else if (h.health === 'CAUTION') {
+                tone = '#fbbf24'; icon = 'warning';
+                headline = 'Pulling back';
+                sub = h.nearestHold != null
+                  ? `A support has broken — watching ${fmt(h.nearestHold)} as the line.`
+                  : 'A support has broken — watching for the next hold.';
+              }
+
+              return (
                 <div
-                  className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: `${cfg.tone}18` }}
+                  className="rounded-2xl p-5 border"
+                  style={{
+                    background:   `${tone}0c`,
+                    borderColor:  `${tone}22`,
+                    filter:       selectedRow.data_stale ? 'saturate(0.4)' : 'none',
+                  }}
                 >
-                  <span className="material-symbols-outlined text-xl" style={{ color: cfg.tone }}>
-                    {cfg.icon}
-                  </span>
+                  <div className="flex items-start gap-4">
+                    <div
+                      className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: `${tone}18` }}
+                    >
+                      <span className="material-symbols-outlined text-xl" style={{ color: tone }}>
+                        {icon}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-lg font-black leading-tight" style={{ color: tone }}>
+                        {headline}
+                      </p>
+                      <p className="text-sm mt-1 leading-relaxed" style={{ color: '#a1a1aa' }}>
+                        {sub}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-lg font-black leading-tight" style={{ color: cfg.tone }}>
-                    {cfg.headline}
-                  </p>
-                  <p className="text-sm mt-1 leading-relaxed" style={{ color: '#a1a1aa' }}>
-                    {cfg.sub}
-                  </p>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* ── Journey stepper ─────────────────────────────────────────── */}
             <div
@@ -1373,7 +1495,7 @@ const StockLifecycleView: React.FC = () => {
               <p className="text-[9px] font-black uppercase tracking-widest mb-4" style={{ color: '#3f3f46' }}>
                 Journey
               </p>
-              <StepperBar step={cfg.step} />
+              <StepperBar step={cfg.step} health={selectedHealth!.health} />
             </div>
 
             {/* ── Price track ─────────────────────────────────────────────── */}

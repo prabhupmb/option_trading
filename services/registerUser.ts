@@ -22,7 +22,7 @@ export async function registerUser(payload: RegisterPayload): Promise<RegisterRe
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { user_name: userName, full_name: fullName } },
+    options: { data: { user_name: userName, full_name: fullName, phone: phone || '' } },
   });
 
   if (error) {

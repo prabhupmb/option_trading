@@ -249,7 +249,8 @@ const PositionCard: React.FC<{
     position: StockGatePosition;
     onManualClose: (p: StockGatePosition) => void;
     onExecuteStock: (p: StockGatePosition) => void;
-}> = ({ position, onManualClose, onExecuteStock }) => {
+    onNavigateToLifecycle?: (symbol: string) => void;
+}> = ({ position, onManualClose, onExecuteStock, onNavigateToLifecycle }) => {
     const [expanded, setExpanded] = useState(false);
     const isBuy = position.trade_direction?.toUpperCase() === 'BUY';
     const pnl = calcPnl(position);
@@ -364,6 +365,13 @@ const PositionCard: React.FC<{
                         Gates ({position.gates_passed || '0/6'})
                     </button>
                     <div className="ml-auto flex items-center gap-2">
+                        {onNavigateToLifecycle && (
+                            <button onClick={() => onNavigateToLifecycle(position.symbol)}
+                                className="px-3 py-1.5 rounded-lg bg-gray-200 dark:bg-[#1a1f2e] border border-gray-300 dark:border-[#252c3b] text-slate-500 dark:text-slate-400 text-[10px] font-bold hover:text-blue-400 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-500/40 transition-all flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-sm">timeline</span>
+                                Lifecycle
+                            </button>
+                        )}
                         <button onClick={() => onManualClose(position)}
                             className="px-3 py-1.5 rounded-lg bg-gray-200 dark:bg-[#1a1f2e] border border-gray-300 dark:border-[#252c3b] text-slate-400 text-[10px] font-bold hover:text-white hover:border-slate-500 transition-all flex items-center gap-1.5">
                             <span className="material-symbols-outlined text-sm">close</span>
@@ -533,7 +541,7 @@ const positionToSmartSignal = (pos: StockGatePosition): SmartSignal => ({
     analyzed_at: pos.opened_at,
 });
 
-const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; role?: string }> = ({ role }) => {
+const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; role?: string; onNavigateToLifecycle?: (symbol: string) => void }> = ({ role, onNavigateToLifecycle }) => {
     const [config, setConfig] = useState<StrategyConfig | null>(null);
     const [positions, setPositions] = useState<StockGatePosition[]>([]);
     const [history, setHistory] = useState<StockGateHistory[]>([]);
@@ -844,7 +852,7 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; r
                                 {/* Position grid */}
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     {filteredPositions.map(p => (
-                                        <PositionCard key={p.id} position={p} onManualClose={setClosingPosition} onExecuteStock={setExecutingPosition} />
+                                        <PositionCard key={p.id} position={p} onManualClose={setClosingPosition} onExecuteStock={setExecutingPosition} onNavigateToLifecycle={onNavigateToLifecycle} />
                                     ))}
                                 </div>
 

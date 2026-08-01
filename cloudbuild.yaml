@@ -1,28 +1,37 @@
 # Cloud Build config for Signal Feed AI
 # Builds the Docker image with Vite build-time env vars, then deploys to Cloud Run.
 #
-# Usage:
+# Usage (manual):
 #   gcloud builds submit \
 #     --config cloudbuild.yaml \
-#     --substitutions=_VITE_INDIA_TRADE_SECRET=<your_secret>
+#     --substitutions=_VITE_INDIA_TRADE_SECRET=...,_VITE_API_KEY=...,_VITE_WEBHOOK_APPROVE_USER=...,_VITE_WEBHOOK_UPGRADE_USER=...
 #
-# The substitution is passed as a Docker --build-arg so Vite bakes it into
-# the bundle at build time (import.meta.env.VITE_INDIA_TRADE_SECRET).
+# Or set substitution variables in a Cloud Build trigger so every push deploys automatically.
+# NEVER put real secret values in this file.
 
 substitutions:
   _SERVICE_NAME: signal-feed-ai
   _REGION: us-central1
-  _VITE_INDIA_TRADE_SECRET: ''   # required — pass via --substitutions
+  _VITE_INDIA_TRADE_SECRET: ''
+  _VITE_API_KEY: ''
+  _VITE_WEBHOOK_APPROVE_USER: ''
+  _VITE_WEBHOOK_UPGRADE_USER: ''
 
 steps:
-  # 1. Build Docker image, injecting the Vite secret as a build arg
+  # 1. Build Docker image, injecting Vite env vars as build args
   - name: gcr.io/cloud-builders/docker
     args:
       - build
       - --build-arg
       - VITE_INDIA_TRADE_SECRET=${_VITE_INDIA_TRADE_SECRET}
+      - --build-arg
+      - VITE_API_KEY=${_VITE_API_KEY}
+      - --build-arg
+      - VITE_WEBHOOK_APPROVE_USER=${_VITE_WEBHOOK_APPROVE_USER}
+      - --build-arg
+      - VITE_WEBHOOK_UPGRADE_USER=${_VITE_WEBHOOK_UPGRADE_USER}
       - -t
-      - us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/${_SERVICE_NAME}:$COMMIT_SHA
+      - us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/${_SERVICE_NAME}:$BUILD_ID
       - -t
       - us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/${_SERVICE_NAME}:latest
       - .
@@ -41,7 +50,7 @@ steps:
       - run
       - deploy
       - ${_SERVICE_NAME}
-      - --image=us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/${_SERVICE_NAME}:$COMMIT_SHA
+      - --image=us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/${_SERVICE_NAME}:$BUILD_ID
       - --region=${_REGION}
       - --platform=managed
       - --quiet

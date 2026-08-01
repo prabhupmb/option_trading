@@ -83,6 +83,7 @@ export function useAuth() {
                 // Never show SignupForm (prevents deleted users from self re-registering)
                 console.log('📝 User not in DB — auto-registering via n8n, signing out');
                 const fullName = session.user.user_metadata.full_name || session.user.user_metadata.name || '';
+                const phone = session.user.user_metadata.phone || '';
                 const userName = (
                     fullName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 20)
                     || email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 20)
@@ -95,7 +96,7 @@ export function useAuth() {
                         'Content-Type': 'application/json',
                         Authorization: `Bearer ${session.access_token}`,
                     },
-                    body: JSON.stringify({ userName, fullName, email, phone: '' }),
+                    body: JSON.stringify({ userName, fullName, email, phone }),
                 }).catch(() => {});
 
                 // Do NOT sign out here — signOut resets verificationStatus to 'idle'
