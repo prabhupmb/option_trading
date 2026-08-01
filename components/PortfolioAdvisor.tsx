@@ -33,6 +33,7 @@ interface PortfolioAdvisorProps {
   userId: string;
   pollInterval?: number; // ms, default 60_000
   refreshKey?: number;   // bump to force re-fetch
+  webhookUrl?: string;   // n8n webhook for server-side recompute
 }
 
 // ─── CONSTANTS ─────────────────────────────────────────────
@@ -50,6 +51,8 @@ const ACTION_COLORS: Record<Action, string> = {
   WAIT:    'bg-zinc-700/30 text-zinc-400 ring-zinc-600/20',
   AVOID:   'bg-zinc-700/30 text-zinc-400 ring-zinc-600/20',
 };
+
+const COOLDOWN_MS = 10_000;
 
 // ─── HELPERS ───────────────────────────────────────────────
 
@@ -70,6 +73,14 @@ const fmtPct = (pct: number): string => {
   return `${sign}${rounded.toFixed(1)}%`;
 };
 
+const fmtAgo = (iso: string): string => {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 10_000) return 'just now';
+  if (ms < 60_000) return `${Math.floor(ms / 1000)}s ago`;
+  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
+  return `${Math.floor(ms / 3_600_000)}h ago`;
+};
+
 // ─── COMPONENT ─────────────────────────────────────────────
 
 const PortfolioAdvisor: React.FC<PortfolioAdvisorProps> = ({
@@ -77,17 +88,23 @@ const PortfolioAdvisor: React.FC<PortfolioAdvisorProps> = ({
   userId,
   pollInterval = 60_000,
   refreshKey,
+  webhookUrl,
 }) => {
   const [rows, setRows] = useState<AdvisorRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
 
+  // Refresh button state
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(false);
+  const [tick, setTick] = useState(0); // drives freshness re-render
+
   const fetchData = useCallback(async (showLoading = false) => {
     if (showLoading) setLoading(true);
     setError(null);
 
-    // Fetch active holdings for this user
     const { data: holdings, error: hErr } = await supabase
       .from('portfolio_holdings')
       .select('id, kind')
@@ -123,7 +140,6 @@ const PortfolioAdvisor: React.FC<PortfolioAdvisorProps> = ({
       kind: kindMap.get(s.holding_id) || 'HOLDING',
     }));
 
-    // Sort: action priority, then symbol
     merged.sort((a, b) => {
       const pa = ACTION_PRIORITY[a.action] ?? 99;
       const pb = ACTION_PRIORITY[b.action] ?? 99;
@@ -148,6 +164,54 @@ const PortfolioAdvisor: React.FC<PortfolioAdvisorProps> = ({
     const id = setInterval(() => fetchData(false), pollInterval);
     return () => clearInterval(id);
   }, [fetchData, pollInterval]);
+
+  // Tick every 15s for freshness label
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 15_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // ─── REFRESH HANDLER ──────────────────────────────────
+
+  const handleRefresh = useCallback(async () => {
+    if (refreshing || cooldown || !webhookUrl) return;
+    setRefreshing(true);
+    setRefreshError(null);
+
+    try {
+      const resp = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      if (!resp.ok) throw new Error(`Server error (${resp.status})`);
+      // Webhook finished — re-fetch fresh rows
+      await fetchData(false);
+    } catch (e: any) {
+      if (mountedRef.current) {
+        setRefreshError("Couldn\u2019t refresh \u2014 try again.");
+      }
+    } finally {
+      if (mountedRef.current) {
+        setRefreshing(false);
+        setCooldown(true);
+        setTimeout(() => { if (mountedRef.current) setCooldown(false); }, COOLDOWN_MS);
+      }
+    }
+  }, [refreshing, cooldown, webhookUrl, userId, fetchData]);
+
+  // ─── DERIVED ──────────────────────────────────────────
+
+  // Newest computed_at across all rows
+  const latestComputedAt = rows.length > 0
+    ? rows.reduce((latest, r) => {
+        if (!r.computed_at) return latest;
+        return r.computed_at > latest ? r.computed_at : latest;
+      }, rows[0].computed_at || '')
+    : null;
+
+  // Force use of tick so freshness label re-renders
+  void tick;
 
   // ─── RENDER ────────────────────────────────────────────
 
@@ -183,9 +247,47 @@ const PortfolioAdvisor: React.FC<PortfolioAdvisorProps> = ({
     );
   }
 
+  const refreshDisabled = refreshing || cooldown || !webhookUrl;
+
   return (
     <div className="bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden">
-      {/* Desktop table */}
+      {/* Header bar */}
+      <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
+        <h3 className="text-sm font-bold text-white uppercase tracking-wider">Signals</h3>
+        <div className="flex items-center gap-3">
+          {/* Freshness indicator */}
+          {latestComputedAt && (
+            <span className="text-[10px] text-zinc-500 font-medium tabular-nums">
+              Updated {fmtAgo(latestComputedAt)}
+            </span>
+          )}
+
+          {/* Refresh error */}
+          {refreshError && (
+            <span className="text-[10px] text-red-400 font-medium">{refreshError}</span>
+          )}
+
+          {/* Refresh button */}
+          {webhookUrl && (
+            <button
+              onClick={handleRefresh}
+              disabled={refreshDisabled}
+              aria-label="Refresh portfolio signals"
+              aria-busy={refreshing}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${
+                refreshDisabled
+                  ? 'bg-zinc-900 border-zinc-800 text-zinc-600 cursor-not-allowed'
+                  : 'bg-emerald-600/15 border-emerald-500/25 text-emerald-400 hover:bg-emerald-600/25'
+              }`}
+            >
+              <span className={`material-symbols-outlined text-sm ${refreshing ? 'animate-spin' : ''}`}>refresh</span>
+              {refreshing ? 'Refreshing\u2026' : 'Refresh'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-left min-w-[700px]">
           <thead>

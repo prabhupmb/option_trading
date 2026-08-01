@@ -837,7 +837,7 @@ const App: React.FC = () => {
                 ) : (
                   <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
                     <AddToPortfolio supabase={supabase} userId={user?.id || ''} onChange={() => setAdvisorRefreshKey(k => k + 1)} />
-                    <PortfolioAdvisor supabase={supabase} userId={user?.id || ''} refreshKey={advisorRefreshKey} />
+                    <PortfolioAdvisor supabase={supabase} userId={user?.id || ''} refreshKey={advisorRefreshKey} webhookUrl={import.meta.env.VITE_WEBHOOK_PORTFOLIO_REFRESH as string | undefined} />
                   </div>
                 )}
               </div>
