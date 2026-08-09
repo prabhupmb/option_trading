@@ -47,6 +47,7 @@ import { hasAcceptedCurrentDisclaimer } from './services/disclaimer';
 import DisclaimerGate from './components/DisclaimerGate';
 import DisclaimerPage from './components/DisclaimerPage';
 import AdminPresence from './components/AdminPresence';
+import MarketPulse from './components/MarketPulse';
 import { usePresenceHeartbeat } from './hooks/usePresenceHeartbeat';
 import { useBrokerContext } from './context/BrokerContext';
 
@@ -577,6 +578,7 @@ const App: React.FC = () => {
 
       <div className="flex-1 ml-0 md:ml-64 flex flex-col min-h-screen pt-14 md:pt-0 pb-14 md:pb-0">
         <AnnouncementBanner />
+        <MarketPulse isAdmin={role === 'admin'} userId={user?.id} />
       {currentView === 'chat' ? (
         <div className="flex-1 overflow-hidden">
           <GroupChat />

@@ -553,6 +553,10 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; r
     const [activeSection, setActiveSection] = useState<'positions' | 'history'>('positions');
     const [signalFilter, setSignalFilter] = useState<string | null>(null);
     const [todayOnly, setTodayOnly] = useState(true);
+    const [sortBy, setSortBy] = useState<'performance' | 'progress' | 'newest' | 'strength'>(() => {
+        try { const v = localStorage.getItem('stockFeedSort'); if (v === 'performance' || v === 'progress' || v === 'newest' || v === 'strength') return v; } catch {}
+        return 'performance';
+    });
     const [historyTodayOnly, setHistoryTodayOnly] = useState(false);
     const [historyDateFrom, setHistoryDateFrom] = useState('');
     const [historyDateTo, setHistoryDateTo] = useState('');
@@ -675,6 +679,51 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; r
         if (todayOnly && new Date(p.opened_at).toDateString() !== todayStr) return false;
         if (signalFilter && !filters.find(f => f.label === signalFilter)?.test(p)) return false;
         return true;
+    });
+
+    // Sort helper: side-aware performance %
+    const perfPct = (p: StockGatePosition): number => {
+        if (p.entry_price == null || p.current_price == null || !p.entry_price) return -Infinity;
+        const dir = p.trade_direction?.toUpperCase() === 'SHORT' ? -1 : 1;
+        return dir * ((p.current_price - p.entry_price) / p.entry_price) * 100;
+    };
+
+    const strengthRank = (p: StockGatePosition): number => {
+        const isStrong = p.tier === 'A+';
+        return isStrong ? 0 : 1;
+    };
+
+    const sortedPositions = [...filteredPositions].sort((a, b) => {
+        switch (sortBy) {
+            case 'performance': {
+                const pa = perfPct(a), pb = perfPct(b);
+                if (pa === -Infinity && pb === -Infinity) return 0;
+                if (pa === -Infinity) return 1;
+                if (pb === -Infinity) return -1;
+                return pb - pa;
+            }
+            case 'progress': {
+                const pa = a.progress_pct ?? -Infinity;
+                const pb = b.progress_pct ?? -Infinity;
+                if (pa === -Infinity && pb === -Infinity) return 0;
+                if (pa === -Infinity) return 1;
+                if (pb === -Infinity) return -1;
+                return pb - pa;
+            }
+            case 'newest':
+                return new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime();
+            case 'strength': {
+                const sr = strengthRank(a) - strengthRank(b);
+                if (sr !== 0) return sr;
+                const pa = perfPct(a), pb = perfPct(b);
+                if (pa === -Infinity && pb === -Infinity) return 0;
+                if (pa === -Infinity) return 1;
+                if (pb === -Infinity) return -1;
+                return pb - pa;
+            }
+            default:
+                return 0;
+        }
     });
 
     return (
@@ -844,14 +893,30 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; r
                                             clear
                                         </button>
                                     )}
-                                    <span className="ml-auto text-[9px] text-slate-700 font-bold">
-                                        {filteredPositions.length} of {positions.length} shown
+                                    <span className="ml-auto flex items-center gap-3">
+                                        <span className="flex items-center gap-1.5">
+                                            <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Sort:</span>
+                                            <select
+                                                value={sortBy}
+                                                onChange={e => { const v = e.target.value as typeof sortBy; setSortBy(v); try { localStorage.setItem('stockFeedSort', v); } catch {} }}
+                                                className="bg-slate-100 dark:bg-[#111620] border border-gray-200 dark:border-[#1e2430] rounded-full px-2.5 py-1 text-[10px] font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:border-blue-500 cursor-pointer appearance-none pr-6"
+                                                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}
+                                            >
+                                                <option value="performance">Performance</option>
+                                                <option value="progress">Progress to Target</option>
+                                                <option value="newest">Newest</option>
+                                                <option value="strength">Signal Strength</option>
+                                            </select>
+                                        </span>
+                                        <span className="text-[9px] text-slate-700 font-bold">
+                                            {filteredPositions.length} of {positions.length} shown
+                                        </span>
                                     </span>
                                 </div>
 
                                 {/* Position grid */}
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                    {filteredPositions.map(p => (
+                                    {sortedPositions.map(p => (
                                         <PositionCard key={p.id} position={p} onManualClose={setClosingPosition} onExecuteStock={setExecutingPosition} onNavigateToLifecycle={onNavigateToLifecycle} />
                                     ))}
                                 </div>
