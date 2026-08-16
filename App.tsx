@@ -117,10 +117,7 @@ const StockFeedView: React.FC<{ onExecute: (s: any) => void; role?: string; onNa
 
 const SCAN_TIMES = ['08:31', '08:45', '09:00', '09:10', '09:20', '09:35', '09:50', '10:15', '10:45', '12:10', '13:30', '14:15', '14:50'];
 
-const STRATEGY_WEBHOOKS: Record<string, string> = {
-  swing_trade: 'https://prabhupadala01.app.n8n.cloud/webhook/scan-options',
-  day_trade: 'https://prabhupadala01.app.n8n.cloud/webhook/refresh-daytrade',
-};
+const STRATEGY_WEBHOOKS: Record<string, string> = {};
 
 const isCSTWeekday = () => {
   const cst = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
@@ -252,7 +249,7 @@ const App: React.FC = () => {
   }, [user?.id, verificationStatus]);
 
   // Strategy filter
-  const [activeTab, setActiveTab] = useState<string>('iron-gate');
+  const [activeTab, setActiveTab] = useState<string>('iron-gate-day');
   const selectedStrategy = ['iron-gate', 'iron-gate-day'].includes(activeTab) ? null : activeTab;
   const { strategies } = useStrategyConfigs();
 
@@ -304,8 +301,6 @@ const App: React.FC = () => {
     const isBeforeNoon = timeInMins < 720; // 12:00 PM
 
     if (isBeforeNoon) {
-      // Before noon: day_trade=1min, swing_trade=3min, others=3min
-      if (selectedStrategy === 'day_trade') return 60_000;   // 1 min
       return 180_000;                                         // 3 min
     } else {
       // After noon to 4 PM: 15 min for all
@@ -491,21 +486,7 @@ const App: React.FC = () => {
   }, [signals, activeFilter, sortBy, searchQuery]);
 
   const handleManualRefresh = async () => {
-    if (selectedStrategy === 'day_trade') {
-      try {
-        await fetch('https://prabhupadala01.app.n8n.cloud/webhook/refresh-daytrade', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_email: user?.email })
-        });
-        await refresh(); // Reload data from table after webhook completes
-      } catch (err) {
-        console.error('Day trade refresh failed:', err);
-        await refresh(); // Still reload table data even if webhook fails
-      }
-    } else {
-      startScan(refresh);
-    }
+    startScan(refresh);
   };
 
   const handleExecute = (signal: OptionSignal) => {
@@ -607,7 +588,7 @@ const App: React.FC = () => {
               {/* ── Sub-tab bar ── */}
               <div className="flex items-center gap-1 px-8 pt-5 pb-0 border-b border-gray-100 dark:border-white/5 bg-white dark:bg-transparent">
                 {([
-                  { id: 'iron-gate', label: 'Iron Gate', icon: 'lock' },
+                  { id: 'iron-gate', label: 'Iron Gate Swing', icon: 'lock' },
                   { id: 'iron-gate-day', label: 'Iron Gate Day', icon: 'bolt' },
                 ] as const).map(tab => (
                   <button
@@ -623,7 +604,7 @@ const App: React.FC = () => {
                   </button>
                 ))}
                 {strategies.filter(s => {
-                  if (['iron_gate', 'iron_gate_day'].includes(s.strategy)) return false;
+                  if (['iron_gate', 'iron_gate_day', 'day_trade', 'swing_trade'].includes(s.strategy)) return false;
                   if (role !== 'admin') return false;
                   return true;
                 }).map(strategy => (
