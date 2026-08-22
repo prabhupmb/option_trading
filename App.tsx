@@ -24,6 +24,7 @@ import IronGateTracker from './components/IronGateTracker';
 import IronGateDayTracker from './components/IronGateDayTracker';
 import IronDipTracker from './components/IronDipTracker';
 import StockGateTracker from './components/StockGateTracker';
+import StockDecisionHistory from './components/StockDecisionHistory';
 import QuickTradeModal from './components/quicktrade/QuickTradeModal';
 import { useAuth } from './services/useAuth';
 import { OptionSignal } from './types';
@@ -258,7 +259,7 @@ const App: React.FC = () => {
   const { progress: scanProgress, startScan } = useScanProgress(user?.email || undefined, selectedStrategy);
 
   // Portfolio Advisor tab state
-  const [portfolioTab, setPortfolioTab] = useState<'broker' | 'advisor'>('advisor');
+  const [portfolioTab, setPortfolioTab] = useState<'broker' | 'advisor' | 'decisions'>('advisor');
   const [advisorRefreshKey, setAdvisorRefreshKey] = useState(0);
 
   // Execution Modal State
@@ -726,10 +727,10 @@ const App: React.FC = () => {
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Portfolio sub-tabs */}
               <div className="flex gap-1 px-6 pt-4 pb-2 border-b border-zinc-800/60">
-                {([['broker', 'analytics', 'Broker Portfolio'], ['advisor', 'psychology', 'Advisor']] as const).map(([id, icon, label]) => (
+                {([['broker', 'analytics', 'Broker Portfolio'], ['advisor', 'psychology', 'Advisor'], ['decisions', 'history', 'Trade Decisions']] as const).map(([id, icon, label]) => (
                   <button
                     key={id}
-                    onClick={() => setPortfolioTab(id as 'broker' | 'advisor')}
+                    onClick={() => setPortfolioTab(id as 'broker' | 'advisor' | 'decisions')}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 ${
                       portfolioTab === id
                         ? 'bg-emerald-500/15 text-emerald-400'
@@ -817,6 +818,8 @@ const App: React.FC = () => {
                       console.log('Close position requested:', p);
                     }}
                   />
+                ) : portfolioTab === 'decisions' ? (
+                  <StockDecisionHistory userId={user?.id || ''} />
                 ) : (
                   <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
                     <AddToPortfolio supabase={supabase} userId={user?.id || ''} onChange={() => setAdvisorRefreshKey(k => k + 1)} />
