@@ -914,18 +914,68 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; r
                                     </span>
                                 </div>
 
-                                {/* Position grid */}
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                    {sortedPositions.map(p => (
-                                        <PositionCard key={p.id} position={p} onManualClose={setClosingPosition} onExecuteStock={setExecutingPosition} onNavigateToLifecycle={onNavigateToLifecycle} />
-                                    ))}
-                                </div>
+                                {/* Ranked two-section layout */}
+                                {(() => {
+                                    const parseRR = (rr: string): number => {
+                                        if (!rr || rr === 'N/A') return 0;
+                                        const m = rr.match(/1:([\d.]+)/);
+                                        return m ? parseFloat(m[1]) || 0 : 0;
+                                    };
+                                    const ranked = [...sortedPositions].sort((a, b) => {
+                                        const aReady = (a.execution_hint || '').startsWith('READY') ? 0 : 1;
+                                        const bReady = (b.execution_hint || '').startsWith('READY') ? 0 : 1;
+                                        if (aReady !== bReady) return aReady - bReady;
+                                        const rrDiff = parseRR(b.risk_reward_ratio) - parseRR(a.risk_reward_ratio);
+                                        if (rrDiff !== 0) return rrDiff;
+                                        return (b.adx_value || 0) - (a.adx_value || 0);
+                                    });
+                                    const top15 = ranked.slice(0, 15);
+                                    const rest = ranked.slice(15);
 
-                                {filteredPositions.length === 0 && signalFilter && (
-                                    <div className="text-center py-12 bg-gray-50 dark:bg-[#0d1117] rounded-2xl border border-gray-200 dark:border-[#1e2430]">
-                                        <p className="text-slate-500 text-sm">No <span className="text-slate-900 dark:text-white font-bold">{signalFilter}</span> positions open</p>
-                                    </div>
-                                )}
+                                    if (ranked.length === 0) {
+                                        return signalFilter ? (
+                                            <div className="text-center py-12 bg-gray-50 dark:bg-[#0d1117] rounded-2xl border border-gray-200 dark:border-[#1e2430]">
+                                                <p className="text-slate-500 text-sm">No <span className="text-slate-900 dark:text-white font-bold">{signalFilter}</span> positions open</p>
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-16 bg-gray-50 dark:bg-[#0d1117] rounded-2xl border border-gray-200 dark:border-[#1e2430]">
+                                                <div className="text-3xl mb-3">📡</div>
+                                                <p className="text-sm font-bold text-slate-500">No strong signals right now</p>
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div className="space-y-6">
+                                            {/* Section 1: Top 15 */}
+                                            <div>
+                                                <h3 className="text-xs font-black text-emerald-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                    <span>🔥</span> Top {Math.min(15, ranked.length)} Strong Buys
+                                                </h3>
+                                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                                    {top15.map(p => (
+                                                        <PositionCard key={p.id} position={p} onManualClose={setClosingPosition} onExecuteStock={setExecutingPosition} onNavigateToLifecycle={onNavigateToLifecycle} />
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Section 2: Also Qualified */}
+                                            {rest.length > 0 && (
+                                                <div>
+                                                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                        <span>📋</span> Also Qualified
+                                                        <span className="text-[9px] font-bold text-slate-600 bg-slate-800/40 border border-slate-700/30 px-1.5 py-0.5 rounded-full">{rest.length}</span>
+                                                    </h3>
+                                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 opacity-75">
+                                                        {rest.map(p => (
+                                                            <PositionCard key={p.id} position={p} onManualClose={setClosingPosition} onExecuteStock={setExecutingPosition} onNavigateToLifecycle={onNavigateToLifecycle} />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </>
                         )}
                     </div>

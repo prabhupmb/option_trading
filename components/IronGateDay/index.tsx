@@ -129,7 +129,7 @@ interface Props {
 
 const IRON_GATE_DAY_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/Irorn_gate_day_trade';
 
-const IronGateDayDashboard: React.FC<Props> = () => {
+const IronGateDayDashboard: React.FC<Props> = ({ onExecute }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('positions');
   const [activeFilter, setActiveFilter] = useState<SignalFilter>('ALL');
   const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'ok' | 'err'>('idle');
@@ -299,6 +299,7 @@ const IronGateDayDashboard: React.FC<Props> = () => {
             isMarketOpen={clock.isMarketOpen}
             isWeekend={clock.isWeekend}
             scan={scan}
+            onExecute={onExecute}
           />
         ) : (
           <>

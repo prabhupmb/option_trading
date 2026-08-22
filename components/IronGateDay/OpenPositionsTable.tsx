@@ -14,6 +14,7 @@ interface Props {
   isMarketOpen: boolean;
   isWeekend: boolean;
   scan: ScanWindowResult;
+  onExecute?: (signal: any) => void;
 }
 
 function applyFilter(positions: IronGateDayPosition[], filter: SignalFilter): IronGateDayPosition[] {
@@ -54,7 +55,7 @@ const SkeletonCard: React.FC = () => (
 );
 
 export const OpenPositionsTable: React.FC<Props> = ({
-  positions, activeFilter, flashIds, updatedIds, loading, isMarketOpen, isWeekend, scan,
+  positions, activeFilter, flashIds, updatedIds, loading, isMarketOpen, isWeekend, scan, onExecute,
 }) => {
   if (loading) {
     return (
@@ -98,6 +99,8 @@ export const OpenPositionsTable: React.FC<Props> = ({
           pos={pos}
           isFlashing={flashIds.has(pos.id)}
           isUpdated={updatedIds.has(pos.id)}
+          isMarketOpen={isMarketOpen}
+          onExecute={onExecute}
         />
       ))}
     </div>

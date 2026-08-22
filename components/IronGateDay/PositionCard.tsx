@@ -9,6 +9,8 @@ interface Props {
   pos: IronGateDayPosition;
   isFlashing?: boolean;
   isUpdated?: boolean;
+  isMarketOpen?: boolean;
+  onExecute?: (signal: any) => void;
 }
 
 function fmt(n: number | null | undefined) {
@@ -47,7 +49,7 @@ const StatCell: React.FC<{ label: string; value: React.ReactNode; valueColor?: s
   </div>
 );
 
-export const PositionCard: React.FC<Props> = ({ pos, isFlashing, isUpdated }) => {
+export const PositionCard: React.FC<Props> = ({ pos, isFlashing, isUpdated, isMarketOpen = true, onExecute }) => {
   const [expanded, setExpanded] = useState(false);
 
   const isBuy = pos.action === 'BUY';
@@ -218,22 +220,77 @@ export const PositionCard: React.FC<Props> = ({ pos, isFlashing, isUpdated }) =>
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
+          alignItems: 'center',
           fontSize: 10,
           color: C.textMuted,
           borderTop: `1px solid ${C.cardBorder}`,
           paddingTop: 10,
           flexWrap: 'wrap',
-          gap: 4,
+          gap: 8,
         }}>
-          <span>Opened <span style={{ color: C.textSecondary }}>{timeSince(pos.opened_at)}</span></span>
-          <span>Last check <span style={{ color: C.textSecondary }}>{timeSince(pos.last_checked_at)}</span></span>
-          <span style={{ color: C.textMuted }}>
-            Checks: <span style={{ color: C.textSecondary, fontFamily: 'JetBrains Mono, monospace' }}>{pos.check_count || 0}</span>
-          </span>
-          {pos.version && (
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', flex: 1 }}>
+            <span>Opened <span style={{ color: C.textSecondary }}>{timeSince(pos.opened_at)}</span></span>
+            <span>Last check <span style={{ color: C.textSecondary }}>{timeSince(pos.last_checked_at)}</span></span>
             <span style={{ color: C.textMuted }}>
-              <span style={{ color: C.accentYellow, fontWeight: 700 }}>#{pos.source || 'IG-DAY'}</span> {pos.version}
+              Checks: <span style={{ color: C.textSecondary, fontFamily: 'JetBrains Mono, monospace' }}>{pos.check_count || 0}</span>
             </span>
+            {pos.version && (
+              <span style={{ color: C.textMuted }}>
+                <span style={{ color: C.accentYellow, fontWeight: 700 }}>#{pos.source || 'IG-DAY'}</span> {pos.version}
+              </span>
+            )}
+          </div>
+          {onExecute && (
+            <button
+              onClick={() => onExecute({
+                id: pos.id,
+                symbol: pos.symbol,
+                current_price: pos.current_price ?? pos.entry_price,
+                option_type: (isBuy ? 'CALL' : 'PUT') as 'CALL' | 'PUT',
+                tier: pos.tier as 'A+' | 'A' | 'B+' | 'NO_TRADE',
+                trading_recommendation: pos.trading_recommendation || '',
+                gates_passed: `${pos.gate_score || 0}/5`,
+                adx_value: pos.adx_value || 0,
+                adx_trend: 'MODERATE' as const,
+                fib_target1: pos.target_1 || 0,
+                fib_target2: pos.target_2 || 0,
+                fib_stop_loss: pos.stop_loss || 0,
+                risk_reward_ratio: `1:${(pos.risk_reward_ratio || 0).toFixed(1)}`,
+                analyzed_at: pos.opened_at || '',
+                signal_source: 'iron_gate_day' as const,
+                signal_position_id: pos.id,
+                entry_price: pos.entry_price,
+                target_price: pos.target_1,
+                stop_loss: pos.stop_loss,
+                signal_text: pos.signal || '',
+                opened_at: pos.opened_at,
+              })}
+              disabled={!isMarketOpen}
+              title={!isMarketOpen ? 'Market closed' : `Buy ${isBuy ? 'CALL' : 'PUT'} option on ${pos.symbol}`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '6px 14px',
+                borderRadius: 8,
+                fontSize: 10,
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                cursor: isMarketOpen ? 'pointer' : 'not-allowed',
+                transition: 'all 0.15s',
+                flexShrink: 0,
+                ...(isMarketOpen
+                  ? isBuy
+                    ? { background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.5)', color: C.accentGreen }
+                    : { background: 'transparent', border: `1px solid ${C.accentRed}`, color: C.accentRed }
+                  : { background: C.innerRowBg, border: `1px solid ${C.cardBorder}`, color: C.textMuted, opacity: 0.5 }
+                ),
+              }}
+            >
+              <span style={{ fontSize: 12 }}>⚡</span>
+              Buy {isBuy ? 'Call' : 'Put'}
+            </button>
           )}
         </div>
       </div>
