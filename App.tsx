@@ -25,6 +25,7 @@ import IronGateDayTracker from './components/IronGateDayTracker';
 import IronDipTracker from './components/IronDipTracker';
 import StockGateTracker from './components/StockGateTracker';
 import StockDecisionHistory from './components/StockDecisionHistory';
+import AdminEngineActivity from './components/AdminEngineActivity';
 import QuickTradeModal from './components/quicktrade/QuickTradeModal';
 import { useAuth } from './services/useAuth';
 import { OptionSignal } from './types';
@@ -824,6 +825,11 @@ const App: React.FC = () => {
                   <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
                     <AddToPortfolio supabase={supabase} userId={user?.id || ''} onChange={() => setAdvisorRefreshKey(k => k + 1)} />
                     <PortfolioAdvisor supabase={supabase} userId={user?.id || ''} refreshKey={advisorRefreshKey} webhookUrl={import.meta.env.VITE_WEBHOOK_PORTFOLIO_REFRESH as string | undefined} />
+                  </div>
+                )}
+                {role === 'admin' && (
+                  <div className="px-4 md:px-6 py-4">
+                    <AdminEngineActivity />
                   </div>
                 )}
               </div>
