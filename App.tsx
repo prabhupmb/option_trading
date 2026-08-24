@@ -22,7 +22,6 @@ import QuickTradePage from './components/QuickTradePage';
 import AutoTradePage from './components/AutoTradePage';
 import IronGateTracker from './components/IronGateTracker';
 import IronGateDayTracker from './components/IronGateDayTracker';
-import IronDipTracker from './components/IronDipTracker';
 import StockGateTracker from './components/StockGateTracker';
 import StockDecisionHistory from './components/StockDecisionHistory';
 import AdminEngineActivity from './components/AdminEngineActivity';
@@ -44,6 +43,7 @@ import AddToPortfolio from './components/AddToPortfolio';
 import PortfolioAdvisor from './components/PortfolioAdvisor';
 import BrokerPortfolioView from './components/BrokerPortfolio';
 import { TrendingDown } from 'lucide-react';
+import OptionDipTab from './components/OptionDip/OptionDipTab';
 import { supabase } from './services/supabase';
 import { hasAcceptedCurrentDisclaimer } from './services/disclaimer';
 import DisclaimerGate from './components/DisclaimerGate';
@@ -56,7 +56,7 @@ import { useBrokerContext } from './context/BrokerContext';
 // ─── STOCK FEED VIEW (sub-tabs: Signal Feed + Stock Gate) ─────
 
 const StockFeedView: React.FC<{ onExecute: (s: any) => void; role?: string; onNavigateToLifecycle?: (symbol: string) => void }> = ({ onExecute, role, onNavigateToLifecycle }) => {
-  const [stockTab, setStockTab] = React.useState<'signal-feed' | 'stock-gate' | 'stage-tracker' | 'dip-buy'>('stock-gate');
+  const [stockTab, setStockTab] = React.useState<'signal-feed' | 'stock-gate' | 'stage-tracker' | 'dip-buy' | 'option-dip'>('stock-gate');
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="flex items-center gap-1 px-8 pt-5 pb-0 border-b border-gray-100 dark:border-white/5 bg-white dark:bg-transparent">
@@ -90,6 +90,16 @@ const StockFeedView: React.FC<{ onExecute: (s: any) => void; role?: string; onNa
           <TrendingDown className="w-4 h-4" />
           Dip Buy
         </button>
+        <button
+          onClick={() => setStockTab('option-dip')}
+          className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${stockTab === 'option-dip'
+            ? 'border-rh-green text-rh-green'
+            : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-white'
+            }`}
+        >
+          <span className="material-symbols-outlined text-base">swap_vert</span>
+          Option Dip
+        </button>
       </div>
       {stockTab === 'stock-gate' && (
         <div className="flex-1 overflow-y-auto">
@@ -109,6 +119,11 @@ const StockFeedView: React.FC<{ onExecute: (s: any) => void; role?: string; onNa
       {stockTab === 'dip-buy' && (
         <div className="flex-1 overflow-y-auto">
           <DipBuyScreen />
+        </div>
+      )}
+      {stockTab === 'option-dip' && (
+        <div className="flex-1 overflow-y-auto">
+          <OptionDipTab />
         </div>
       )}
     </div>
@@ -846,10 +861,6 @@ const App: React.FC = () => {
             </div>
           ) : currentView === 'auto-trade' ? (
             <AutoTradePage userId={user?.id || ''} isAdmin={role === 'admin'} />
-          ) : currentView === 'iron-dip' ? (
-            <div className="flex-1 overflow-y-auto">
-              <IronDipTracker />
-            </div>
           ) : currentView === 'settings' ? (
             <div className="flex-1 overflow-y-auto">
               <UserProfilePage />
