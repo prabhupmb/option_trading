@@ -981,6 +981,8 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
     const filteredPositions = positions.filter(p => {
         if (todayOnly && new Date(p.opened_at).toDateString() !== todayStr) return false;
         if (signalFilter && !filters.find(f => f.label === signalFilter)?.test(p)) return false;
+        // When a signal filter is active (STRONG BUY, BUY, etc.), exclude stale positions
+        if (signalFilter && p.execution_hint === 'WAIT') return false;
         if (executionFilter === 'READY' && p.execution_hint !== 'READY_BUY' && p.execution_hint !== 'READY_SELL') return false;
         if (executionFilter === 'WAIT'  && p.execution_hint !== 'WAIT') return false;
         if (versionFilter !== 'all' && versionFilter && p.version && p.version !== versionFilter) return false;
@@ -1151,7 +1153,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
 
                                     {/* Tier / signal filters — clicking any clears TODAY */}
                                     {filters.map(f => {
-                                        const count = versionBase.filter(f.test).length;
+                                        const count = versionBase.filter(p => f.test(p) && p.execution_hint !== 'WAIT').length;
                                         const isActive = signalFilter === f.label;
                                         return (
                                             <button key={f.label} onClick={() => { if (count === 0) return; setTodayOnly(false); setSignalFilter(isActive ? null : f.label); }}
