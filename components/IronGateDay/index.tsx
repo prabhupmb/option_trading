@@ -128,6 +128,7 @@ interface Props {
 }
 
 const IRON_GATE_DAY_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/Irorn_gate_day_trade';
+const OPTION_DIP_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/d7731fbf-5331-49c0-91ca-08cb31c376ec';
 
 const IronGateDayDashboard: React.FC<Props> = ({ onExecute }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('positions');
@@ -138,12 +139,20 @@ const IronGateDayDashboard: React.FC<Props> = ({ onExecute }) => {
     if (scanStatus === 'scanning') return;
     setScanStatus('scanning');
     try {
-      await fetch(IRON_GATE_DAY_WEBHOOK, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ triggered_by: 'manual' }),
-      });
+      await Promise.all([
+        fetch(IRON_GATE_DAY_WEBHOOK, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ triggered_by: 'manual' }),
+        }),
+        fetch(OPTION_DIP_WEBHOOK, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ triggered_by: 'manual' }),
+        }),
+      ]);
       setScanStatus('ok');
     } catch {
       setScanStatus('err');
