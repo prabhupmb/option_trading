@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { UserRole, AccessLevel } from '../types';
 
-export type View = 'signals' | 'smart-feed' | 'portfolio' | 'quick-trade' | 'auto-trade' | 'iron-gate' | 'iron-gate-day' | 'ai-hub' | 'chat' | 'watchlist' | 'history' | 'settings' | 'admin' | 'faq' | 'trending' | 'market-news' | 'stage-tracker' | 'lifecycle' | 'india-signals' | 'disclosure' | 'presence';
+export type View = 'signals' | 'smart-feed' | 'structure' | 'portfolio' | 'quick-trade' | 'auto-trade' | 'iron-gate' | 'iron-gate-day' | 'ai-hub' | 'chat' | 'watchlist' | 'history' | 'settings' | 'admin' | 'faq' | 'trending' | 'market-news' | 'stage-tracker' | 'lifecycle' | 'india-signals' | 'disclosure' | 'presence';
 
 interface NavigationProps {
   activeView: View;
@@ -21,6 +21,7 @@ const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, o
   let tabs: { id: View; label: string; icon: string; sub?: string }[] = [
     { id: 'signals', label: 'Option Feed', icon: 'dashboard' },
     { id: 'smart-feed', label: 'Stock Feed', icon: 'query_stats' },
+    { id: 'structure',      label: 'Structure',       icon: 'stacked_bar_chart' },
     { id: 'lifecycle',      label: 'Stock Lifecycle', icon: 'timeline' },
     { id: 'india-signals',  label: 'India Signals',  icon: 'currency_rupee' },
     { id: 'portfolio', label: 'Portfolio', icon: 'analytics' },
@@ -35,7 +36,7 @@ const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, o
   ];
 
   if (role !== 'admin') {
-    const allowedForCustomer: View[] = ['signals', 'smart-feed', 'lifecycle', 'india-signals', 'portfolio', 'auto-trade', 'chat', 'settings', 'faq', 'trending', 'market-news'];
+    const allowedForCustomer: View[] = ['signals', 'smart-feed', 'structure', 'lifecycle', 'india-signals', 'portfolio', 'auto-trade', 'chat', 'settings', 'faq', 'trending', 'market-news'];
     tabs = tabs.filter(tab => allowedForCustomer.includes(tab.id));
   }
 

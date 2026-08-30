@@ -44,6 +44,7 @@ import PortfolioAdvisor from './components/PortfolioAdvisor';
 import BrokerPortfolioView from './components/BrokerPortfolio';
 import { TrendingDown } from 'lucide-react';
 import OptionDipTab from './components/OptionDip/OptionDipTab';
+import StructureBoard from './components/StructureBoard';
 import { supabase } from './services/supabase';
 import { hasAcceptedCurrentDisclaimer } from './services/disclaimer';
 import DisclaimerGate from './components/DisclaimerGate';
@@ -845,6 +846,10 @@ const App: React.FC = () => {
             </div>
           ) : currentView === 'smart-feed' ? (
             <StockFeedView onExecute={setExecutingSignal} role={role} onNavigateToLifecycle={(sym) => { setLifecycleSymbol(sym); setLifecycleFrom('smart-feed'); setCurrentView('lifecycle'); }} />
+          ) : currentView === 'structure' ? (
+            <div className="flex-1 overflow-y-auto">
+              <StructureBoard onNavigateToLifecycle={(sym) => { setLifecycleSymbol(sym); setLifecycleFrom('structure'); setCurrentView('lifecycle'); }} />
+            </div>
           ) : currentView === 'quick-trade' ? (
             <div className="flex-1 overflow-hidden">
               <QuickTradePage />
@@ -868,7 +873,7 @@ const App: React.FC = () => {
               <StockLifecycleView
                 initialSymbol={lifecycleSymbol}
                 onBack={lifecycleFrom ? () => { setCurrentView(lifecycleFrom!); setLifecycleSymbol(null); setLifecycleFrom(null); } : undefined}
-                backLabel={lifecycleFrom === 'smart-feed' ? 'Stock Feed' : lifecycleFrom === 'signals' ? 'Option Feed' : undefined}
+                backLabel={lifecycleFrom === 'smart-feed' ? 'Stock Feed' : lifecycleFrom === 'signals' ? 'Option Feed' : lifecycleFrom === 'structure' ? 'Structure' : undefined}
                 onSymbolConsumed={() => setLifecycleSymbol(null)}
               />
             </div>
