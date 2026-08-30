@@ -48,6 +48,10 @@ interface StructureEvent {
   t3_method: string | null; t3_scale_pct: number | null;
   t2_beyond_time_stop: boolean | null;
 
+  why_text: string | null;
+  score_basis: 'break_gates' | 'squeeze_quality' | 'trap_quality' | null;
+  failed_bars_ago: number | null;
+
   time_stop_days: number | null;
   days_since_break: number | null;
   days_to_time_stop: number | null;
@@ -85,7 +89,7 @@ const SkeletonCard: React.FC = () => (
   <div className="bg-[#0d1117] rounded-2xl border border-[#1e2430] p-5 space-y-4 animate-pulse">
     <div className="flex gap-3"><div className="h-5 w-16 bg-zinc-800 rounded" /><div className="h-5 w-20 bg-zinc-800 rounded" /><div className="h-5 w-12 bg-zinc-800 rounded" /></div>
     <div className="h-8 bg-zinc-800/60 rounded-lg" />
-    <div className="grid grid-cols-4 gap-2">{[1,2,3,4].map(i => <div key={i} className="h-14 bg-zinc-800/40 rounded-lg" />)}</div>
+    <div className="grid grid-cols-3 gap-2">{[1,2,3].map(i => <div key={i} className="h-14 bg-zinc-800/40 rounded-lg" />)}</div>
     <div className="h-6 bg-zinc-800/30 rounded-full" />
   </div>
 );
@@ -202,20 +206,25 @@ const FullCard: React.FC<{ e: StructureEvent; onLifecycle?: (s: string) => void 
             }`}>
               {e.event_type}
             </span>
-            {e.tier && (
+            {e.tier != null && (
               <span className="px-2 py-0.5 rounded-md text-[10px] font-black text-amber-300 bg-amber-900/30 border border-amber-600/40">{e.tier}</span>
             )}
             {e.provisional && (
               <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-zinc-500 bg-zinc-800/40 border border-zinc-700/30 cursor-help" title="Daily bar still forming — confirms after 4pm ET">provisional</span>
             )}
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-blue-400 bg-blue-900/20 border border-blue-800/30">
-              {e.gates_passed ?? 0}/7
-              {(e.gates_fail_open ?? 0) > 0 && (
-                <span className="ml-0.5 cursor-help" title={`${e.gates_fail_open} gate(s) passed on missing data`}>!</span>
-              )}
-            </span>
+            {e.gates_passed != null && (
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-blue-400 bg-blue-900/20 border border-blue-800/30">
+                {e.gates_passed}/7
+                {(e.gates_fail_open ?? 0) > 0 && (
+                  <span className="ml-0.5 cursor-help" title={`${e.gates_fail_open} gate(s) passed on missing data`}>!</span>
+                )}
+              </span>
+            )}
             {e.conviction_score != null && (
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-violet-400 bg-violet-900/20 border border-violet-800/30">
+              <span
+                className="px-2 py-0.5 rounded-md text-[10px] font-bold text-violet-400 bg-violet-900/20 border border-violet-800/30 cursor-help"
+                title={e.score_basis === 'break_gates' ? 'Break quality across 7 gates' : e.score_basis === 'squeeze_quality' ? 'Squeeze quality — not comparable to breakout scores' : e.score_basis === 'trap_quality' ? 'Trap quality — not comparable to breakout scores' : undefined}
+              >
                 conv {e.conviction_score}
               </span>
             )}
@@ -237,10 +246,14 @@ const FullCard: React.FC<{ e: StructureEvent; onLifecycle?: (s: string) => void 
           broke {fp(e.break_price)} on {e.break_date || '—'} · {e.level_type || '—'} {fp(e.broken_level)} held {e.level_held_days ?? '—'}d
         </div>
 
+        {/* Why line */}
+        {e.why_text && (
+          <p className="text-xs text-zinc-400 leading-snug line-clamp-2">{e.why_text}</p>
+        )}
+
         {/* Price tiles */}
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <Tile label="level" value={fp(e.broken_level)} />
-          <Tile label="entry" value={fp(e.entry_price)} />
           <Tile label="current" value={fp(e.current_price)} color={isLong ? 'text-emerald-400' : 'text-red-400'} />
           <Tile label="stop" value={fp(e.stop_price)} color="text-red-400" />
         </div>
@@ -250,12 +263,12 @@ const FullCard: React.FC<{ e: StructureEvent; onLifecycle?: (s: string) => void 
           <Tile
             label={`t1 · ${e.t1_scale_pct ?? '—'}%`}
             value={fp(e.t1)}
-            sub={`+${fpct(e.t1_pct)} · ${fR(e.t1_rr)} · ~${e.t1_days ?? '—'}d`}
+            sub={`${e.direction === 'SHORT' ? '' : '+'}${fpct(e.t1_pct)}${e.direction === 'SHORT' ? ' gain' : ''} · ${fR(e.t1_rr)} · ~${e.t1_days ?? '—'}d`}
           />
           <Tile
             label={`t2 · ${e.t2_scale_pct ?? '—'}%`}
             value={fp(e.t2)}
-            sub={`+${fpct(e.t2_pct)} · ${fR(e.t2_rr)} · ~${e.t2_days ?? '—'}d`}
+            sub={`${e.direction === 'SHORT' ? '' : '+'}${fpct(e.t2_pct)}${e.direction === 'SHORT' ? ' gain' : ''} · ${fR(e.t2_rr)} · ~${e.t2_days ?? '—'}d`}
             subColor={e.t2_beyond_time_stop ? 'text-amber-400' : undefined}
             subTitle={e.t2_beyond_time_stop ? 'Target is further out than the time stop' : undefined}
           />
@@ -307,7 +320,7 @@ const CompactCard: React.FC<{ e: StructureEvent }> = ({ e }) => {
 
   let chipText = '';
   if (e.event_type === 'FAILED_BREAK') {
-    chipText = `closed back inside range · trapped ${isLong ? 'shorts' : 'longs'}`;
+    chipText = `trapped ${isLong ? 'longs' : 'shorts'}${e.failed_bars_ago != null ? ` · broke ${e.failed_bars_ago}d ago` : ''}`;
   } else if (e.event_type === 'COILED') {
     chipText = `coiled ${e.squeeze_days ?? '—'}d · ${fpct(e.dist_to_level_pct)} from ${fp(e.broken_level)}`;
   }
@@ -329,14 +342,17 @@ const CompactCard: React.FC<{ e: StructureEvent }> = ({ e }) => {
             }`}>
               {e.event_type.replace('_', ' ')}
             </span>
-            {e.tier && (
+            {e.tier != null && (
               <span className="px-2 py-0.5 rounded-md text-[10px] font-black text-amber-300 bg-amber-900/30 border border-amber-600/40">{e.tier}</span>
             )}
             {e.provisional && (
               <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-zinc-500 bg-zinc-800/40 border border-zinc-700/30 cursor-help" title="Daily bar still forming — confirms after 4pm ET">provisional</span>
             )}
             {e.conviction_score != null && (
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-violet-400 bg-violet-900/20 border border-violet-800/30">
+              <span
+                className="px-2 py-0.5 rounded-md text-[10px] font-bold text-violet-400 bg-violet-900/20 border border-violet-800/30 cursor-help"
+                title={e.score_basis === 'break_gates' ? 'Break quality across 7 gates' : e.score_basis === 'squeeze_quality' ? 'Squeeze quality — not comparable to breakout scores' : e.score_basis === 'trap_quality' ? 'Trap quality — not comparable to breakout scores' : undefined}
+              >
                 conv {e.conviction_score}
               </span>
             )}
@@ -353,6 +369,11 @@ const CompactCard: React.FC<{ e: StructureEvent }> = ({ e }) => {
           }`}>
             {chipText}
           </div>
+        )}
+
+        {/* Why line */}
+        {e.why_text && (
+          <p className="text-xs text-zinc-400 leading-snug line-clamp-2">{e.why_text}</p>
         )}
 
         {/* Footer */}
@@ -444,9 +465,15 @@ const StructureBoard: React.FC<Props> = ({ onNavigateToLifecycle }) => {
       });
     }
 
+    const BASIS_RANK: Record<string, number> = { break_gates: 0, trap_quality: 1, squeeze_quality: 2 };
     const sorted = [...filtered].sort((a, b) => {
       switch (sortBy) {
-        case 'conviction': return (b.conviction_score ?? 0) - (a.conviction_score ?? 0);
+        case 'conviction': {
+          const aRank = BASIS_RANK[a.score_basis ?? ''] ?? 3;
+          const bRank = BASIS_RANK[b.score_basis ?? ''] ?? 3;
+          if (aRank !== bRank) return aRank - bRank;
+          return (b.conviction_score ?? 0) - (a.conviction_score ?? 0);
+        }
         case 'freshness': return (a.days_since_break ?? 999) - (b.days_since_break ?? 999);
         case 't2_rr': return (b.t2_rr ?? 0) - (a.t2_rr ?? 0);
         case 'vol_ratio': return (b.vol_ratio ?? 0) - (a.vol_ratio ?? 0);
