@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import BrokerSelector from './layout/BrokerSelector';
 import ZerodhaTokenChip from './india/ZerodhaTokenChip';
+import NotificationInbox from './NotificationInbox';
 import { useBrokerContext } from '../context/BrokerContext';
 import type { ScanStatus } from '../hooks/useScanProgress';
 
@@ -98,6 +99,9 @@ const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading, user, 
               )}
             </button>
           )}
+
+          {/* Notification Bell */}
+          <NotificationInbox onNavigate={onNavigate} />
 
           {/* User Menu */}
           <div className="relative">
