@@ -38,8 +38,15 @@ export function useInbox() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchInbox = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      console.warn('[useInbox] No auth session — skipping fetch');
+      setLoading(false);
+      return;
+    }
+
     const { data, error: err } = await supabase
-      .from('notifications_inbox')
+      .from('notifications')
       .select('*')
       .neq('status', 'ARCHIVED')
       .order('created_at', { ascending: false })
@@ -119,7 +126,7 @@ export function useInbox() {
     });
 
     const { error: err } = await supabase
-      .from('notifications_inbox')
+      .from('notifications')
       .update({ status: 'READ' })
       .eq('id', id);
 
@@ -147,7 +154,7 @@ export function useInbox() {
     });
 
     let query = supabase
-      .from('notifications_inbox')
+      .from('notifications')
       .update({ status: 'READ' })
       .eq('status', 'UNREAD');
     if (channel) query = query.eq('channel', channel);

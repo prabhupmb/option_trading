@@ -242,6 +242,7 @@ const NotificationInbox: React.FC<NotificationInboxProps> = ({ onNavigate }) => 
               <div className="flex flex-col items-center justify-center py-10 gap-3">
                 <span className="material-symbols-outlined text-2xl text-red-400">cloud_off</span>
                 <p className="text-xs text-zinc-400">Couldn't load inbox</p>
+                <p className="text-[10px] text-zinc-600 max-w-[280px] text-center break-words">{error}</p>
                 <button
                   onClick={refetch}
                   className="text-[10px] font-bold text-emerald-400 uppercase tracking-wide hover:text-emerald-300 transition-colors"
