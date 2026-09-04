@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { C } from './constants';
 import { useIronGateDay } from './useIronGateDay';
 import { useETClock } from './useETClock';
@@ -160,6 +160,36 @@ const IronGateDayDashboard: React.FC<Props> = ({ onExecute }) => {
       setTimeout(() => setScanStatus('idle'), 4000);
     }
   };
+
+  // Auto-scan every 7 min during 9:30–11:30 ET (8:30–10:30 CST), weekdays only
+  const autoScanRef = useRef(false);
+  useEffect(() => {
+    const INTERVAL_MS = 7 * 60 * 1000;
+
+    const isInWindow = () => {
+      const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+      const day = now.getDay();
+      if (day === 0 || day === 6) return false; // weekends
+      const mins = now.getHours() * 60 + now.getMinutes();
+      return mins >= 570 && mins <= 690; // 9:30 (570) to 11:30 (690) ET
+    };
+
+    const fire = () => {
+      if (!isInWindow()) return;
+      console.log('[AutoScan] Triggering Iron Gate Day scan');
+      fetch(IRON_GATE_DAY_WEBHOOK, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ triggered_by: 'auto_7m' }) }).catch(() => {});
+      fetch(OPTION_DIP_WEBHOOK, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ triggered_by: 'auto_7m' }) }).catch(() => {});
+    };
+
+    // Fire immediately if in window on mount
+    if (isInWindow() && !autoScanRef.current) {
+      autoScanRef.current = true;
+      fire();
+    }
+
+    const id = setInterval(fire, INTERVAL_MS);
+    return () => clearInterval(id);
+  }, []);
 
   const {
     openPositions, todayHistory, allHistory,
