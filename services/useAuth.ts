@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from './supabase';
 import type { Session, User } from '@supabase/supabase-js';
 import { UserRole, AccessLevel } from '../types';
@@ -48,7 +48,16 @@ export function useAuth() {
         isTrialUser: false,
     });
 
+    const verifyingRef = useRef(false);
+
     const verifyUser = useCallback(async (session: Session) => {
+        // Prevent concurrent verifyUser calls from racing
+        if (verifyingRef.current) {
+            console.log('🔐 verifyUser already in progress — skipping');
+            return;
+        }
+        verifyingRef.current = true;
+
         console.log('🔐 Verifying user access...');
         setAuthState(prev => ({
             ...prev,
@@ -163,6 +172,8 @@ export function useAuth() {
                     message: 'Unable to verify access. Please check your connection.',
                 },
             }));
+        } finally {
+            verifyingRef.current = false;
         }
     }, []);
 
@@ -192,7 +203,7 @@ export function useAuth() {
                     verificationData: session ? prev.verificationData : {},
                 }));
 
-                if (event === 'SIGNED_IN' && session) {
+                if (event === 'SIGNED_IN' && session && !verifyingRef.current) {
                     verifyUser(session);
                 }
             }
