@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabase';
 import type { Session, User } from '@supabase/supabase-js';
 import { UserRole, AccessLevel } from '../types';
@@ -39,58 +39,82 @@ export interface AuthState {
 }
 
 export function useAuth() {
-    const [authState, setAuthState] = useState<AuthState>({
-        user: null,
-        session: null,
-        loading: true,
-        verificationStatus: 'idle',
-        verificationData: {},
-        isTrialUser: false,
-    });
+    // --- Step 1: auth-ready + session (synchronous only) ---
+    const [session, setSession] = useState<Session | null>(null);
+    const [authReady, setAuthReady] = useState(false);
+    const userId = session?.user?.id ?? null;
 
-    const verifyingRef = useRef(false);
+    // --- Step 2: profile fetch result ---
+    const [profile, setProfile] = useState<any | undefined>(undefined);
+    const [profileError, setProfileError] = useState<{ code: string; message: string } | null>(null);
 
-    const verifyUser = useCallback(async (session: Session) => {
-        // Prevent concurrent verifyUser calls from racing
-        if (verifyingRef.current) {
-            console.log('🔐 verifyUser already in progress — skipping');
+    // --- Step 3: derived verification state ---
+    const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('idle');
+    const [verificationData, setVerificationData] = useState<VerificationData>({});
+    const [role, setRole] = useState<UserRole | undefined>();
+    const [accessLevel, setAccessLevel] = useState<AccessLevel | undefined>();
+    const [trialDaysLeft, setTrialDaysLeft] = useState<number | undefined>();
+    const [isTrialUser, setIsTrialUser] = useState(false);
+    const [dbUserId, setDbUserId] = useState<string | undefined>();
+
+    // --- onAuthStateChange: synchronous state only, no network calls ---
+    useEffect(() => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, sess) => {
+            console.log('Auth state changed:', event);
+            setSession(sess);
+            setAuthReady(true);
+        });
+
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, []);
+
+    // --- Profile fetch: runs when userId changes, never inside onAuthStateChange ---
+    useEffect(() => {
+        if (!userId || !session) {
+            setProfile(undefined);
+            setProfileError(null);
             return;
         }
-        verifyingRef.current = true;
 
-        console.log('🔐 Verifying user access...');
-        setAuthState(prev => ({
-            ...prev,
-            verificationStatus: prev.verificationStatus === 'allowed' ? 'allowed' : 'verifying',
-            verificationData: prev.verificationStatus === 'allowed' ? prev.verificationData : {}
-        }));
+        let ignore = false;
 
-        try {
+        const fetchProfile = async () => {
+            setVerificationStatus('verifying');
             const email = session.user.email;
-            if (!email) throw new Error('No email in session');
+            console.log('[auth] Fetching profile for', email);
 
-            // DB is the single source of truth — no webhook fallback
-            const { data: userProfile, error: dbError } = await supabase
+            if (!email) {
+                if (!ignore) {
+                    setProfileError({ code: 'NO_EMAIL', message: 'No email in session' });
+                    setVerificationStatus('denied');
+                    setVerificationData({ message: 'No email found in session.' });
+                }
+                return;
+            }
+
+            const { data, error } = await supabase
                 .from('users')
                 .select('*')
                 .eq('email', email)
-                .single();
+                .maybeSingle();
 
-            if (dbError || !userProfile) {
-                // Distinguish "not found" (PGRST116) from real DB errors
-                if (dbError && dbError.code !== 'PGRST116') {
-                    console.error('❌ DB error during user lookup:', dbError);
-                    setAuthState(prev => ({
-                        ...prev,
-                        verificationStatus: 'denied',
-                        verificationData: { message: 'Unable to verify access. Please check your connection.' },
-                    }));
-                    return;
-                }
+            if (ignore) return;
 
-                // User not in DB — auto-register via n8n and sign out immediately
-                // Never show SignupForm (prevents deleted users from self re-registering)
-                console.log('📝 User not in DB — auto-registering via n8n, signing out');
+            console.log('[auth] Profile query done. Found:', !!data, '| Error:', error?.code, error?.message);
+
+            if (error) {
+                setProfile(undefined);
+                setProfileError({ code: error.code || 'UNKNOWN', message: error.message });
+                setVerificationStatus('denied');
+                setVerificationData({ message: `DB error: ${error.code} — ${error.message}` });
+                return;
+            }
+
+            if (!data) {
+                // User not in DB — auto-register via n8n
+                console.log('[auth] User not in DB — auto-registering via n8n');
                 const fullName = session.user.user_metadata.full_name || session.user.user_metadata.name || '';
                 const phone = session.user.user_metadata.phone || '';
                 const userName = (
@@ -98,7 +122,6 @@ export function useAuth() {
                     || email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 20)
                 );
 
-                // Fire-and-forget — show pending regardless of n8n response
                 fetch('https://prabhupadala01.app.n8n.cloud/webhook/register-user', {
                     method: 'POST',
                     headers: {
@@ -108,113 +131,75 @@ export function useAuth() {
                     body: JSON.stringify({ userName, fullName, email, phone }),
                 }).catch(() => {});
 
-                // Do NOT sign out here — signOut resets verificationStatus to 'idle'
-                // which causes App.tsx to show LoginPage instead of AccessDeniedPage.
-                // The session is kept but the user sees "Pending Approval" and cannot
-                // reach the dashboard. They can sign out via the button on that screen.
-                setAuthState(prev => ({
-                    ...prev,
-                    verificationStatus: 'denied',
-                    verificationData: {
-                        email,
-                        message: 'Your account registration is pending admin approval.',
-                    },
-                }));
+                setProfile(null);
+                setProfileError(null);
+                setVerificationStatus('denied');
+                setVerificationData({
+                    email,
+                    message: 'Your account registration is pending admin approval.',
+                });
                 return;
             }
 
-            console.log('✅ User found in DB:', userProfile);
+            // User found
+            setProfile(data);
+            setProfileError(null);
 
-            if (!userProfile.is_active) {
-                // In DB but not yet approved — keep session but block access via 'denied' status.
-                // Do NOT call signOut here — it resets verificationStatus to 'idle' and shows LoginPage.
-                setAuthState(prev => ({
-                    ...prev,
-                    verificationStatus: 'denied',
-                    verificationData: {
-                        email: email,
-                        message: 'Your account is pending admin approval.',
-                    }
-                }));
+            if (!data.is_active) {
+                setVerificationStatus('denied');
+                setVerificationData({
+                    email,
+                    message: 'Your account is pending admin approval.',
+                });
                 return;
             }
 
             // Active user — check trial status
-            const userRole = userProfile.role as UserRole;
-            const userAccessLevel = userProfile.access_level as AccessLevel;
+            const userRole = data.role as UserRole;
+            const userAccessLevel = data.access_level as AccessLevel;
             const trialEligible = isTrialEligible(userRole, userAccessLevel);
-            const daysLeft = trialEligible && userProfile.created_at
-                ? getTrialDaysLeft(userProfile.created_at)
+            const daysLeft = trialEligible && data.created_at
+                ? getTrialDaysLeft(data.created_at)
                 : undefined;
             const trialExpired = trialEligible && daysLeft !== undefined && daysLeft <= 0;
 
-            setAuthState(prev => ({
-                ...prev,
-                verificationStatus: trialExpired ? 'trial_expired' : 'allowed',
-                role: userRole,
-                accessLevel: userAccessLevel,
-                isTrialUser: trialEligible,
-                trialDaysLeft: daysLeft,
-                dbUserId: userProfile.id,
-                verificationData: {
-                    email: userProfile.email,
-                    fullName: (() => { const raw = userProfile.display_name || userProfile.full_name || userProfile.user_name || session.user.user_metadata.full_name || ''; return raw.charAt(0).toUpperCase() + raw.slice(1); })(),
-                    avatarUrl: session.user.user_metadata.avatar_url,
-                },
-            }));
-
-        } catch (error) {
-            console.error('❌ Verification failed:', error);
-            setAuthState(prev => ({
-                ...prev,
-                verificationStatus: 'denied',
-                verificationData: {
-                    message: 'Unable to verify access. Please check your connection.',
-                },
-            }));
-        } finally {
-            verifyingRef.current = false;
-        }
-    }, []);
-
-    useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setAuthState(prev => ({
-                ...prev,
-                user: session?.user ?? null,
-                session,
-                loading: false,
-            }));
-
-            if (session) {
-                verifyUser(session);
-            }
-        });
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            (event, session) => {
-                console.log('🔐 Auth state changed:', event);
-                setAuthState(prev => ({
-                    ...prev,
-                    user: session?.user ?? null,
-                    session,
-                    loading: false,
-                    verificationStatus: session ? prev.verificationStatus : 'idle',
-                    verificationData: session ? prev.verificationData : {},
-                }));
-
-                if (event === 'SIGNED_IN' && session && !verifyingRef.current) {
-                    verifyUser(session);
-                }
-            }
-        );
-
-        return () => {
-            subscription.unsubscribe();
+            setRole(userRole);
+            setAccessLevel(userAccessLevel);
+            setIsTrialUser(trialEligible);
+            setTrialDaysLeft(daysLeft);
+            setDbUserId(data.id);
+            setVerificationStatus(trialExpired ? 'trial_expired' : 'allowed');
+            setVerificationData({
+                email: data.email,
+                fullName: (() => {
+                    const raw = data.display_name || data.full_name || data.user_name || session.user.user_metadata.full_name || '';
+                    return raw.charAt(0).toUpperCase() + raw.slice(1);
+                })(),
+                avatarUrl: session.user.user_metadata.avatar_url,
+            });
         };
-    }, [verifyUser]);
 
-    const signInWithGoogle = async () => {
+        fetchProfile();
+
+        return () => { ignore = true; };
+    }, [userId]);
+
+    // --- Reset on sign-out ---
+    useEffect(() => {
+        if (authReady && !session) {
+            setVerificationStatus('idle');
+            setVerificationData({});
+            setProfile(undefined);
+            setProfileError(null);
+            setRole(undefined);
+            setAccessLevel(undefined);
+            setTrialDaysLeft(undefined);
+            setIsTrialUser(false);
+            setDbUserId(undefined);
+        }
+    }, [authReady, session]);
+
+    const signInWithGoogle = useCallback(async () => {
         const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
@@ -222,39 +207,30 @@ export function useAuth() {
             },
         });
         if (error) {
-            console.error('❌ Google sign-in error:', error.message);
+            console.error('Google sign-in error:', error.message);
         }
-    };
+    }, []);
 
-    const signOut = async () => {
+    const signOut = useCallback(async () => {
         const { error } = await supabase.auth.signOut();
         if (error) {
-            console.error('❌ Sign-out error:', error.message);
+            console.error('Sign-out error:', error.message);
         }
-        setAuthState({
-            user: null,
-            session: null,
-            loading: false,
-            verificationStatus: 'idle',
-            verificationData: {},
-            isTrialUser: false,
-        });
-    };
+    }, []);
 
     return {
-        user: authState.user,
-        session: authState.session,
-        loading: authState.loading,
-        isAuthenticated: !!authState.session,
-        verificationStatus: authState.verificationStatus,
-        verificationData: authState.verificationData,
-        role: authState.role,
-        accessLevel: authState.accessLevel,
-        trialDaysLeft: authState.trialDaysLeft,
-        isTrialUser: authState.isTrialUser,
-        dbUserId: authState.dbUserId,
+        user: session?.user ?? null,
+        session,
+        loading: !authReady,
+        isAuthenticated: !!session,
+        verificationStatus,
+        verificationData,
+        role,
+        accessLevel,
+        trialDaysLeft,
+        isTrialUser,
+        dbUserId,
         signInWithGoogle,
         signOut,
     };
 }
-
