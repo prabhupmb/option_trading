@@ -92,6 +92,26 @@ interface IronGatePosition {
     original_stop_loss: number | null;  // Entry SL (current stop_loss = breakeven in stage 2)
     round_number: number | null;        // Re-entry round on same ticker
     session_round: number | null;       // Today's re-entry count (resets each ET morning)
+    // v1.10.0 fields
+    rvol: number | null;
+    volume_trend: 'SURGE' | 'HIGH' | 'NORMAL' | 'LOW' | 'UNKNOWN' | null;
+    volume_current: number | null;
+    volume_avg: number | null;
+    volume_confirmed: boolean | null;
+    horizon_days: number | null;
+    horizon_target: number | null;
+    horizon_target_low: number | null;
+    horizon_target_high: number | null;
+    horizon_move_pct: number | null;
+    horizon_rr: string | null;
+    horizon_confidence: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN' | null;
+    horizon_method: string | null;
+    iv_proxy_ann_pct: number | null;
+    sigma_horizon_pct: number | null;
+    trend_strength_mult: number | null;
+    trend_strength_score: number | null;
+    fib_target3: number | null;
+    fib_t3_level: number | null;
 }
 
 interface IronGateHistory {
@@ -540,6 +560,44 @@ const PositionCard: React.FC<{
                     </div>
                 </div>
 
+                {/* ── Metrics Strip: ADX / TREND / VOLUME / IV~ ── */}
+                <div className="grid grid-cols-4 gap-1.5 max-[480px]:grid-cols-2">
+                    {(() => {
+                        const adxVal = position.adx_value || 0;
+                        const adxColor = adxVal >= 30 ? 'text-[#00d97e]' : adxVal >= 25 ? 'text-amber-400' : 'text-slate-500';
+                        const diSpread = Math.abs((position.plus_di || 0) - (position.minus_di || 0));
+                        const plusDiLeads = (position.plus_di || 0) > (position.minus_di || 0);
+                        const diLabel = plusDiLeads ? `+DI ${diSpread.toFixed(1)}` : `-DI ${diSpread.toFixed(1)}`;
+                        const diAgrees = (isCall && plusDiLeads) || (!isCall && !plusDiLeads);
+                        const diColor = diAgrees ? 'text-[#00d97e]' : 'text-[#ff4757]';
+                        const volTrend = position.volume_trend;
+                        const rvolVal = position.rvol;
+                        const volColor = volTrend === 'SURGE' ? 'text-[#00d97e]' : volTrend === 'HIGH' ? 'text-[#00d97e]' : volTrend === 'LOW' ? 'text-amber-400' : 'text-slate-500';
+                        const volGlow = volTrend === 'SURGE' ? '0 0 6px rgba(0,217,126,0.3)' : undefined;
+                        const ivVal = position.iv_proxy_ann_pct;
+                        return (
+                            <>
+                                <div className="bg-gray-100 dark:bg-[#111620] rounded-lg p-2 text-center border border-gray-200 dark:border-[#1e2430]">
+                                    <div className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">ADX</div>
+                                    <div className={`text-[13px] font-black font-mono ${adxColor}`}>{adxVal.toFixed(1)}</div>
+                                </div>
+                                <div className="bg-gray-100 dark:bg-[#111620] rounded-lg p-2 text-center border border-gray-200 dark:border-[#1e2430]">
+                                    <div className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">TREND</div>
+                                    <div className={`text-[13px] font-black font-mono ${diColor}`}>{diLabel}</div>
+                                </div>
+                                <div className="bg-gray-100 dark:bg-[#111620] rounded-lg p-2 text-center border border-gray-200 dark:border-[#1e2430]" style={{ boxShadow: volGlow }}>
+                                    <div className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">VOLUME</div>
+                                    <div className={`text-[13px] font-black font-mono ${volColor}`}>{rvolVal != null ? `${rvolVal.toFixed(2)}x` : '—'}</div>
+                                </div>
+                                <div className="bg-gray-100 dark:bg-[#111620] rounded-lg p-2 text-center border border-gray-200 dark:border-[#1e2430]" title="Annualized realized volatility (30d proxy) — not broker IV">
+                                    <div className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">IV~</div>
+                                    <div className="text-[13px] font-black font-mono text-slate-500">{ivVal != null ? `${ivVal.toFixed(0)}%` : '—'}</div>
+                                </div>
+                            </>
+                        );
+                    })()}
+                </div>
+
                 {/* ── Row 4: SL + R:R ── */}
                 <div className="flex items-center justify-between text-[10px] px-0.5">
                     {(position.target_stage ?? 1) === 2 ? (
@@ -559,6 +617,41 @@ const PositionCard: React.FC<{
                 <IronGateProgressBar position={position} />
 
 
+
+                {/* ── 30D Horizon Block ── */}
+                {position.horizon_target != null && (
+                    <div className="border-t border-gray-200 dark:border-[#1a1f2e] pt-2.5 space-y-1">
+                        <div className="flex items-center flex-wrap gap-x-3 gap-y-1">
+                            <span
+                                className="text-[9px] font-black uppercase tracking-widest text-slate-500"
+                                title={`Projected ${position.horizon_days ?? 30}-day move. Blends realized-volatility projection scaled by ADX trend strength with a Fibonacci ${position.fib_t3_level ?? ''} extension. Informational — the position still exits at T1/T2.`}
+                            >
+                                🎯 {position.horizon_days ?? 30}D OUTLOOK
+                            </span>
+                            <span className="text-sm font-black font-mono text-slate-900 dark:text-white">{fmt(position.horizon_target)}</span>
+                            <span className={`text-sm font-black font-mono ${isCall ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>
+                                +{(position.horizon_move_pct ?? 0).toFixed(1)}%
+                            </span>
+                            {position.horizon_rr && (
+                                <span className="text-[10px] font-bold font-mono text-slate-500">R:R {position.horizon_rr}</span>
+                            )}
+                            {position.horizon_confidence && position.horizon_confidence !== 'UNKNOWN' && (
+                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase border ${
+                                    position.horizon_confidence === 'HIGH' ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/25' :
+                                    position.horizon_confidence === 'MEDIUM' ? 'text-amber-400 bg-amber-400/10 border-amber-400/25' :
+                                    'text-slate-500 bg-slate-500/10 border-slate-500/25'
+                                }`}>
+                                    ● {position.horizon_confidence}
+                                </span>
+                            )}
+                        </div>
+                        {(position.horizon_target_low != null || position.horizon_target_high != null) && (
+                            <div className="text-[9px] font-mono font-bold text-slate-500 pl-0.5">
+                                range {fmt(position.horizon_target_low ?? 0)} – {fmt(position.horizon_target_high ?? 0)}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* ── Row 8: Monitor Footer ── */}
                 <div className="flex items-center justify-between text-[9px] text-slate-600 font-bold pt-2 border-t border-gray-200 dark:border-[#1a1f2e]">
@@ -829,6 +922,8 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
     const [historyDateFrom, setHistoryDateFrom] = useState<string>('');
     const [historyDateTo, setHistoryDateTo] = useState<string>('');
     const [versionFilter, setVersionFilter] = useState<string>('all');
+    const [volSurgeFilter, setVolSurgeFilter] = useState(false);
+    const [sortBy, setSortBy] = useState<'default' | '30d_upside'>('default');
     const [webhookStatus, setWebhookStatus] = useState<'idle' | 'triggering' | 'ok' | 'err'>('idle');
     const [lastTriggeredTime, setLastTriggeredTime] = useState<string | null>(null);
     const [firedTimes, setFiredTimes] = useState<Set<string>>(new Set());
@@ -986,11 +1081,18 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
         if (executionFilter === 'READY' && p.execution_hint !== 'READY_BUY' && p.execution_hint !== 'READY_SELL') return false;
         if (executionFilter === 'WAIT'  && p.execution_hint !== 'WAIT') return false;
         if (versionFilter !== 'all' && versionFilter && p.version && p.version !== versionFilter) return false;
+        if (volSurgeFilter && p.volume_trend !== 'SURGE' && p.volume_trend !== 'HIGH') return false;
         return true;
     });
+
+    if (sortBy === '30d_upside') {
+        filteredPositions.sort((a, b) => (b.horizon_move_pct ?? -Infinity) - (a.horizon_move_pct ?? -Infinity));
+    }
+
     const todayCount = versionBase.filter(p => new Date(p.opened_at).toDateString() === todayStr).length;
     const readyCount = versionBase.filter(p => p.execution_hint === 'READY_BUY' || p.execution_hint === 'READY_SELL').length;
     const waitCount  = versionBase.filter(p => p.execution_hint === 'WAIT').length;
+    const volSurgeCount = versionBase.filter(p => p.volume_trend === 'SURGE' || p.volume_trend === 'HIGH').length;
 
     return (
         <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#080b10] min-h-screen text-slate-900 dark:text-white font-sans">
@@ -1201,17 +1303,43 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                         <span className="font-black bg-black/10 dark:bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{waitCount}</span>
                                     </button>
 
+                                    {/* VOL SURGE chip */}
+                                    <button
+                                        onClick={() => { setTodayOnly(false); setVolSurgeFilter(v => !v); }}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all
+                                            text-[#00d97e]
+                                            ${volSurgeFilter
+                                                ? 'bg-[#00d97e]/15 border-[#00d97e]/40 ring-1 ring-[#00d97e]'
+                                                : 'bg-[#00d97e]/5 border-[#00d97e]/20'
+                                            }
+                                            ${volSurgeCount === 0 ? 'opacity-40 cursor-default' : 'hover:opacity-80 cursor-pointer'}`}
+                                    >
+                                        <span>📊</span>
+                                        <span className="uppercase tracking-wide">Vol Surge</span>
+                                        <span className="font-black bg-black/10 dark:bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{volSurgeCount}</span>
+                                    </button>
+
                                     {/* Clear all */}
-                                    {(signalFilter || executionFilter) && (
+                                    {(signalFilter || executionFilter || volSurgeFilter) && (
                                         <button
-                                            onClick={() => { setSignalFilter(null); setExecutionFilter(null); }}
+                                            onClick={() => { setSignalFilter(null); setExecutionFilter(null); setVolSurgeFilter(false); }}
                                             className="text-[10px] text-slate-500 hover:text-slate-900 dark:hover:text-white font-bold underline transition-colors"
                                         >
                                             clear filters
                                         </button>
                                     )}
 
-                                    <span className="ml-auto text-[9px] text-slate-700 font-bold">
+                                    {/* Sort */}
+                                    <select
+                                        value={sortBy}
+                                        onChange={e => setSortBy(e.target.value as 'default' | '30d_upside')}
+                                        className="ml-auto text-[9px] font-bold bg-transparent border border-gray-200 dark:border-[#1e2430] rounded-md px-2 py-1 text-slate-600 dark:text-slate-400 cursor-pointer"
+                                    >
+                                        <option value="default">Sort: Default</option>
+                                        <option value="30d_upside">Sort: 30D upside</option>
+                                    </select>
+
+                                    <span className="text-[9px] text-slate-700 font-bold">
                                         {filteredPositions.length} of {positions.length} shown
                                     </span>
                                 </div>
