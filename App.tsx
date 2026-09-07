@@ -58,12 +58,13 @@ import { useBrokerContext } from './context/BrokerContext';
 // ─── STOCK FEED VIEW (sub-tabs: Signal Feed + Stock Gate) ─────
 
 const StockFeedView: React.FC<{ onExecute: (s: any) => void; role?: string; onNavigateToLifecycle?: (symbol: string) => void }> = ({ onExecute, role, onNavigateToLifecycle }) => {
-  const [stockTab, setStockTab] = React.useState<'signal-feed' | 'stock-gate' | 'stage-tracker' | 'dip-buy'>('stock-gate');
+  const [stockTab, setStockTab] = React.useState<'signal-feed' | 'stock-gate' | 'stock-gate-day' | 'stage-tracker' | 'dip-buy'>('stock-gate');
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="flex items-center gap-1 px-8 pt-5 pb-0 border-b border-gray-100 dark:border-white/5 bg-white dark:bg-transparent">
         {([
           { id: 'stock-gate',     label: 'Stock Gate',     icon: 'trending_up',   sub: 'Swing trade · 1–4 weeks', adminOnly: false },
+          { id: 'stock-gate-day', label: 'Stock Gate Day', icon: 'bolt',          sub: 'Day trade · intraday',    adminOnly: false },
           { id: 'signal-feed',    label: 'Signal Feed',    icon: 'query_stats',   sub: null,                      adminOnly: true  },
           { id: 'stage-tracker',  label: 'Stage Tracker',  icon: 'account_tree',  sub: null,                      adminOnly: true  },
         ] as const).filter(tab => !tab.adminOnly || role === 'admin').map(tab => (
@@ -96,6 +97,11 @@ const StockFeedView: React.FC<{ onExecute: (s: any) => void; role?: string; onNa
       {stockTab === 'stock-gate' && (
         <div className="flex-1 overflow-y-auto">
           <StockGateTracker onExecute={onExecute} role={role} onNavigateToLifecycle={onNavigateToLifecycle} />
+        </div>
+      )}
+      {stockTab === 'stock-gate-day' && (
+        <div className="flex-1 overflow-y-auto">
+          <StockGateDayTracker />
         </div>
       )}
       {stockTab === 'signal-feed' && (
@@ -254,7 +260,7 @@ const App: React.FC = () => {
 
   // Strategy filter
   const [activeTab, setActiveTab] = useState<string>('iron-gate-day');
-  const selectedStrategy = ['iron-gate', 'iron-gate-day', 'stock-gate-day', 'option-dip'].includes(activeTab) ? null : activeTab;
+  const selectedStrategy = ['iron-gate', 'iron-gate-day', 'option-dip'].includes(activeTab) ? null : activeTab;
   const { strategies } = useStrategyConfigs();
 
   // New Hook
@@ -594,7 +600,6 @@ const App: React.FC = () => {
                 {([
                   { id: 'iron-gate', label: 'Iron Gate Swing', icon: 'lock' },
                   { id: 'iron-gate-day', label: 'Iron Gate Day', icon: 'bolt' },
-                  { id: 'stock-gate-day', label: 'Stock Gate Day', icon: 'trending_up' },
                   { id: 'option-dip', label: 'Option Dip', icon: 'swap_vert' },
                 ] as const).map(tab => (
                   <button
@@ -629,7 +634,7 @@ const App: React.FC = () => {
               </div>
 
               {/* ── Tab content ── */}
-              {!['iron-gate', 'iron-gate-day', 'stock-gate-day', 'option-dip'].includes(activeTab) && activeTab !== 'iron-gate-v2' && (
+              {!['iron-gate', 'iron-gate-day', 'option-dip'].includes(activeTab) && activeTab !== 'iron-gate-v2' && (
                 <main className="flex-1 p-8 overflow-y-auto">
                   {/* Data Delay Banner */}
                   <DataDelayBanner onRefresh={refresh} loading={loading} isAdmin={role === 'admin'} />
@@ -722,12 +727,6 @@ const App: React.FC = () => {
               {activeTab === 'iron-gate-day' && (
                 <div className="flex-1 overflow-y-auto">
                   <IronGateDayTracker onExecute={setExecutingSignal} />
-                </div>
-              )}
-
-              {activeTab === 'stock-gate-day' && (
-                <div className="flex-1 overflow-y-auto">
-                  <StockGateDayTracker />
                 </div>
               )}
 
