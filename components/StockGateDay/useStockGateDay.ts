@@ -1,0 +1,226 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { supabase } from '@/services/supabase';
+import type { StockGateDayHistory, StockGateDayPosition } from './types';
+import type { ConnectionStatus, Toast } from './types';
+
+function isDSTNow(d: Date): boolean {
+  const y = d.getUTCFullYear();
+  const ms = new Date(Date.UTC(y, 2, 8, 7));
+  ms.setUTCDate(8 + ((7 - ms.getUTCDay()) % 7));
+  const ne = new Date(Date.UTC(y, 10, 1, 6));
+  ne.setUTCDate(1 + ((7 - ne.getUTCDay()) % 7));
+  return d >= ms && d < ne;
+}
+
+function isPast3pmCentral(): boolean {
+  const now = new Date();
+  const offset = isDSTNow(now) ? -5 : -6;
+  const centralNow = new Date(now.getTime() + offset * 3600 * 1000);
+  const hours = centralNow.getUTCHours();
+  const minutes = centralNow.getUTCMinutes();
+  return hours > 15 || (hours === 15 && minutes >= 0);
+}
+
+function getETMidnightISO(): string {
+  const now = new Date();
+  const offset = isDSTNow(now) ? -4 : -5;
+  const etNow = new Date(now.getTime() + offset * 3600 * 1000);
+  etNow.setUTCHours(0, 0, 0, 0);
+  return new Date(etNow.getTime() - offset * 3600 * 1000).toISOString();
+}
+
+let _toastSeq = 0;
+function makeToast(message: string, type: Toast['type']): Toast {
+  return { id: String(++_toastSeq), message, type };
+}
+
+export interface StockGateDayState {
+  openPositions: StockGateDayPosition[];
+  todayHistory: StockGateDayHistory[];
+  allHistory: StockGateDayHistory[];
+  loading: boolean;
+  connected: ConnectionStatus;
+  error: string | null;
+  toasts: Toast[];
+  flashIds: Set<string>;
+  updatedIds: Set<string>;
+  historyPulse: boolean;
+  refetch: () => void;
+  dismissToast: (id: string) => void;
+}
+
+export function useStockGateDay(): StockGateDayState {
+  const [openPositions, setOpenPositions] = useState<StockGateDayPosition[]>([]);
+  const [todayHistory, setTodayHistory] = useState<StockGateDayHistory[]>([]);
+  const [allHistory, setAllHistory] = useState<StockGateDayHistory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [connected, setConnected] = useState<ConnectionStatus>('disconnected');
+  const [error, setError] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [flashIds, setFlashIds] = useState<Set<string>>(new Set());
+  const [updatedIds, setUpdatedIds] = useState<Set<string>>(new Set());
+  const [historyPulse, setHistoryPulse] = useState(false);
+  const lastActivityRef = useRef<number>(Date.now());
+
+  const pushToast = useCallback((message: string, type: Toast['type']) => {
+    const t = makeToast(message, type);
+    setToasts(prev => [t, ...prev].slice(0, 5));
+    setTimeout(() => setToasts(prev => prev.filter(x => x.id !== t.id)), 5000);
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(x => x.id !== id));
+  }, []);
+
+  const flashRow = useCallback((id: string) => {
+    setFlashIds(prev => new Set(prev).add(id));
+    setTimeout(() => setFlashIds(prev => { const s = new Set(prev); s.delete(id); return s; }), 1600);
+  }, []);
+
+  const pulseRow = useCallback((id: string) => {
+    setUpdatedIds(prev => new Set(prev).add(id));
+    setTimeout(() => setUpdatedIds(prev => { const s = new Set(prev); s.delete(id); return s; }), 500);
+  }, []);
+
+  const fetchHistory = useCallback(async () => {
+    const todayISO = getETMidnightISO();
+    const [todayRes, allRes] = await Promise.all([
+      supabase.from('stock_gate_day_history').select('*').gte('closed_at', todayISO).order('closed_at', { ascending: false }),
+      supabase.from('stock_gate_day_history').select('*').order('closed_at', { ascending: false }).limit(500),
+    ]);
+    if (!todayRes.error && todayRes.data) setTodayHistory(todayRes.data as StockGateDayHistory[]);
+    if (!allRes.error && allRes.data) setAllHistory(allRes.data as StockGateDayHistory[]);
+  }, []);
+
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [posRes, histRes] = await Promise.all([
+        supabase
+          .from('stock_gate_day_positions')
+          .select('*')
+          .eq('status', 'OPEN')
+          .order('opened_at', { ascending: false }),
+        supabase
+          .from('stock_gate_day_history')
+          .select('*')
+          .gte('closed_at', getETMidnightISO())
+          .order('closed_at', { ascending: false }),
+      ]);
+      if (posRes.error) throw posRes.error;
+      if (histRes.error) throw histRes.error;
+      setOpenPositions((posRes.data || []) as StockGateDayPosition[]);
+      setTodayHistory((histRes.data || []) as StockGateDayHistory[]);
+      setError(null);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAll();
+
+    const posChannel = supabase
+      .channel('sgd-positions-' + Date.now())
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'stock_gate_day_positions' },
+        (payload) => {
+          lastActivityRef.current = Date.now();
+          const row = payload.new as StockGateDayPosition;
+          if (row.status === 'OPEN') {
+            setOpenPositions(prev => [row, ...prev]);
+            flashRow(row.id);
+            const tier = row.tier === 'A+' ? 'STRONG ' : '';
+            pushToast(`New signal: ${row.symbol} ${tier}${row.action} ${row.tier}`, 'new');
+          }
+        }
+      )
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'stock_gate_day_positions' },
+        (payload) => {
+          lastActivityRef.current = Date.now();
+          const updated = payload.new as StockGateDayPosition;
+          setOpenPositions(prev =>
+            prev.map(p => p.id === updated.id ? updated : p)
+          );
+          pulseRow(updated.id);
+        }
+      )
+      .on('postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'stock_gate_day_positions' },
+        (payload) => {
+          lastActivityRef.current = Date.now();
+          const deletedId = (payload.old as any).id;
+          setOpenPositions(prev => prev.filter(p => p.id !== deletedId));
+          fetchHistory();
+        }
+      )
+      .subscribe((status) => {
+        setConnected(status === 'SUBSCRIBED' ? 'connected' : 'disconnected');
+      });
+
+    const histChannel = supabase
+      .channel('sgd-history-' + Date.now())
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'stock_gate_day_history' },
+        (payload) => {
+          lastActivityRef.current = Date.now();
+          const row = payload.new as StockGateDayHistory;
+          setTodayHistory(prev => [row, ...prev]);
+          setAllHistory(prev => [row, ...prev]);
+          setHistoryPulse(true);
+          setTimeout(() => setHistoryPulse(false), 3000);
+          const sign = (row.pnl_pct || 0) >= 0 ? '+' : '';
+          const type = row.result === 'WIN' ? 'win' : row.result === 'LOSS' ? 'loss' : 'info';
+          pushToast(
+            `${row.result === 'WIN' ? 'WIN' : row.result === 'LOSS' ? 'LOSS' : 'BREAKEVEN'}: ${row.symbol} ${sign}${(row.pnl_pct || 0).toFixed(2)}% (${row.exit_reason})`,
+            type
+          );
+        }
+      )
+      .subscribe();
+
+    const idleInterval = setInterval(() => {
+      const secondsSince = (Date.now() - lastActivityRef.current) / 1000;
+      setConnected(prev => {
+        if (prev === 'disconnected') return prev;
+        return secondsSince > 60 ? 'idle' : 'connected';
+      });
+    }, 10000);
+
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    if (!isPast3pmCentral()) {
+      pollInterval = setInterval(() => {
+        if (isPast3pmCentral()) {
+          if (pollInterval) clearInterval(pollInterval);
+          return;
+        }
+        fetchAll();
+      }, 15 * 60 * 1000);
+    }
+
+    return () => {
+      supabase.removeChannel(posChannel);
+      supabase.removeChannel(histChannel);
+      clearInterval(idleInterval);
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [fetchAll, fetchHistory, flashRow, pulseRow, pushToast]);
+
+  return {
+    openPositions,
+    todayHistory,
+    allHistory,
+    loading,
+    connected,
+    error,
+    toasts,
+    flashIds,
+    updatedIds,
+    historyPulse,
+    refetch: fetchAll,
+    dismissToast,
+  };
+}

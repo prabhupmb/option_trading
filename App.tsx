@@ -22,6 +22,7 @@ import QuickTradePage from './components/QuickTradePage';
 import AutoTradePage from './components/AutoTradePage';
 import IronGateTracker from './components/IronGateTracker';
 import IronGateDayTracker from './components/IronGateDayTracker';
+import StockGateDayTracker from './components/StockGateDayTracker';
 import StockGateTracker from './components/StockGateTracker';
 import StockDecisionHistory from './components/StockDecisionHistory';
 import AdminEngineActivity from './components/AdminEngineActivity';
@@ -253,7 +254,7 @@ const App: React.FC = () => {
 
   // Strategy filter
   const [activeTab, setActiveTab] = useState<string>('iron-gate-day');
-  const selectedStrategy = ['iron-gate', 'iron-gate-day', 'option-dip'].includes(activeTab) ? null : activeTab;
+  const selectedStrategy = ['iron-gate', 'iron-gate-day', 'stock-gate-day', 'option-dip'].includes(activeTab) ? null : activeTab;
   const { strategies } = useStrategyConfigs();
 
   // New Hook
@@ -593,6 +594,7 @@ const App: React.FC = () => {
                 {([
                   { id: 'iron-gate', label: 'Iron Gate Swing', icon: 'lock' },
                   { id: 'iron-gate-day', label: 'Iron Gate Day', icon: 'bolt' },
+                  { id: 'stock-gate-day', label: 'Stock Gate Day', icon: 'trending_up' },
                   { id: 'option-dip', label: 'Option Dip', icon: 'swap_vert' },
                 ] as const).map(tab => (
                   <button
@@ -627,7 +629,7 @@ const App: React.FC = () => {
               </div>
 
               {/* ── Tab content ── */}
-              {!['iron-gate', 'iron-gate-day', 'option-dip'].includes(activeTab) && activeTab !== 'iron-gate-v2' && (
+              {!['iron-gate', 'iron-gate-day', 'stock-gate-day', 'option-dip'].includes(activeTab) && activeTab !== 'iron-gate-v2' && (
                 <main className="flex-1 p-8 overflow-y-auto">
                   {/* Data Delay Banner */}
                   <DataDelayBanner onRefresh={refresh} loading={loading} isAdmin={role === 'admin'} />
@@ -720,6 +722,12 @@ const App: React.FC = () => {
               {activeTab === 'iron-gate-day' && (
                 <div className="flex-1 overflow-y-auto">
                   <IronGateDayTracker onExecute={setExecutingSignal} />
+                </div>
+              )}
+
+              {activeTab === 'stock-gate-day' && (
+                <div className="flex-1 overflow-y-auto">
+                  <StockGateDayTracker />
                 </div>
               )}
 
