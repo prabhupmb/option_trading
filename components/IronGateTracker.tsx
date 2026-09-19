@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { OptionSignal } from '../types';
 
@@ -891,6 +891,7 @@ const HistorySummaryStats: React.FC<{ history: IronGateHistory[] }> = ({ history
 // ─── IRON GATE SCAN SCHEDULE ─────────────────────────────────
 const IRON_GATE_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/irongate-swingtrade1';
 const IRON_GATE_SCAN_TIMES = ['08:31', '08:45', '09:00', '09:10', '09:20', '09:35', '09:50', '10:15', '10:45', '12:10', '13:30', '14:15', '14:50'];
+const TK_WEBHOOK_SECRET = (import.meta.env.VITE_TK_WEBHOOK_SECRET as string | undefined) ?? '';
 
 const getCSTHHMM = () => {
     const cst = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
@@ -927,26 +928,73 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
     const [webhookStatus, setWebhookStatus] = useState<'idle' | 'triggering' | 'ok' | 'err'>('idle');
     const [lastTriggeredTime, setLastTriggeredTime] = useState<string | null>(null);
     const [firedTimes, setFiredTimes] = useState<Set<string>>(new Set());
+    const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+    const [cooldown, setCooldown] = useState(0);
+    const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const showToast = useCallback((msg: string, type: 'success' | 'error' = 'success') => {
+        setToast({ msg, type });
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = setTimeout(() => setToast(null), 5000);
+    }, []);
+
+    const startCooldown = useCallback(() => {
+        setCooldown(10);
+        if (cooldownRef.current) clearInterval(cooldownRef.current);
+        cooldownRef.current = setInterval(() => {
+            setCooldown(prev => {
+                if (prev <= 1) { clearInterval(cooldownRef.current!); cooldownRef.current = null; return 0; }
+                return prev - 1;
+            });
+        }, 1000);
+    }, []);
 
     const triggerWebhook = async (reason: string, scheduledTime?: string) => {
+        if (!TK_WEBHOOK_SECRET) { showToast('Scan unavailable — missing config', 'error'); return; }
         console.log(`[IronGate] Triggering webhook: ${reason}`);
         setWebhookStatus('triggering');
         try {
-            await fetch(IRON_GATE_WEBHOOK, {
+            const res = await fetch(IRON_GATE_WEBHOOK, {
                 method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ triggered_by: 'manual' }),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-TK-Secret': TK_WEBHOOK_SECRET,
+                },
+                body: JSON.stringify({ triggered_by: reason }),
             });
-            const fired = scheduledTime || getCSTHHMM();
-            setWebhookStatus('ok');
-            setLastTriggeredTime(fired);
-            setFiredTimes(prev => new Set(prev).add(fired));
-            console.log(`[IronGate] Webhook triggered OK at ${fired} CST`);
-            setTimeout(() => setWebhookStatus('idle'), 4000);
+
+            if (res.ok) {
+                const text = await res.text();
+                if (!text || text.trim() === '') {
+                    // 200 + empty body = auth rejected
+                    setWebhookStatus('err');
+                    showToast('Scan rejected — check credentials', 'error');
+                    setTimeout(() => setWebhookStatus('idle'), 4000);
+                    return;
+                }
+                // 200 + body = accepted
+                const fired = scheduledTime || getCSTHHMM();
+                setWebhookStatus('ok');
+                setLastTriggeredTime(fired);
+                setFiredTimes(prev => new Set(prev).add(fired));
+                showToast('Scan started', 'success');
+                startCooldown();
+                console.log(`[IronGate] Webhook triggered OK at ${fired} CST`);
+                setTimeout(() => setWebhookStatus('idle'), 4000);
+            } else if (res.status === 401 || res.status === 403 || res.status === 404) {
+                setWebhookStatus('err');
+                showToast('Scan unavailable', 'error');
+                setTimeout(() => setWebhookStatus('idle'), 4000);
+            } else {
+                setWebhookStatus('err');
+                showToast(`Scan failed (${res.status})`, 'error');
+                setTimeout(() => setWebhookStatus('idle'), 4000);
+            }
         } catch (err) {
             console.error('[IronGate] Webhook trigger failed:', err);
             setWebhookStatus('err');
+            showToast('Could not reach scanner', 'error');
             setTimeout(() => setWebhookStatus('idle'), 4000);
         }
     };
@@ -1096,6 +1144,11 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
 
     return (
         <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#080b10] min-h-screen text-slate-900 dark:text-white font-sans">
+            {toast && (
+                <div className={`fixed top-4 right-4 z-[200] px-4 py-3 rounded-xl border text-sm font-bold shadow-2xl transition-all ${toast.type === 'success' ? 'bg-emerald-950/90 border-emerald-700/60 text-emerald-300' : 'bg-red-950/90 border-red-700/60 text-red-300'}`}>
+                    {toast.msg}
+                </div>
+            )}
             <div className="max-w-[1600px] mx-auto p-5 lg:p-7 space-y-5">
 
                 {/* ── HEADER ── */}
@@ -1169,13 +1222,13 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                             )}
                             <button
                                 onClick={() => triggerWebhook('manual')}
-                                disabled={webhookStatus === 'triggering' || !isCSTWeekday()}
-                                title={!isCSTWeekday() ? 'Only available on weekdays (CST)' : 'Trigger scan now'}
+                                disabled={webhookStatus === 'triggering' || !isCSTWeekday() || cooldown > 0 || !TK_WEBHOOK_SECRET}
+                                title={!TK_WEBHOOK_SECRET ? 'Scan unavailable — missing config' : !isCSTWeekday() ? 'Only available on weekdays (CST)' : cooldown > 0 ? `Cooldown: ${cooldown}s` : 'Trigger scan now'}
                                 className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all border ${webhookStatus === 'ok'
                                     ? 'bg-[#00d97e]/10 border-[#00d97e]/30 text-[#00d97e]'
                                     : webhookStatus === 'err'
                                         ? 'bg-red-500/10 border-red-500/30 text-red-400'
-                                        : isCSTWeekday()
+                                        : (isCSTWeekday() && cooldown === 0 && TK_WEBHOOK_SECRET)
                                             ? 'bg-slate-100 dark:bg-[#111620] border-gray-200 dark:border-[#1e2430] text-slate-500 dark:text-slate-400 hover:text-amber-400 hover:border-amber-700/40'
                                             : 'bg-slate-50 dark:bg-[#0d1117] border-gray-100 dark:border-[#1a1f2e] text-slate-300 dark:text-slate-700 cursor-not-allowed'
                                     }`}
@@ -1183,7 +1236,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                 <span className={`material-symbols-outlined text-sm ${webhookStatus === 'triggering' ? 'animate-spin' : ''}`}>
                                     {webhookStatus === 'ok' ? 'check_circle' : webhookStatus === 'err' ? 'error' : 'play_arrow'}
                                 </span>
-                                {webhookStatus === 'ok' ? 'Triggered!' : webhookStatus === 'err' ? 'Failed' : webhookStatus === 'triggering' ? 'Triggering...' : 'Scan Now'}
+                                {!TK_WEBHOOK_SECRET ? 'Scan unavailable' : webhookStatus === 'ok' ? 'Triggered!' : webhookStatus === 'err' ? 'Failed' : webhookStatus === 'triggering' ? 'Triggering...' : cooldown > 0 ? `Wait ${cooldown}s` : 'Scan Now'}
                             </button>
                         </div>
                     </div>

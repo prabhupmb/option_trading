@@ -43,6 +43,7 @@ import DipBuyScreen from './components/DipBuyScreen';
 import AddToPortfolio from './components/AddToPortfolio';
 import PortfolioAdvisor from './components/PortfolioAdvisor';
 import BrokerPortfolioView from './components/BrokerPortfolio';
+import PortfolioPage from './components/portfolio/PortfolioPage';
 import { TrendingDown } from 'lucide-react';
 import OptionDipTab from './components/OptionDip/OptionDipTab';
 import StructureBoard from './components/StructureBoard';
@@ -400,6 +401,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const IRON_GATE_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/irongate-swingtrade1';
     const IRON_GATE_SCAN_TIMES = ['08:31', '08:45', '09:00', '09:10', '09:20', '09:35', '09:50', '10:15', '10:45', '12:10', '13:30', '14:15', '14:50'];
+    const secret = (import.meta.env.VITE_TK_WEBHOOK_SECRET as string | undefined) ?? '';
     const firedRef = new Set<string>();
 
     const getCSTHHMM = () => {
@@ -408,6 +410,7 @@ const App: React.FC = () => {
     };
 
     const check = () => {
+      if (!secret) { console.warn('[IronGate Global] Skipping — VITE_TK_WEBHOOK_SECRET not set'); return; }
       if (!isCSTWeekday()) { console.log('[IronGate Global] Skipping — not a CST weekday'); return; }
       const hhmm = getCSTHHMM();
       console.log(`[IronGate Global] Tick — current CST: ${hhmm} | scan times: ${IRON_GATE_SCAN_TIMES.join(', ')} | fired: ${[...firedRef].join(', ') || 'none'} | match: ${IRON_GATE_SCAN_TIMES.includes(hhmm)} | alreadyFired: ${firedRef.has(hhmm)}`);
@@ -416,11 +419,24 @@ const App: React.FC = () => {
         console.log(`[IronGate Global] Firing webhook at ${hhmm} CST → ${IRON_GATE_WEBHOOK}`);
         fetch(IRON_GATE_WEBHOOK, {
           method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain' },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-TK-Secret': secret,
+          },
           body: JSON.stringify({ triggered_by: `scheduled_${hhmm}` }),
         })
-          .then(() => console.log(`[IronGate Global] Webhook OK at ${hhmm}`))
+          .then(async res => {
+            if (res.ok) {
+              const text = await res.text();
+              if (!text || text.trim() === '') {
+                console.error(`[IronGate Global] Webhook rejected at ${hhmm} — empty body (auth failure)`);
+              } else {
+                console.log(`[IronGate Global] Webhook OK at ${hhmm}`);
+              }
+            } else {
+              console.error(`[IronGate Global] Webhook failed at ${hhmm}: HTTP ${res.status}`);
+            }
+          })
           .catch(err => console.error(`[IronGate Global] Webhook failed at ${hhmm}:`, err));
       }
     };
@@ -738,115 +754,7 @@ const App: React.FC = () => {
 
             </div>
           ) : currentView === 'portfolio' ? (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Portfolio sub-tabs */}
-              <div className="flex gap-1 px-6 pt-4 pb-2 border-b border-zinc-800/60">
-                {([['broker', 'analytics', 'Broker Portfolio'], ['advisor', 'psychology', 'Advisor'], ['decisions', 'history', 'Trade Decisions']] as const).map(([id, icon, label]) => (
-                  <button
-                    key={id}
-                    onClick={() => setPortfolioTab(id as 'broker' | 'advisor' | 'decisions')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 ${
-                      portfolioTab === id
-                        ? 'bg-emerald-500/15 text-emerald-400'
-                        : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-base">{icon}</span>
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <div className="flex-1 overflow-y-auto">
-                {portfolioTab === 'broker' ? (
-                  <BrokerPortfolioView
-                    fetchPortfolio={async () => {
-                      if (!selectedBroker) return null;
-                      const resp = await fetch('https://prabhupadala01.app.n8n.cloud/webhook/portfolio', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          broker_id: selectedBroker.id,
-                          broker_name: selectedBroker.broker_name,
-                          broker_mode: selectedBroker.broker_mode,
-                          user_email: user?.email,
-                        }),
-                      });
-                      const json = await resp.json();
-                      if (!json.success) throw new Error(json.error || 'Failed to load portfolio');
-                      const acct = json.account || {};
-                      const pos = json.positions || {};
-                      const allOrders = json.orders?.[json.broker] || json.orders?.alpaca || json.orders?.schwab || [];
-                      const orderCount = typeof json.orders?.count === 'number' ? json.orders.count : allOrders.length;
-                      return {
-                        broker_label: json.displayName || selectedBroker.display_name,
-                        broker_name: (json.broker || selectedBroker.broker_name || '').toUpperCase(),
-                        mode: (json.brokerMode || selectedBroker.broker_mode || 'paper').toUpperCase() as 'LIVE' | 'PAPER',
-                        total_equity: acct.totalEquity || 0,
-                        day_change_dollar: acct.dayPL || 0,
-                        day_change_pct: acct.totalEquity ? ((acct.dayPL || 0) / ((acct.totalEquity || 1) - (acct.dayPL || 0))) * 100 : 0,
-                        cash_balance: acct.cashBalance || 0,
-                        buying_power: acct.buyingPower || 0,
-                        open_positions: pos.totalCount || 0,
-                        open_options: pos.optionCount || 0,
-                        open_stocks: pos.stockCount || 0,
-                        orders_7d: orderCount,
-                        orders_filled: allOrders.filter((o: any) => o.status === 'FILLED').length,
-                        orders_pending: allOrders.filter((o: any) => ['QUEUED', 'WORKING', 'NEW', 'ACCEPTED'].includes(o.status)).length,
-                        last_synced: json.timestamp || new Date().toISOString(),
-                        positions: (pos.all || []).map((p: any) => {
-                          const parsed = p.symbol?.match(/^([A-Z]+)(\d{6})([CP])(\d{8})$/);
-                          const isOpt = p.isOption || !!parsed;
-                          let strike = p.strikePrice, expiry = p.expirationDate, dte: number | undefined, optType: string = 'STOCK';
-                          if (parsed) {
-                            const [, , dateStr, cp, strikeRaw] = parsed;
-                            optType = cp === 'C' ? 'CALL' : 'PUT';
-                            strike = parseInt(strikeRaw, 10) / 1000;
-                            expiry = `20${dateStr.slice(0,2)}-${dateStr.slice(2,4)}-${dateStr.slice(4,6)}`;
-                            const ed = new Date(`${expiry}T16:00:00`);
-                            const td = new Date(); td.setHours(0,0,0,0);
-                            dte = Math.max(0, Math.ceil((ed.getTime() - td.getTime()) / 86400000));
-                          } else if (p.putCall) {
-                            optType = p.putCall;
-                          }
-                          return {
-                            symbol: parsed ? parsed[1] : (p.underlying || p.symbol),
-                            name: isOpt ? p.symbol : undefined,
-                            type: isOpt ? optType as 'CALL' | 'PUT' : 'STOCK',
-                            strike: isOpt ? strike : undefined,
-                            expiry: isOpt ? expiry : undefined,
-                            dte: isOpt ? dte : undefined,
-                            qty: p.quantity || 0,
-                            avg_cost: p.avgPrice || 0,
-                            mkt_value: p.marketValue || 0,
-                            pl_dollar: p.dayPL || 0,
-                            pl_pct: p.dayPLPct || 0,
-                          };
-                        }),
-                        orders: allOrders,
-                      };
-                    }}
-                    onConnect={() => setCurrentView('settings')}
-                    onClosePosition={(p) => {
-                      // Reuse existing sell modal if present by navigating to old Portfolio
-                      // For now, log the close request
-                      console.log('Close position requested:', p);
-                    }}
-                  />
-                ) : portfolioTab === 'decisions' ? (
-                  <StockDecisionHistory userId={user?.id || ''} />
-                ) : (
-                  <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
-                    <AddToPortfolio supabase={supabase} userId={user?.id || ''} onChange={() => setAdvisorRefreshKey(k => k + 1)} />
-                    <PortfolioAdvisor supabase={supabase} userId={user?.id || ''} refreshKey={advisorRefreshKey} webhookUrl={import.meta.env.VITE_WEBHOOK_PORTFOLIO_REFRESH as string | undefined} />
-                  </div>
-                )}
-                {role === 'admin' && (
-                  <div className="px-4 md:px-6 py-4">
-                    <AdminEngineActivity />
-                  </div>
-                )}
-              </div>
-            </div>
+            <PortfolioPage onNavigate={setCurrentView} />
           ) : currentView === 'ai-hub' ? (
             <div className="flex-1 overflow-hidden relative flex flex-col">
               <AIHub />
