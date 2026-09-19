@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useBrokerContext } from '../../context/BrokerContext';
 import { useAuth } from '../../services/useAuth';
 import { usePortfolio } from '../../hooks/usePortfolio';
-import { SchwabDetails, AlpacaDetails } from '../../types/portfolio';
+import { SchwabDetails, AlpacaDetails, StatBlock } from '../../types/portfolio';
 import BrokerBadge from './BrokerBadge';
 import SyncChip from './SyncChip';
 import SyncErrorBanner from './SyncErrorBanner';
@@ -31,6 +31,8 @@ const TABS: Array<{ id: Tab; label: string; icon: string }> = [
     { id: 'trends', label: 'Trends', icon: 'trending_up' },
     { id: 'missed', label: 'Missed', icon: 'block' },
 ];
+
+const emptyStat: StatBlock = { pnl: null, trades: 0, wins: 0, losses: 0, winRate: null, avgWin: null, avgLoss: null, profitFactor: null, expectancy: null, avgR: null };
 
 interface Props {
     onNavigate?: (view: string) => void;
@@ -67,7 +69,7 @@ const PortfolioPage: React.FC<Props> = ({ onNavigate }) => {
     }
 
     // Empty state - no broker / no data
-    if (!selectedBroker || (error && !data)) {
+    if (!selectedBroker || !data) {
         return (
             <div className="flex-1 overflow-y-auto bg-[#080b10] min-h-screen text-white font-sans">
                 <div className="max-w-[1600px] mx-auto p-5 lg:p-7">
@@ -93,6 +95,9 @@ const PortfolioPage: React.FC<Props> = ({ onNavigate }) => {
     const broker = d.broker;
     const isSchwab = broker?.details?.broker === 'schwab';
     const isAlpaca = broker?.details?.broker === 'alpaca';
+    const sync = d.sync ?? { lastSyncedAt: null, ageSeconds: null, stale: false, marketOpen: false, errors: [] };
+    const account = account ?? { totalEquity: 0, cashBalance: 0, buyingPower: 0, dayPL: 0, dayPLPct: 0, unrealizedPL: 0, openPositions: { total: 0, options: 0, stocks: 0 }, orders7d: { total: 0, filled: 0, pending: 0, rejected: 0 } };
+    const periods = d.periods ?? { week: emptyStat, month: emptyStat, year: emptyStat, allTime: emptyStat };
 
     return (
         <div className="flex-1 overflow-y-auto bg-[#080b10] min-h-screen text-white font-sans">
@@ -109,7 +114,7 @@ const PortfolioPage: React.FC<Props> = ({ onNavigate }) => {
                     <div className="flex items-center gap-4">
                         <div>
                             <h1 className="text-xl font-black tracking-tight uppercase">Portfolio</h1>
-                            <p className="text-xs text-slate-500">{d.scope.label}</p>
+                            <p className="text-xs text-slate-500">{d.scope?.label}</p>
                         </div>
                         {broker && (
                             <BrokerBadge
@@ -120,8 +125,8 @@ const PortfolioPage: React.FC<Props> = ({ onNavigate }) => {
                         )}
                     </div>
                     <SyncChip
-                        ageSeconds={d.sync.ageSeconds}
-                        stale={d.sync.stale}
+                        ageSeconds={sync.ageSeconds}
+                        stale={sync.stale}
                         syncing={syncing}
                         syncCooldown={syncCooldown}
                         onSync={syncNow}
@@ -129,7 +134,7 @@ const PortfolioPage: React.FC<Props> = ({ onNavigate }) => {
                 </div>
 
                 {/* Sync error banners */}
-                <SyncErrorBanner errors={d.sync.errors} onNavigate={onNavigate} />
+                <SyncErrorBanner errors={sync.errors} onNavigate={onNavigate} />
 
                 {/* ── TABS ── */}
                 <div className="flex bg-[#0d1117] rounded-xl border border-[#1e2430] p-1 gap-1 overflow-x-auto">
@@ -155,18 +160,18 @@ const PortfolioPage: React.FC<Props> = ({ onNavigate }) => {
                         {/* KPI row + Account card */}
                         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
                             <div className="lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                <KpiPeriodCard label="This Week" stat={d.periods.week} />
-                                <KpiPeriodCard label="This Month" stat={d.periods.month} />
-                                <KpiPeriodCard label="This Year" stat={d.periods.year} />
-                                <KpiPeriodCard label="All Time" stat={d.periods.allTime} />
+                                <KpiPeriodCard label="This Week" stat={periods.week} />
+                                <KpiPeriodCard label="This Month" stat={periods.month} />
+                                <KpiPeriodCard label="This Year" stat={periods.year} />
+                                <KpiPeriodCard label="All Time" stat={periods.allTime} />
                             </div>
-                            <AccountSummaryCard account={d.account} />
+                            <AccountSummaryCard account={account} />
                         </div>
 
                         {/* Broker-specific card */}
                         {broker && broker.details ? (
                             isSchwab ? <SchwabAccountCard details={broker.details as SchwabDetails} />
-                            : isAlpaca ? <AlpacaAccountCard details={broker.details as AlpacaDetails} equity={d.account.totalEquity} />
+                            : isAlpaca ? <AlpacaAccountCard details={broker.details as AlpacaDetails} equity={account.totalEquity} />
                             : null
                         ) : broker ? (
                             <div className="bg-[#0d1117] rounded-2xl border border-[#1e2430] p-4 text-xs text-slate-600">
@@ -177,23 +182,23 @@ const PortfolioPage: React.FC<Props> = ({ onNavigate }) => {
                         {/* Chart + Highlights row */}
                         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
                             <div className="lg:col-span-3">
-                                <EquityChart equityCurve={d.equityCurve} daily={d.daily} />
+                                <EquityChart equityCurve={d.equityCurve ?? []} daily={d.daily ?? []} />
                             </div>
                             <div className="lg:col-span-2">
-                                <HighlightsCards best={d.highlights.bestThisMonth} worst={d.highlights.worstThisMonth} />
+                                <HighlightsCards best={d.highlights?.bestThisMonth ?? null} worst={d.highlights?.worstThisMonth ?? null} />
                             </div>
                         </div>
 
                         {/* Events feed */}
-                        <EventsFeed events={d.events} />
+                        <EventsFeed events={d.events ?? []} />
 
                         {/* Monthly stats */}
-                        <MonthlyStatsTable monthly={d.monthly} />
+                        <MonthlyStatsTable monthly={d.monthly ?? []} />
                     </div>
                 )}
 
                 {tab === 'trades' && (
-                    <TradesTable openTrades={d.openTrades} trades={d.trades} />
+                    <TradesTable openTrades={d.openTrades ?? []} trades={d.trades ?? []} />
                 )}
 
                 {tab === 'positions' && (
@@ -205,7 +210,7 @@ const PortfolioPage: React.FC<Props> = ({ onNavigate }) => {
                                     positionsSubTab === 'positions' ? 'bg-blue-600/15 text-blue-400' : 'text-slate-500 hover:text-slate-300'
                                 }`}
                             >
-                                Active Positions ({d.positions.length})
+                                Active Positions ({(d.positions ?? []).length})
                             </button>
                             <button
                                 onClick={() => setPositionsSubTab('orders')}
@@ -213,27 +218,27 @@ const PortfolioPage: React.FC<Props> = ({ onNavigate }) => {
                                     positionsSubTab === 'orders' ? 'bg-blue-600/15 text-blue-400' : 'text-slate-500 hover:text-slate-300'
                                 }`}
                             >
-                                Order History ({d.orders.length})
+                                Order History ({(d.orders ?? []).length})
                             </button>
                         </div>
                         {positionsSubTab === 'positions' ? (
-                            <PositionsTable positions={d.positions} />
+                            <PositionsTable positions={d.positions ?? []} />
                         ) : (
-                            <OrdersTable orders={d.orders} />
+                            <OrdersTable orders={d.orders ?? []} />
                         )}
                     </div>
                 )}
 
                 {tab === 'symbols' && (
-                    <SymbolTreemap bySymbol={d.bySymbol} />
+                    <SymbolTreemap bySymbol={d.bySymbol ?? []} />
                 )}
 
                 {tab === 'trends' && (
-                    <TrendsPanel daily={d.daily} bySource={d.bySource} byCloseReason={d.byCloseReason} />
+                    <TrendsPanel daily={d.daily ?? []} bySource={d.bySource ?? []} byCloseReason={d.byCloseReason ?? []} />
                 )}
 
                 {tab === 'missed' && (
-                    <MissedTable missed={d.missed} />
+                    <MissedTable missed={d.missed ?? []} />
                 )}
             </div>
         </div>
