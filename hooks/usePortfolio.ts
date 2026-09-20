@@ -27,6 +27,10 @@ export function usePortfolio(userId: string | undefined, brokerId: string | unde
     const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const syncMsgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const abortRef = useRef<AbortController | null>(null);
+    const dataRef = useRef<PortfolioPayload | null>(null);
+
+    // Keep a ref to data for the polling interval to read without re-registering
+    dataRef.current = data;
 
     const fetchPortfolio = useCallback(async (isInitial = false) => {
         if (!userId || !brokerId) {
@@ -37,7 +41,6 @@ export function usePortfolio(userId: string | undefined, brokerId: string | unde
 
         if (isInitial) setLoading(true);
 
-        // Cancel any in-flight request
         if (abortRef.current) abortRef.current.abort();
         const ctrl = new AbortController();
         abortRef.current = ctrl;
@@ -77,15 +80,35 @@ export function usePortfolio(userId: string | undefined, brokerId: string | unde
         fetchPortfolio(true);
     }, [fetchPortfolio]);
 
-    // Polling: 60s if market open, 10min otherwise
+    // Polling — read marketOpen from ref so the interval doesn't re-register on every data change
     useEffect(() => {
         if (!userId || !brokerId) return;
-        const intervalMs = data?.sync?.marketOpen ? 60_000 : 600_000;
-        const id = setInterval(() => fetchPortfolio(false), intervalMs);
+        const id = setInterval(() => {
+            const intervalMs = dataRef.current?.sync?.marketOpen ? 60_000 : 600_000;
+            // Only fetch if enough time has passed (simple: always fetch, the interval is the slower cadence)
+            fetchPortfolio(false);
+        }, 60_000); // poll every 60s; the effect doesn't re-register
         return () => clearInterval(id);
-    }, [userId, brokerId, data?.sync?.marketOpen, fetchPortfolio]);
+    }, [userId, brokerId, fetchPortfolio]);
 
-    // Sync now
+    // Helpers — declared before syncNow so they're in scope
+    const showSyncMessage = useCallback((msg: string) => {
+        setSyncMessage(msg);
+        if (syncMsgTimerRef.current) clearTimeout(syncMsgTimerRef.current);
+        syncMsgTimerRef.current = setTimeout(() => setSyncMessage(null), 5000);
+    }, []);
+
+    const startCooldown = useCallback(() => {
+        setSyncCooldown(30);
+        if (cooldownRef.current) clearInterval(cooldownRef.current);
+        cooldownRef.current = setInterval(() => {
+            setSyncCooldown(prev => {
+                if (prev <= 1) { clearInterval(cooldownRef.current!); cooldownRef.current = null; return 0; }
+                return prev - 1;
+            });
+        }, 1000);
+    }, []);
+
     const syncNow = useCallback(async () => {
         if (!userId || syncing || syncCooldown > 0) return;
         setSyncing(true);
@@ -103,7 +126,6 @@ export function usePortfolio(userId: string | undefined, brokerId: string | unde
             const json = await res.json();
 
             if (json.success) {
-                // Check if throttled
                 const throttled = json.results?.find((r: any) => r.reason?.startsWith('throttled'));
                 if (throttled) {
                     const match = throttled.reason.match(/(\d+)s/);
@@ -111,7 +133,6 @@ export function usePortfolio(userId: string | undefined, brokerId: string | unde
                     showSyncMessage(`Already fresh — synced ${secs}s ago`);
                 } else {
                     showSyncMessage('Sync complete');
-                    // Refetch data
                     await fetchPortfolio(false);
                 }
             } else {
@@ -123,24 +144,7 @@ export function usePortfolio(userId: string | undefined, brokerId: string | unde
             setSyncing(false);
             startCooldown();
         }
-    }, [userId, brokerId, syncing, syncCooldown, fetchPortfolio]);
-
-    const showSyncMessage = (msg: string) => {
-        setSyncMessage(msg);
-        if (syncMsgTimerRef.current) clearTimeout(syncMsgTimerRef.current);
-        syncMsgTimerRef.current = setTimeout(() => setSyncMessage(null), 5000);
-    };
-
-    const startCooldown = () => {
-        setSyncCooldown(30);
-        if (cooldownRef.current) clearInterval(cooldownRef.current);
-        cooldownRef.current = setInterval(() => {
-            setSyncCooldown(prev => {
-                if (prev <= 1) { clearInterval(cooldownRef.current!); cooldownRef.current = null; return 0; }
-                return prev - 1;
-            });
-        }, 1000);
-    };
+    }, [userId, brokerId, syncing, syncCooldown, fetchPortfolio, showSyncMessage, startCooldown]);
 
     return { data, loading, error, availableBrokers, refetch: () => fetchPortfolio(true), syncNow, syncing, syncCooldown, syncMessage };
 }

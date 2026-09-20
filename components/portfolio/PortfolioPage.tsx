@@ -96,7 +96,7 @@ const PortfolioPage: React.FC<Props> = ({ onNavigate }) => {
     const isSchwab = broker?.details?.broker === 'schwab';
     const isAlpaca = broker?.details?.broker === 'alpaca';
     const sync = d.sync ?? { lastSyncedAt: null, ageSeconds: null, stale: false, marketOpen: false, errors: [] };
-    const account = account ?? { totalEquity: 0, cashBalance: 0, buyingPower: 0, dayPL: 0, dayPLPct: 0, unrealizedPL: 0, openPositions: { total: 0, options: 0, stocks: 0 }, orders7d: { total: 0, filled: 0, pending: 0, rejected: 0 } };
+    const account = d.account ?? { totalEquity: 0, cashBalance: 0, buyingPower: 0, dayPL: 0, dayPLPct: 0, unrealizedPL: 0, openPositions: { total: 0, options: 0, stocks: 0 }, orders7d: { total: 0, filled: 0, pending: 0, rejected: 0 } };
     const periods = d.periods ?? { week: emptyStat, month: emptyStat, year: emptyStat, allTime: emptyStat };
 
     return (

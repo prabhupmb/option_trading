@@ -44,6 +44,7 @@ import AddToPortfolio from './components/AddToPortfolio';
 import PortfolioAdvisor from './components/PortfolioAdvisor';
 import BrokerPortfolioView from './components/BrokerPortfolio';
 import PortfolioPage from './components/portfolio/PortfolioPage';
+import PortfolioErrorBoundary from './components/portfolio/ErrorBoundary';
 import { TrendingDown } from 'lucide-react';
 import OptionDipTab from './components/OptionDip/OptionDipTab';
 import StructureBoard from './components/StructureBoard';
@@ -754,7 +755,7 @@ const App: React.FC = () => {
 
             </div>
           ) : currentView === 'portfolio' ? (
-            <PortfolioPage onNavigate={setCurrentView} />
+            <PortfolioErrorBoundary><PortfolioPage onNavigate={setCurrentView} /></PortfolioErrorBoundary>
           ) : currentView === 'ai-hub' ? (
             <div className="flex-1 overflow-hidden relative flex flex-col">
               <AIHub />
