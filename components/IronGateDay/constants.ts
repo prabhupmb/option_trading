@@ -20,17 +20,17 @@ export const C = {
   blue: '#3B82F6',
 } as const;
 
-// Scan times in ET (HH:MM 24h)
+// Scan times in CST (HH:MM 24h) — ET minus 1 hour
 export const SCAN_TIMES_ET: string[] = [
-  '09:35', '09:50', '10:05', '10:20', '10:35',
+  '08:35', '08:50', '09:05', '09:20', '09:35',
+  '10:05', '10:20', '10:35', '10:50',
   '11:05', '11:20', '11:35', '11:50',
   '12:05', '12:20', '12:35', '12:50',
   '13:05', '13:20', '13:35', '13:50',
   '14:05', '14:20', '14:35', '14:50',
-  '15:05', '15:20', '15:35', '15:50',
 ];
 
-export const MARKET_OPEN_HOUR_ET = 9;
+export const MARKET_OPEN_HOUR_ET = 8;
 export const MARKET_OPEN_MIN_ET = 30;
-export const MARKET_CLOSE_HOUR_ET = 16;
+export const MARKET_CLOSE_HOUR_ET = 15;
 export const MARKET_CLOSE_MIN_ET = 0;

@@ -10,18 +10,18 @@ export interface ScanWindowResult {
 }
 
 function getETHHMM(): string {
-  const et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
-  const h = String(et.getHours()).padStart(2, '0');
-  const m = String(et.getMinutes()).padStart(2, '0');
+  const cst = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+  const h = String(cst.getHours()).padStart(2, '0');
+  const m = String(cst.getMinutes()).padStart(2, '0');
   return `${h}:${m}`;
 }
 
 function getSecondsUntil(hhmm: string): number {
-  const et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const cst = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
   const [h, m] = hhmm.split(':').map(Number);
-  const target = new Date(et);
+  const target = new Date(cst);
   target.setHours(h, m, 0, 0);
-  return Math.max(0, Math.floor((target.getTime() - et.getTime()) / 1000));
+  return Math.max(0, Math.floor((target.getTime() - cst.getTime()) / 1000));
 }
 
 function formatCountdown(seconds: number): string {

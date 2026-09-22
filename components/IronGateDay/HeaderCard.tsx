@@ -141,7 +141,7 @@ export const HeaderCard: React.FC<Props> = ({ clock, connectionStatus, onScan, s
             </div>
           </div>
           <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-            ET Market Time
+            CST Market Time
           </div>
           <ConnectionIndicator status={connectionStatus} />
         </div>

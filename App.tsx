@@ -46,7 +46,7 @@ import BrokerPortfolioView from './components/BrokerPortfolio';
 import PortfolioPage from './components/portfolio/PortfolioPage';
 import PortfolioErrorBoundary from './components/portfolio/ErrorBoundary';
 import { TrendingDown } from 'lucide-react';
-import OptionDipTab from './components/OptionDip/OptionDipTab';
+// OptionDip tab removed (v22 — merged into Iron Gate DIP workflow)
 import StructureBoard from './components/StructureBoard';
 import { supabase } from './services/supabase';
 import { hasAcceptedCurrentDisclaimer } from './services/disclaimer';
@@ -262,7 +262,7 @@ const App: React.FC = () => {
 
   // Strategy filter
   const [activeTab, setActiveTab] = useState<string>('iron-gate-day');
-  const selectedStrategy = ['iron-gate', 'iron-gate-day', 'option-dip'].includes(activeTab) ? null : activeTab;
+  const selectedStrategy = ['iron-gate', 'iron-gate-day'].includes(activeTab) ? null : activeTab;
   const { strategies } = useStrategyConfigs();
 
   // New Hook
@@ -617,7 +617,6 @@ const App: React.FC = () => {
                 {([
                   { id: 'iron-gate', label: 'Iron Gate Swing', icon: 'lock' },
                   { id: 'iron-gate-day', label: 'Iron Gate Day', icon: 'bolt' },
-                  { id: 'option-dip', label: 'Option Dip', icon: 'swap_vert' },
                 ] as const).map(tab => (
                   <button
                     key={tab.id}
@@ -651,7 +650,7 @@ const App: React.FC = () => {
               </div>
 
               {/* ── Tab content ── */}
-              {!['iron-gate', 'iron-gate-day', 'option-dip'].includes(activeTab) && activeTab !== 'iron-gate-v2' && (
+              {!['iron-gate', 'iron-gate-day'].includes(activeTab) && activeTab !== 'iron-gate-v2' && (
                 <main className="flex-1 p-8 overflow-y-auto">
                   {/* Data Delay Banner */}
                   <DataDelayBanner onRefresh={refresh} loading={loading} isAdmin={role === 'admin'} />
@@ -747,11 +746,6 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              {activeTab === 'option-dip' && (
-                <div className="flex-1 overflow-y-auto">
-                  <OptionDipTab />
-                </div>
-              )}
 
             </div>
           ) : currentView === 'portfolio' ? (

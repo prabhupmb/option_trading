@@ -112,6 +112,22 @@ interface IronGatePosition {
     trend_strength_score: number | null;
     fib_target3: number | null;
     fib_t3_level: number | null;
+    // v22 DIP fields
+    setup_type: 'BREAKOUT' | 'DIP';
+    signal_state: 'STRONG_BUY' | 'BUY' | 'STRONG_SELL' | 'SELL' | 'DIP_BUY' | null;
+    position_state: 'RUNNING' | 'HOLD' | 'WEAK' | null;
+    position_state_since: string | null;
+    dip_add_state: 'WATCH' | 'ADD' | null;
+    dip_add_since: string | null;
+    st_4h_direction: 'BULLISH' | 'BEARISH' | null;
+    st_4h_value: number | null;
+    st1h_armed: boolean | null;
+    dip_gates_passed: string | null;
+    dip_gate_reason: string | null;
+    dip_retrace_pct: number | null;
+    dip_pullback_pct: number | null;
+    dip_invalidation_price: number | null;
+    dip_trigger_at: string | null;
 }
 
 interface IronGateHistory {
@@ -135,6 +151,7 @@ interface IronGateHistory {
     gate_reason?: string | null;
     version?: string | null;
     session_round?: number | null;
+    setup_type?: 'BREAKOUT' | 'DIP';
 }
 
 interface IronGateAlert {
@@ -151,6 +168,42 @@ interface IronGateAlert {
     gate_reason: string;
     created_at: string;
 }
+
+interface DipWatchRow {
+    symbol: string;
+    option_type: 'CALL';
+    state: 'DIP_WATCH';
+    watch_reason: 'NO_TRIGGER' | 'RR_BELOW_FLOOR' | 'T1_TOO_CLOSE';
+    current_price: number;
+    swing_high: number;
+    swing_low: number;
+    retrace_pct: number;
+    pullback_pct: number;
+    invalidation_price: number;
+    planned_stop: number;
+    planned_t1: number;
+    planned_t2: number;
+    rr_value: number | null;
+    dip_gates_passed: string;
+    dip_gate_reason: string;
+    st_5m_direction: string;
+    st_15m_direction: string;
+    st_1h_direction: string;
+    st_4h_direction: string;
+    sma20: number | null;
+    sma50: number | null;
+    atr_pct: number | null;
+    rvol: number | null;
+    scan_id: string;
+    first_seen_at: string;
+    updated_at: string;
+}
+
+const WATCH_REASON_LABELS: Record<string, string> = {
+    NO_TRIGGER: 'waiting 5m turn',
+    RR_BELOW_FLOOR: 'R:R low',
+    T1_TOO_CLOSE: 'T1 too close',
+};
 
 
 // ─── HELPERS ─────────────────────────────────────────────────
@@ -287,6 +340,11 @@ const CloseReasonBadge: React.FC<{ reason: string | null | undefined }> = ({ rea
             ⚡ 1H Flip
         </span>
     );
+    if (r === 'ST_4H_FLIP') return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/30">
+            ⚡ 4H Flip
+        </span>
+    );
     if (r === 'MANUAL') return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-[#1a1f2e] border-slate-300 dark:border-[#252c3b]">
             Manual
@@ -327,7 +385,8 @@ const TargetLegBadge: React.FC<{ position: IronGatePosition }> = ({ position }) 
 // ─── PROGRESS BAR ────────────────────────────────────────────
 
 const IronGateProgressBar: React.FC<{ position: IronGatePosition }> = ({ position }) => {
-    const { entry_price, target_price, stop_loss, progress_pct, high_water_mark, low_water_mark } = position;
+    const { entry_price, target_price, stop_loss, progress_pct, high_water_mark, low_water_mark, dip_invalidation_price } = position;
+    const isDip = (position.setup_type ?? 'BREAKOUT') === 'DIP';
     const stage = position.target_stage ?? 1;
     const pct = Math.max(0, Math.min(100, progress_pct || 0));
     const hwm = Math.max(0, Math.min(100, high_water_mark || 0));
@@ -360,6 +419,16 @@ const IronGateProgressBar: React.FC<{ position: IronGatePosition }> = ({ positio
                 {hwm > 0 && <div className="absolute -top-2.5 text-[8px] text-emerald-600 dark:text-emerald-400 font-black z-10" style={{ left: `calc(${hwm}% - 3px)` }} title={`HWM ${hwm.toFixed(1)}%`}>▲</div>}
                 {/* LWM */}
                 {lwm > 0 && lwm < 100 && <div className="absolute -bottom-2.5 text-[8px] text-red-500 dark:text-red-400 font-black z-10" style={{ left: `calc(${lwm}% - 3px)` }} title={`LWM ${lwm.toFixed(1)}%`}>▼</div>}
+                {/* DIP invalidation marker */}
+                {isDip && dip_invalidation_price != null && range > 0 && (() => {
+                    const invPct = Math.max(0, Math.min(100, (Math.abs(dip_invalidation_price - stop_loss) / range) * 100));
+                    return (
+                        <div className="absolute top-0 bottom-0 z-10" style={{ left: `${invPct}%` }}>
+                            <div className="absolute top-0 bottom-0 w-px" style={{ background: 'rgba(239,68,68,0.5)', borderLeft: '1px dashed rgba(239,68,68,0.7)' }} />
+                            <div className="absolute -top-3 text-[7px] font-black text-red-400 whitespace-nowrap" style={{ left: -8 }}>78.6%</div>
+                        </div>
+                    );
+                })()}
                 {/* Current dot */}
                 <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-white dark:border-[#0d1117] z-20 transition-all duration-700 ease-out shadow-lg"
                     style={{ left: `calc(${pct}% - 6px)`, background: zoneColor, boxShadow: `0 0 8px ${zoneColor}80` }} />
@@ -465,12 +534,18 @@ const PositionCard: React.FC<{
     const pnl = calcPnl(position);
     const profitable = isProfitable(position);
 
-    let rec = position.trading_recommendation;
+    const isDip = (position.setup_type ?? 'BREAKOUT') === 'DIP';
+    const sigState = position.signal_state;
+    let rec = sigState
+        ? (sigState === 'DIP_BUY' ? 'DIP BUY' : sigState.replace('_', ' '))
+        : position.trading_recommendation;
     if (!rec || rec.toUpperCase().includes('WEAK')) {
         if (position.tier === 'A+') rec = isCall ? 'STRONG BUY' : 'STRONG SELL';
         else rec = isCall ? 'BUY' : 'SELL';
     }
     const isStrong = rec.includes('STRONG');
+    const isDipBuy = sigState === 'DIP_BUY' || isDip;
+    const posState = position.position_state;
 
     const accentColor = isCall ? '#00d97e' : '#ff4757';
     const pnlPositive = pnl >= 0;
@@ -511,10 +586,17 @@ const PositionCard: React.FC<{
                         <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border ${position.tier?.includes('+') ? 'text-amber-600 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-600/40' : 'text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/60 border-slate-300 dark:border-slate-600/60'}`}>
                             {position.tier}
                         </span>
+                        {isDip && (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-black border text-teal-400 bg-teal-900/20 border-teal-600/40">
+                                DIP
+                            </span>
+                        )}
                         <RoundBadge sessionRound={position.session_round} roundNumber={position.round_number} />
                         <LifecycleBadge gateReason={position.gate_reason} />
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/30">
-                            {position.gates_passed || '0/6'} ✅
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/30"
+                            title={isDip && position.dip_gate_reason ? position.dip_gate_reason.split(' | ').join('\n') : undefined}
+                        >
+                            {isDip ? `DIP ${position.dip_gates_passed || '0/6'}` : (position.gates_passed || '0/6')} ✅
                         </span>
                     </div>
                     {/* P&L — prominent top right */}
@@ -531,14 +613,51 @@ const PositionCard: React.FC<{
                     </div>
                 </div>
 
-                {/* ── Row 2: Signal Badge + Execution Hint ── */}
+                {/* ── Row 2: Signal Badge + State pills ── */}
                 <div className="flex flex-wrap items-center gap-2">
-                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${isCall
-                        ? (isStrong ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/40' : 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border-green-300 dark:border-green-800/30')
-                        : (isStrong ? 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-700/40' : 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-800/30')}`}>
-                        {isStrong ? '🔥' : '✅'} {rec} (LOCKED)
-                    </div>
+                    {isDipBuy ? (
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border
+                            text-teal-400 bg-teal-950/40 border-teal-600/40">
+                            🟢 DIP BUY (LOCKED)
+                        </div>
+                    ) : (
+                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${isCall
+                            ? (isStrong ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/40' : 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border-green-300 dark:border-green-800/30')
+                            : (isStrong ? 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-700/40' : 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-800/30')}`}>
+                            {isStrong ? '🔥' : '✅'} {rec} (LOCKED)
+                        </div>
+                    )}
                     <ExecutionHintBadge position={position} />
+                    {/* Position state pill */}
+                    {posState === 'HOLD' && (
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold border
+                            text-blue-400 bg-blue-950/30 border-blue-600/40">
+                            🔵 HOLD · slow, thesis intact · {timeSince(position.position_state_since)}
+                        </div>
+                    )}
+                    {posState === 'WEAK' && (
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold border
+                            text-amber-400 bg-amber-950/30 border-amber-600/40">
+                            🟠 WEAK · consider trim · {timeSince(position.position_state_since)}
+                        </div>
+                    )}
+                    {/* DIP ADD pill */}
+                    {position.dip_add_state === 'ADD' && (
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold border
+                            text-emerald-400 bg-emerald-950/30 border-emerald-500/40 animate-pulse"
+                            title="Price pulled back below entry with 4H trend intact; 5m has turned up. Flag only — no order placed."
+                        >
+                            ➕ DIP ADD
+                        </div>
+                    )}
+                    {position.dip_add_state === 'WATCH' && (
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold border
+                            text-slate-500 bg-slate-800/30 border-slate-600/30"
+                            title="Price pulled back below entry with 4H trend intact; 5m has turned up. Flag only — no order placed."
+                        >
+                            ➕ add watch
+                        </div>
+                    )}
                 </div>
 
                 {/* ── Row 3: Price Trio ── */}
@@ -585,10 +704,17 @@ const PositionCard: React.FC<{
                                     <div className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">TREND</div>
                                     <div className={`text-[13px] font-black font-mono ${diColor}`}>{diLabel}</div>
                                 </div>
-                                <div className="bg-gray-100 dark:bg-[#111620] rounded-lg p-2 text-center border border-gray-200 dark:border-[#1e2430]" style={{ boxShadow: volGlow }}>
-                                    <div className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">VOLUME</div>
-                                    <div className={`text-[13px] font-black font-mono ${volColor}`}>{rvolVal != null ? `${rvolVal.toFixed(2)}x` : '—'}</div>
-                                </div>
+                                {isDip ? (
+                                    <div className="bg-gray-100 dark:bg-[#111620] rounded-lg p-2 text-center border border-gray-200 dark:border-[#1e2430]">
+                                        <div className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">RETRACE</div>
+                                        <div className="text-[13px] font-black font-mono text-teal-400">{position.dip_retrace_pct != null ? `${position.dip_retrace_pct.toFixed(0)}%` : '—'}</div>
+                                    </div>
+                                ) : (
+                                    <div className="bg-gray-100 dark:bg-[#111620] rounded-lg p-2 text-center border border-gray-200 dark:border-[#1e2430]" style={{ boxShadow: volGlow }}>
+                                        <div className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">VOLUME</div>
+                                        <div className={`text-[13px] font-black font-mono ${volColor}`}>{rvolVal != null ? `${rvolVal.toFixed(2)}x` : '—'}</div>
+                                    </div>
+                                )}
                                 <div className="bg-gray-100 dark:bg-[#111620] rounded-lg p-2 text-center border border-gray-200 dark:border-[#1e2430]" title="Annualized realized volatility (30d proxy) — not broker IV">
                                     <div className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">IV~</div>
                                     <div className="text-[13px] font-black font-mono text-slate-500">{ivVal != null ? `${ivVal.toFixed(0)}%` : '—'}</div>
@@ -610,7 +736,12 @@ const PositionCard: React.FC<{
                     ) : (
                         <span className="text-slate-500 font-bold">⛔ SL <span className="text-red-400 font-mono font-bold">{fmt(position.stop_loss)}</span></span>
                     )}
-                    <span className="text-slate-500 font-bold">R:R <span className="text-slate-900 dark:text-white font-mono font-bold">{position.risk_reward_ratio || '—'}</span></span>
+                    <div className="text-right">
+                        <span className="text-slate-500 font-bold">R:R <span className="text-slate-900 dark:text-white font-mono font-bold">{position.risk_reward_ratio || '—'}</span></span>
+                        {isDip && position.st1h_armed === false && (
+                            <div className="text-[8px] text-slate-500 font-bold mt-0.5">1H exit arms on 1H turn</div>
+                        )}
+                    </div>
                 </div>
 
                 {/* ── Row 5: Progress Bar ── */}
@@ -840,7 +971,7 @@ const WinTypePill: React.FC<{ exitReason?: string | null; result?: string }> = (
         return <span className="px-2 py-0.5 rounded-full text-[9px] font-black border text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/30">WIN</span>;
     if (r === 'BREAKEVEN_AFTER_T1')
         return <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black border text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-800/30">🛡️ BE WIN</span>;
-    if (r === 'STOP_LOSS' || r === 'ST_1H_FLIP')
+    if (r === 'STOP_LOSS' || r === 'ST_1H_FLIP' || r === 'ST_4H_FLIP')
         return <span className="px-2 py-0.5 rounded-full text-[9px] font-black border text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/30">LOSS</span>;
     const isWin = result === 'WIN';
     return <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${isWin ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/30' : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/30'}`}>{result || '—'}</span>;
@@ -884,6 +1015,58 @@ const HistorySummaryStats: React.FC<{ history: IronGateHistory[] }> = ({ history
     );
 };
 
+// ─── DIP WATCH CHIP ──────────────────────────────────────────
+
+const DipWatchChip: React.FC<{ row: DipWatchRow }> = ({ row }) => {
+    const [expanded, setExpanded] = useState(false);
+    return (
+        <div
+            className="flex-shrink-0 bg-[#111620] rounded-xl border border-teal-800/25 p-3 cursor-pointer hover:border-teal-700/40 transition-colors"
+            style={{ minWidth: 220, maxWidth: 280 }}
+            onClick={() => setExpanded(v => !v)}
+        >
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="text-sm font-black text-white">{row.symbol}</span>
+                <span className="text-[10px] font-bold font-mono text-slate-400">{fmt(row.current_price)}</span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap text-[9px] font-bold">
+                <span className="text-teal-400">retrace {row.retrace_pct.toFixed(0)}%</span>
+                <span className="text-slate-500">R:R {row.rr_value != null ? row.rr_value.toFixed(1) : '—'}</span>
+                <span className="px-1.5 py-0.5 rounded border text-amber-400 bg-amber-900/15 border-amber-700/30">
+                    {WATCH_REASON_LABELS[row.watch_reason] || row.watch_reason}
+                </span>
+            </div>
+            <div className="text-[8px] text-slate-500 font-bold mt-1.5">on watch {timeSince(row.first_seen_at)}</div>
+
+            {expanded && (
+                <div className="mt-2.5 pt-2.5 border-t border-[#1e2430] space-y-1.5 text-[9px]">
+                    <div className="grid grid-cols-3 gap-1.5 text-center">
+                        <div><span className="text-slate-500 block">Stop</span><span className="text-red-400 font-mono font-bold">{fmt(row.planned_stop)}</span></div>
+                        <div><span className="text-slate-500 block">T1</span><span className="text-emerald-400 font-mono font-bold">{fmt(row.planned_t1)}</span></div>
+                        <div><span className="text-slate-500 block">T2</span><span className="text-emerald-400 font-mono font-bold">{fmt(row.planned_t2)}</span></div>
+                    </div>
+                    <div className="text-slate-500">
+                        Invalidation: <span className="text-red-400 font-mono">{fmt(row.invalidation_price)}</span>
+                    </div>
+                    <div className="flex gap-2 text-[8px] font-bold flex-wrap">
+                        <span className={row.st_5m_direction === 'BULLISH' ? 'text-emerald-400' : 'text-red-400'}>5m: {row.st_5m_direction}</span>
+                        <span className={row.st_15m_direction === 'BULLISH' ? 'text-emerald-400' : 'text-red-400'}>15m: {row.st_15m_direction}</span>
+                        <span className={row.st_1h_direction === 'BULLISH' ? 'text-emerald-400' : 'text-red-400'}>1H: {row.st_1h_direction}</span>
+                        <span className={row.st_4h_direction === 'BULLISH' ? 'text-emerald-400' : 'text-red-400'}>4H: {row.st_4h_direction}</span>
+                    </div>
+                    {row.dip_gate_reason && (
+                        <div className="space-y-0.5">
+                            {row.dip_gate_reason.split(' | ').map((g, i) => (
+                                <div key={i} className="text-[8px] font-mono text-slate-500 leading-relaxed">{g}</div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // ═══════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
@@ -917,14 +1100,22 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
     const [loadingLate, setLoadingLate] = useState(true);
     const [lateError, setLateError] = useState<string | null>(null);
     const [signalFilter, setSignalFilter] = useState<string | null>(null);
-    const [executionFilter, setExecutionFilter] = useState<'READY' | 'WAIT' | null>(null);
+    const [executionFilter, setExecutionFilter] = useState<'READY' | null>(null);
     const [todayOnly, setTodayOnly] = useState(false);
     const [historyTodayOnly, setHistoryTodayOnly] = useState(false);
     const [historyDateFrom, setHistoryDateFrom] = useState<string>('');
     const [historyDateTo, setHistoryDateTo] = useState<string>('');
+    const [historySetupFilter, setHistorySetupFilter] = useState<'all' | 'BREAKOUT' | 'DIP'>('all');
     const [versionFilter, setVersionFilter] = useState<string>('all');
     const [volSurgeFilter, setVolSurgeFilter] = useState(false);
+    const [holdFilter, setHoldFilter] = useState(false);
+    const [weakFilter, setWeakFilter] = useState(false);
+    const [dipAddFilter, setDipAddFilter] = useState(false);
     const [sortBy, setSortBy] = useState<'default' | '30d_upside'>('default');
+
+    // DIP WATCH data
+    const [dipWatch, setDipWatch] = useState<DipWatchRow[]>([]);
+    const [dipWatchOpen, setDipWatchOpen] = useState(true);
     const [webhookStatus, setWebhookStatus] = useState<'idle' | 'triggering' | 'ok' | 'err'>('idle');
     const [lastTriggeredTime, setLastTriggeredTime] = useState<string | null>(null);
     const [firedTimes, setFiredTimes] = useState<Set<string>>(new Set());
@@ -1052,9 +1243,22 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
         setLoadingLate(false);
     };
 
-    useEffect(() => { fetchConfig(); fetchPositions(); fetchHistory(); fetchLateAlerts(); }, []);
+    const fetchDipWatch = async () => {
+        const { data, error } = await supabase
+            .from('iron_gate_dip_watch')
+            .select('*')
+            .order('retrace_pct', { ascending: false });
+        if (!error && data) {
+            // Hide rows older than 30 minutes
+            const cutoff = Date.now() - 30 * 60 * 1000;
+            setDipWatch(data.filter((r: DipWatchRow) => new Date(r.updated_at).getTime() > cutoff));
+        }
+    };
+
+    useEffect(() => { fetchConfig(); fetchPositions(); fetchHistory(); fetchLateAlerts(); fetchDipWatch(); }, []);
     useEffect(() => { const i = setInterval(fetchPositions, 30000); return () => clearInterval(i); }, []);
     useEffect(() => { const i = setInterval(fetchLateAlerts, 60000); return () => clearInterval(i); }, []);
+    useEffect(() => { const i = setInterval(fetchDipWatch, 60000); return () => clearInterval(i); }, []);
 
     // Auto-disable TODAY filter if no positions were opened today
     useEffect(() => {
@@ -1106,11 +1310,26 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
     // Live stats for header
     const totalPnl = positions.reduce((a, p) => a + calcPnl(p), 0) / Math.max(positions.length, 1);
     const profitCount = positions.filter(p => isProfitable(p)).length;
+    const resolveSignalState = (p: IronGatePosition): string => {
+        if (p.signal_state) return p.signal_state;
+        // fallback via trading_recommendation
+        const tr = (p.trading_recommendation || '').toUpperCase();
+        if (tr.includes('STRONG') && tr.includes('BUY')) return 'STRONG_BUY';
+        if (tr.includes('STRONG') && tr.includes('SELL')) return 'STRONG_SELL';
+        if (tr.includes('BUY')) return 'BUY';
+        if (tr.includes('SELL')) return 'SELL';
+        // fallback via option_type + tier
+        const isCall = p.option_type?.toUpperCase() === 'CALL';
+        if (p.tier === 'A+') return isCall ? 'STRONG_BUY' : 'STRONG_SELL';
+        return isCall ? 'BUY' : 'SELL';
+    };
+
     const filters = [
-        { label: 'STRONG BUY', icon: '🔥', test: (p: IronGatePosition) => p.option_type?.toUpperCase() === 'CALL' && p.tier === 'A+', color: 'text-[#00d97e]', ring: 'ring-[#00d97e]', bg: 'bg-[#00d97e]/5 border-[#00d97e]/20', activeBg: 'bg-[#00d97e]/15 border-[#00d97e]/40' },
-        { label: 'BUY', icon: '✅', test: (p: IronGatePosition) => p.option_type?.toUpperCase() === 'CALL' && p.tier === 'A', color: 'text-emerald-600 dark:text-emerald-400', ring: 'ring-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800/20', activeBg: 'bg-emerald-100 dark:bg-emerald-900/25 border-emerald-300 dark:border-emerald-700/40' },
-        { label: 'STRONG SELL', icon: '🔥', test: (p: IronGatePosition) => p.option_type?.toUpperCase() === 'PUT' && p.tier === 'A+', color: 'text-[#ff4757]', ring: 'ring-[#ff4757]', bg: 'bg-[#ff4757]/5 border-[#ff4757]/20', activeBg: 'bg-[#ff4757]/15 border-[#ff4757]/40' },
-        { label: 'SELL', icon: '✅', test: (p: IronGatePosition) => p.option_type?.toUpperCase() === 'PUT' && p.tier === 'A', color: 'text-red-600 dark:text-red-400', ring: 'ring-red-500', bg: 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800/20', activeBg: 'bg-red-100 dark:bg-red-900/25 border-red-300 dark:border-red-700/40' },
+        { label: 'STRONG BUY', icon: '🔥', test: (p: IronGatePosition) => resolveSignalState(p) === 'STRONG_BUY', color: 'text-[#00d97e]', ring: 'ring-[#00d97e]', bg: 'bg-[#00d97e]/5 border-[#00d97e]/20', activeBg: 'bg-[#00d97e]/15 border-[#00d97e]/40' },
+        { label: 'BUY', icon: '✅', test: (p: IronGatePosition) => resolveSignalState(p) === 'BUY', color: 'text-emerald-600 dark:text-emerald-400', ring: 'ring-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800/20', activeBg: 'bg-emerald-100 dark:bg-emerald-900/25 border-emerald-300 dark:border-emerald-700/40' },
+        { label: 'DIP BUY', icon: '🟢', test: (p: IronGatePosition) => (p.setup_type ?? 'BREAKOUT') === 'DIP', color: 'text-teal-400', ring: 'ring-teal-500', bg: 'bg-teal-900/10 border-teal-800/20', activeBg: 'bg-teal-900/25 border-teal-700/40' },
+        { label: 'STRONG SELL', icon: '🔥', test: (p: IronGatePosition) => resolveSignalState(p) === 'STRONG_SELL', color: 'text-[#ff4757]', ring: 'ring-[#ff4757]', bg: 'bg-[#ff4757]/5 border-[#ff4757]/20', activeBg: 'bg-[#ff4757]/15 border-[#ff4757]/40' },
+        { label: 'SELL', icon: '✅', test: (p: IronGatePosition) => resolveSignalState(p) === 'SELL', color: 'text-red-600 dark:text-red-400', ring: 'ring-red-500', bg: 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800/20', activeBg: 'bg-red-100 dark:bg-red-900/25 border-red-300 dark:border-red-700/40' },
     ];
 
     const todayStr = new Date().toDateString();
@@ -1127,7 +1346,9 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
         // When a signal filter is active (STRONG BUY, BUY, etc.), exclude stale positions
         if (signalFilter && p.execution_hint === 'WAIT') return false;
         if (executionFilter === 'READY' && p.execution_hint !== 'READY_BUY' && p.execution_hint !== 'READY_SELL') return false;
-        if (executionFilter === 'WAIT'  && p.execution_hint !== 'WAIT') return false;
+        if (holdFilter && p.position_state !== 'HOLD') return false;
+        if (weakFilter && p.position_state !== 'WEAK') return false;
+        if (dipAddFilter && p.dip_add_state !== 'ADD') return false;
         if (versionFilter !== 'all' && versionFilter && p.version && p.version !== versionFilter) return false;
         if (volSurgeFilter && p.volume_trend !== 'SURGE' && p.volume_trend !== 'HIGH') return false;
         return true;
@@ -1139,8 +1360,13 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
 
     const todayCount = versionBase.filter(p => new Date(p.opened_at).toDateString() === todayStr).length;
     const readyCount = versionBase.filter(p => p.execution_hint === 'READY_BUY' || p.execution_hint === 'READY_SELL').length;
-    const waitCount  = versionBase.filter(p => p.execution_hint === 'WAIT').length;
+    const holdCount  = versionBase.filter(p => p.position_state === 'HOLD').length;
+    const weakCount  = versionBase.filter(p => p.position_state === 'WEAK').length;
+    const dipAddCount = versionBase.filter(p => p.dip_add_state === 'ADD').length;
+    const dipAddWatchCount = versionBase.filter(p => p.dip_add_state === 'WATCH').length;
     const volSurgeCount = versionBase.filter(p => p.volume_trend === 'SURGE' || p.volume_trend === 'HIGH').length;
+    const breakoutCount = versionBase.filter(p => (p.setup_type ?? 'BREAKOUT') === 'BREAKOUT').length;
+    const dipCount = versionBase.filter(p => (p.setup_type ?? 'BREAKOUT') === 'DIP').length;
 
     return (
         <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#080b10] min-h-screen text-slate-900 dark:text-white font-sans">
@@ -1178,6 +1404,9 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                 <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-100 dark:bg-[#111620] border border-gray-200 dark:border-[#1e2430] text-xs font-bold">
                                     <span className="text-slate-500">Locked</span>
                                     <span className="text-slate-900 dark:text-white font-black text-sm">{positions.length}</span>
+                                    {(breakoutCount > 0 || dipCount > 0) && (
+                                        <span className="text-[9px] text-slate-500 font-mono">{breakoutCount} BRK · {dipCount} DIP</span>
+                                    )}
                                 </div>
                                 <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-100 dark:bg-[#111620] border border-gray-200 dark:border-[#1e2430] text-xs font-bold">
                                     <span className="text-slate-500">In Profit</span>
@@ -1340,20 +1569,55 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                         <span className="font-black bg-black/10 dark:bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{readyCount}</span>
                                     </button>
 
-                                    {/* STALE chip */}
+                                    {/* HOLD chip */}
                                     <button
-                                        onClick={() => { setTodayOnly(false); setExecutionFilter(executionFilter === 'WAIT' ? null : 'WAIT'); }}
+                                        onClick={() => { setTodayOnly(false); setHoldFilter(v => !v); setWeakFilter(false); setDipAddFilter(false); }}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all
-                                            text-amber-600 dark:text-amber-400
-                                            ${executionFilter === 'WAIT'
-                                                ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-400 dark:border-amber-600/60 ring-1 ring-amber-400'
-                                                : 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800/20'
+                                            text-blue-400
+                                            ${holdFilter
+                                                ? 'bg-blue-900/30 border-blue-600/60 ring-1 ring-blue-400'
+                                                : 'bg-blue-900/10 border-blue-800/20'
                                             }
-                                            ${waitCount === 0 ? 'opacity-40 cursor-default' : 'hover:opacity-80 cursor-pointer'}`}
+                                            ${holdCount === 0 ? 'opacity-40 cursor-default' : 'hover:opacity-80 cursor-pointer'}`}
                                     >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                        <span className="uppercase tracking-wide">Stale</span>
-                                        <span className="font-black bg-black/10 dark:bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{waitCount}</span>
+                                        <span>🔵</span>
+                                        <span className="uppercase tracking-wide">Hold</span>
+                                        <span className="font-black bg-black/10 dark:bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{holdCount}</span>
+                                    </button>
+
+                                    {/* WEAK chip */}
+                                    <button
+                                        onClick={() => { setTodayOnly(false); setWeakFilter(v => !v); setHoldFilter(false); setDipAddFilter(false); }}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all
+                                            text-amber-400
+                                            ${weakFilter
+                                                ? 'bg-amber-900/30 border-amber-600/60 ring-1 ring-amber-400'
+                                                : 'bg-amber-900/10 border-amber-800/20'
+                                            }
+                                            ${weakCount === 0 ? 'opacity-40 cursor-default' : 'hover:opacity-80 cursor-pointer'}`}
+                                    >
+                                        <span>🟠</span>
+                                        <span className="uppercase tracking-wide">Weak</span>
+                                        <span className="font-black bg-black/10 dark:bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{weakCount}</span>
+                                    </button>
+
+                                    {/* DIP ADD chip */}
+                                    <button
+                                        onClick={() => { if (dipAddCount === 0) return; setTodayOnly(false); setDipAddFilter(v => !v); setHoldFilter(false); setWeakFilter(false); }}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all
+                                            text-emerald-400
+                                            ${dipAddFilter
+                                                ? 'bg-emerald-900/30 border-emerald-600/60 ring-1 ring-emerald-500'
+                                                : 'bg-transparent border-emerald-800/30'
+                                            }
+                                            ${dipAddCount === 0 ? 'opacity-40 cursor-default' : 'hover:opacity-80 cursor-pointer'}`}
+                                    >
+                                        <span>➕</span>
+                                        <span className="uppercase tracking-wide">Dip Add</span>
+                                        <span className="font-black bg-black/10 dark:bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{dipAddCount}</span>
+                                        {dipAddWatchCount > 0 && (
+                                            <span className="text-[8px] text-slate-500 font-bold">· {dipAddWatchCount} watch</span>
+                                        )}
                                     </button>
 
                                     {/* VOL SURGE chip */}
@@ -1373,9 +1637,9 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                     </button>
 
                                     {/* Clear all */}
-                                    {(signalFilter || executionFilter || volSurgeFilter) && (
+                                    {(signalFilter || executionFilter || volSurgeFilter || holdFilter || weakFilter || dipAddFilter) && (
                                         <button
-                                            onClick={() => { setSignalFilter(null); setExecutionFilter(null); setVolSurgeFilter(false); }}
+                                            onClick={() => { setSignalFilter(null); setExecutionFilter(null); setVolSurgeFilter(false); setHoldFilter(false); setWeakFilter(false); setDipAddFilter(false); }}
                                             className="text-[10px] text-slate-500 hover:text-slate-900 dark:hover:text-white font-bold underline transition-colors"
                                         >
                                             clear filters
@@ -1396,6 +1660,26 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                         {filteredPositions.length} of {positions.length} shown
                                     </span>
                                 </div>
+
+                                {/* DIP WATCH strip */}
+                                {dipWatch.length > 0 && (
+                                    <div className="bg-white dark:bg-[#0d1117] rounded-2xl border border-teal-800/20 overflow-hidden">
+                                        <button
+                                            onClick={() => setDipWatchOpen(v => !v)}
+                                            className="w-full flex items-center justify-between px-4 py-2.5 text-[11px] font-bold text-teal-400 hover:bg-teal-900/10 transition-colors"
+                                        >
+                                            <span>👀 DIP WATCH ({dipWatch.length})</span>
+                                            <span className="material-symbols-outlined text-sm">{dipWatchOpen ? 'expand_less' : 'expand_more'}</span>
+                                        </button>
+                                        {dipWatchOpen && (
+                                            <div className="px-4 pb-3 flex gap-3 overflow-x-auto">
+                                                {dipWatch.map(w => (
+                                                    <DipWatchChip key={w.symbol} row={w} />
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 {/* Position grid */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1452,6 +1736,9 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                 let base = history;
                                 if (versionFilter !== 'all' && versionFilter) {
                                     base = base.filter(h => h.version === versionFilter || (!h.version && versionFilter === 'v1.7'));
+                                }
+                                if (historySetupFilter !== 'all') {
+                                    base = base.filter(h => (h.setup_type ?? 'BREAKOUT') === historySetupFilter);
                                 }
                                 if (historyTodayOnly) return base.filter(h => new Date(h.closed_at).toDateString() === todayStr);
                                 if (!historyDateFrom && !historyDateTo) return base;
@@ -1519,6 +1806,21 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                         )}
                                     </div>
 
+                                    {/* Setup filter */}
+                                    <div className="flex items-center gap-1">
+                                        {(['all', 'BREAKOUT', 'DIP'] as const).map(sf => (
+                                            <button key={sf}
+                                                onClick={() => setHistorySetupFilter(sf)}
+                                                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide border transition-all ${historySetupFilter === sf
+                                                    ? 'bg-blue-900/30 border-blue-600/60 text-blue-300 ring-1 ring-blue-400'
+                                                    : 'bg-[#111620] border-[#1e2430] text-slate-500 hover:text-slate-300'
+                                                }`}
+                                            >
+                                                {sf === 'all' ? 'All' : sf === 'BREAKOUT' ? 'Breakout' : 'Dip'}
+                                            </button>
+                                        ))}
+                                    </div>
+
                                     {/* Version filter */}
                                     <div className="flex items-center gap-1">
                                         <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Version:</span>
@@ -1538,9 +1840,10 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                     {role === 'admin' && (
                                         <button
                                             onClick={() => {
-                                                const headers = ['Symbol','Type','Tier','Entry','Exit','P&L%','P&L$','Result','Duration','Exit Reason','Date'];
+                                                const headers = ['Symbol','Setup','Type','Tier','Entry','Exit','P&L%','P&L$','Result','Duration','Exit Reason','Date'];
                                                 const rows = filteredHistory.map(h => [
                                                     h.symbol,
+                                                    (h.setup_type ?? 'BREAKOUT') === 'DIP' ? 'DIP' : 'BRK',
                                                     h.option_type?.toUpperCase() ?? '',
                                                     h.tier,
                                                     h.entry_price,
@@ -1576,7 +1879,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                         <table className="w-full text-xs">
                                             <thead>
                                                 <tr className="border-b border-gray-100 dark:border-[#1e2430] bg-gray-100 dark:bg-[#080b10]">
-                                                    {['Symbol', 'Type', 'Tier', 'Stage', 'Entry', 'Exit', 'P&L%', 'P&L$', 'Result', 'Duration', 'Exit Reason', 'Date'].map(col => (
+                                                    {['Symbol', 'Setup', 'Type', 'Tier', 'Stage', 'Entry', 'Exit', 'P&L%', 'P&L$', 'Result', 'Duration', 'Exit Reason', 'Date'].map(col => (
                                                         <th key={col} className="px-4 py-3 text-left text-[9px] font-bold text-slate-600 uppercase tracking-wider">{col}</th>
                                                     ))}
                                                 </tr>
@@ -1589,6 +1892,13 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                                         <tr key={h.id} className={`border-b border-gray-100 dark:border-[#111620] transition-colors hover:bg-gray-100 dark:hover:bg-[#111620] ${isWin ? 'bg-[#00d97e]/[0.02]' : 'bg-[#ff4757]/[0.02]'}`}>
                                                             <td className="px-4 py-3 font-black text-slate-900 dark:text-white">
                                                                 <span className="flex items-center gap-1.5">{h.symbol} <RoundBadge sessionRound={h.session_round} /></span>
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {(h.setup_type ?? 'BREAKOUT') === 'DIP' ? (
+                                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black border text-teal-400 bg-teal-900/20 border-teal-600/40">DIP</span>
+                                                                ) : (
+                                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold border text-slate-500 bg-slate-800/30 border-slate-600/30">BRK</span>
+                                                                )}
                                                             </td>
                                                             <td className="px-4 py-3">
                                                                 <span className={`px-1.5 py-0.5 rounded text-[9px] font-black border ${h.option_type?.toUpperCase() === 'CALL' ? 'text-[#00d97e] bg-[#00d97e]/10 border-[#00d97e]/30' : 'text-[#ff4757] bg-[#ff4757]/10 border-[#ff4757]/30'}`}>

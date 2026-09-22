@@ -10,11 +10,11 @@ interface Props {
 
 export const EmptyState: React.FC<Props> = ({ isMarketOpen, isWeekend, scan }) => {
   const nextMsg = isWeekend
-    ? 'Market reopens 9:30 AM ET Monday'
+    ? 'Market reopens 8:30 AM CST Monday'
     : !isMarketOpen
-    ? 'Market reopens 9:30 AM ET'
+    ? 'Market reopens 8:30 AM CST'
     : scan.nextScan
-    ? `Next scan at ${scan.nextScan} ET — in ${scan.countdown}`
+    ? `Next scan at ${scan.nextScan} CST — in ${scan.countdown}`
     : 'All scans complete for today';
 
   return (

@@ -24,7 +24,7 @@ function formatDuration(minutes: number | null | undefined): string {
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-US', {
-    timeZone: 'America/New_York',
+    timeZone: 'America/Chicago',
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
@@ -122,11 +122,11 @@ export const HistoryCard: React.FC<Props> = ({ entry }) => {
           gap: 4,
         }}>
           <span>
-            Opened <span style={{ color: C.textSecondary, fontFamily: 'JetBrains Mono, monospace' }}>{formatTime(entry.opened_at)} ET</span>
+            Opened <span style={{ color: C.textSecondary, fontFamily: 'JetBrains Mono, monospace' }}>{formatTime(entry.opened_at)} CST</span>
           </span>
           <span style={{ color: C.textMuted }}>→</span>
           <span>
-            Closed <span style={{ color: C.textSecondary, fontFamily: 'JetBrains Mono, monospace' }}>{formatTime(entry.closed_at)} ET</span>
+            Closed <span style={{ color: C.textSecondary, fontFamily: 'JetBrains Mono, monospace' }}>{formatTime(entry.closed_at)} CST</span>
           </span>
           {entry.version && (
             <span>

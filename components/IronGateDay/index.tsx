@@ -167,11 +167,11 @@ const IronGateDayDashboard: React.FC<Props> = ({ onExecute }) => {
     const INTERVAL_MS = 7 * 60 * 1000;
 
     const isInWindow = () => {
-      const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+      const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
       const day = now.getDay();
       if (day === 0 || day === 6) return false; // weekends
       const mins = now.getHours() * 60 + now.getMinutes();
-      return mins >= 570 && mins <= 690; // 9:30 (570) to 11:30 (690) ET
+      return mins >= 510 && mins <= 630; // 8:30 (510) to 10:30 (630) CST
     };
 
     const fire = () => {
