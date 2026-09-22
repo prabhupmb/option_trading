@@ -1073,7 +1073,14 @@ const DipWatchChip: React.FC<{ row: DipWatchRow }> = ({ row }) => {
 
 // ─── IRON GATE SCAN SCHEDULE ─────────────────────────────────
 const IRON_GATE_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/irongate-swingtrade1';
-const IRON_GATE_SCAN_TIMES = ['08:31', '08:45', '09:00', '09:10', '09:20', '09:35', '09:50', '10:15', '10:45', '12:10', '13:30', '14:15', '14:50'];
+const IRON_GATE_SCAN_TIMES = [
+    '08:31', '08:45', '09:00', '09:15', '09:30', '09:45',
+    '10:00', '10:15', '10:30', '10:45',
+    '11:00', '11:15', '11:30', '11:45',
+    '12:00', '12:15', '12:30', '12:45',
+    '13:00', '13:15', '13:30', '13:45',
+    '14:00', '14:15', '14:30', '14:45',
+];
 const TK_WEBHOOK_SECRET = (import.meta.env.VITE_TK_WEBHOOK_SECRET as string | undefined) ?? '';
 
 const getCSTHHMM = () => {
