@@ -2,6 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import { UserProfile, UserRole, AccessLevel } from '../types';
 import type { User } from '@supabase/supabase-js';
+import AdminMissedTrades from './AdminMissedTrades';
+
+type AdminTab = 'overview' | 'missed-trades';
 
 
 const WEBHOOK_APPROVE_USER = import.meta.env.VITE_WEBHOOK_APPROVE_USER || 'https://prabhupadala01.app.n8n.cloud/webhook/approve-user';
@@ -29,6 +32,7 @@ interface AdminPanelProps {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
+    const [adminTab, setAdminTab] = useState<AdminTab>('overview');
     const [users, setUsers] = useState<UserProfile[]>([]);
     const [upgradeRequests, setUpgradeRequests] = useState<UpgradeRequest[]>([]);
     const [loading, setLoading] = useState(true);
@@ -384,6 +388,30 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                 </button>
             </div>
 
+            {/* ── Tab Bar ── */}
+            <div className="flex items-center gap-1 mb-6 border-b border-gray-200 dark:border-white/10">
+                {([
+                    { id: 'overview' as AdminTab, label: 'Overview', icon: 'dashboard' },
+                    { id: 'missed-trades' as AdminTab, label: 'Missed Trades', icon: 'search_off' },
+                ]).map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setAdminTab(tab.id)}
+                        className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${adminTab === tab.id
+                            ? 'border-rh-green text-rh-green'
+                            : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-white'
+                            }`}
+                    >
+                        <span className="material-symbols-outlined text-base">{tab.icon}</span>
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
+            {adminTab === 'missed-trades' ? (
+                <AdminMissedTrades />
+            ) : (
+            <>
             {/* ── Announcements Section ── */}
             <div className="mb-6 bg-white dark:bg-[#1e2124] rounded-2xl border border-[#00BCD4]/20 shadow-lg overflow-hidden">
                 <button
@@ -720,6 +748,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                         </div>
                     </div>
                 </>
+            )}
+            </>
             )}
 
             {/* Edit Modal */}
