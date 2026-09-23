@@ -17,7 +17,7 @@ import { supabase } from '../services/supabase';
 
 const SignalFeed: React.FC = () => {
     const { signals, loading, error, lastUpdated, refresh } = useSignals();
-    const { accessLevel, role } = useAuth();
+    const { accessLevel, isAdmin } = useAuth();
 
 
     const [activeFilter, setActiveFilter] = useState('ALL');
@@ -113,7 +113,7 @@ const SignalFeed: React.FC = () => {
 
                 {/* ── Body ── */}
                 {/* Data Delay Banner */}
-                <DataDelayBanner onRefresh={handleStockRefresh} loading={loading || refreshing} isAdmin={role === 'admin'} />
+                <DataDelayBanner onRefresh={handleStockRefresh} loading={loading || refreshing} isAdmin={isAdmin} />
 
                 {/* Collapsible Watchlist Manager */}
                 {showWatchlists && (

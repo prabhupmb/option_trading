@@ -1094,7 +1094,7 @@ const isCSTWeekday = () => {
     return day !== 0 && day !== 6;
 };
 
-const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; role?: string; onNavigateToLifecycle?: (symbol: string) => void }> = ({ onExecute, role, onNavigateToLifecycle }) => {
+const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; role?: string; isAdmin?: boolean; onNavigateToLifecycle?: (symbol: string) => void }> = ({ onExecute, role, isAdmin = false, onNavigateToLifecycle }) => {
     const [config, setConfig] = useState<StrategyConfig | null>(null);
     const [positions, setPositions] = useState<IronGatePosition[]>([]);
     const [history, setHistory] = useState<IronGateHistory[]>([]);
@@ -1844,7 +1844,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
 
                                     <span className="ml-auto text-[9px] text-slate-600 font-bold">{filteredHistory.length} of {history.length} shown</span>
 
-                                    {role === 'admin' && (
+                                    {isAdmin && (
                                         <button
                                             onClick={() => {
                                                 const headers = ['Symbol','Setup','Type','Tier','Entry','Exit','P&L%','P&L$','Result','Duration','Exit Reason','Date'];
