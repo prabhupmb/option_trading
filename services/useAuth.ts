@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabase';
 import type { Session, User } from '@supabase/supabase-js';
 import { UserRole, AccessLevel } from '../types';
-import { isAdminEmail } from './admin';
 
 export type VerificationStatus = 'idle' | 'verifying' | 'allowed' | 'signup' | 'denied' | 'unauthorized' | 'trial_expired';
 
@@ -36,7 +35,6 @@ export interface AuthState {
     accessLevel?: AccessLevel;
     trialDaysLeft?: number;
     isTrialUser: boolean;
-    isAdmin: boolean;
     dbUserId?: string;
 }
 
@@ -220,8 +218,6 @@ export function useAuth() {
         }
     }, []);
 
-    const isAdmin = isAdminEmail(session?.user?.email) || role === 'admin';
-
     return {
         user: session?.user ?? null,
         session,
@@ -233,7 +229,6 @@ export function useAuth() {
         accessLevel,
         trialDaysLeft,
         isTrialUser,
-        isAdmin,
         dbUserId,
         signInWithGoogle,
         signOut,

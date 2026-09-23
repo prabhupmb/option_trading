@@ -13,10 +13,9 @@ interface NavigationProps {
   accessLevel?: AccessLevel;
   trialDaysLeft?: number;
   isTrialUser?: boolean;
-  isAdmin?: boolean;
 }
 
-const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, onSignOut, role, accessLevel, trialDaysLeft, isTrialUser, isAdmin = false }) => {
+const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, onSignOut, role, accessLevel, trialDaysLeft, isTrialUser }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   let tabs: { id: View; label: string; icon: string; sub?: string }[] = [
@@ -36,18 +35,18 @@ const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, o
     { id: 'market-news', label: 'Market News', icon: 'newspaper' }
   ];
 
-  if (!isAdmin) {
+  if (role !== 'admin') {
     const allowedForCustomer: View[] = ['signals', 'smart-feed', 'structure', 'lifecycle', 'india-signals', 'portfolio', 'auto-trade', 'chat', 'settings', 'faq', 'trending', 'market-news'];
     tabs = tabs.filter(tab => allowedForCustomer.includes(tab.id));
   }
 
-  if (isAdmin) {
+  if (role === 'admin') {
     tabs.push({ id: 'admin', label: 'Admin Panel', icon: 'admin_panel_settings' });
     tabs.push({ id: 'presence', label: 'Active Now', icon: 'groups' });
   }
 
   // Bottom tab bar: 5 most important tabs
-  const bottomTabIds: View[] = isAdmin
+  const bottomTabIds: View[] = role === 'admin'
     ? ['signals', 'smart-feed', 'chat', 'admin', 'settings']
     : ['signals', 'smart-feed', 'chat', 'trending', 'settings'];
   const bottomTabs = bottomTabIds.map(id => tabs.find(t => t.id === id)).filter(Boolean) as typeof tabs;

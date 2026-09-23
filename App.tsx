@@ -59,7 +59,7 @@ import { useBrokerContext } from './context/BrokerContext';
 
 // ─── STOCK FEED VIEW (sub-tabs: Signal Feed + Stock Gate) ─────
 
-const StockFeedView: React.FC<{ onExecute: (s: any) => void; isAdmin?: boolean; onNavigateToLifecycle?: (symbol: string) => void }> = ({ onExecute, isAdmin, onNavigateToLifecycle }) => {
+const StockFeedView: React.FC<{ onExecute: (s: any) => void; role?: string; onNavigateToLifecycle?: (symbol: string) => void }> = ({ onExecute, role, onNavigateToLifecycle }) => {
   const [stockTab, setStockTab] = React.useState<'signal-feed' | 'stock-gate' | 'stock-gate-day' | 'stage-tracker' | 'dip-buy'>('stock-gate');
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -69,7 +69,7 @@ const StockFeedView: React.FC<{ onExecute: (s: any) => void; isAdmin?: boolean; 
           { id: 'stock-gate-day', label: 'Stock Gate Day', icon: 'bolt',          sub: 'Day trade · intraday',    adminOnly: false },
           { id: 'signal-feed',    label: 'Signal Feed',    icon: 'query_stats',   sub: null,                      adminOnly: true  },
           { id: 'stage-tracker',  label: 'Stage Tracker',  icon: 'account_tree',  sub: null,                      adminOnly: true  },
-        ] as const).filter(tab => !tab.adminOnly || isAdmin).map(tab => (
+        ] as const).filter(tab => !tab.adminOnly || role === 'admin').map(tab => (
           <button
             key={tab.id}
             onClick={() => setStockTab(tab.id)}
@@ -98,7 +98,7 @@ const StockFeedView: React.FC<{ onExecute: (s: any) => void; isAdmin?: boolean; 
       </div>
       {stockTab === 'stock-gate' && (
         <div className="flex-1 overflow-y-auto">
-          <StockGateTracker onExecute={onExecute} isAdmin={isAdmin} onNavigateToLifecycle={onNavigateToLifecycle} />
+          <StockGateTracker onExecute={onExecute} role={role} onNavigateToLifecycle={onNavigateToLifecycle} />
         </div>
       )}
       {stockTab === 'stock-gate-day' && (
@@ -254,7 +254,7 @@ const ScanTimesBar: React.FC<{ activeTab: string }> = ({ activeTab }) => {
 };
 
 const App: React.FC = () => {
-  const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut, role, accessLevel, trialDaysLeft, isTrialUser, isAdmin } = useAuth();
+  const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut, role, accessLevel, trialDaysLeft, isTrialUser } = useAuth();
   const [showRegister, setShowRegister] = useState(false);
 
   // Disclaimer gate
@@ -596,11 +596,11 @@ const App: React.FC = () => {
 
   return (
     <div className="flex min-h-screen bg-white dark:bg-[#0a0712] transition-colors font-sans text-slate-900 dark:text-white">
-      <Navigation activeView={currentView} onNavigate={setCurrentView} user={user} onSignOut={signOut} role={role} accessLevel={accessLevel} trialDaysLeft={trialDaysLeft} isTrialUser={isTrialUser} isAdmin={isAdmin} />
+      <Navigation activeView={currentView} onNavigate={setCurrentView} user={user} onSignOut={signOut} role={role} accessLevel={accessLevel} trialDaysLeft={trialDaysLeft} isTrialUser={isTrialUser} />
 
       <div className="flex-1 ml-0 md:ml-64 flex flex-col min-h-screen pt-14 md:pt-0 pb-14 md:pb-0">
         <AnnouncementBanner />
-        <MarketPulse isAdmin={isAdmin} userId={user?.id} />
+        <MarketPulse isAdmin={role === 'admin'} userId={user?.id} />
       {currentView === 'chat' ? (
         <div className="flex-1 overflow-hidden">
           <GroupChat />
@@ -621,7 +621,7 @@ const App: React.FC = () => {
             onBrokerageChange={setSelectedBrokerage}
             onNavigate={setCurrentView}
             scanProgress={scanProgress}
-            isAdmin={isAdmin}
+            isAdmin={role === 'admin'}
           />
 
           {currentView === 'signals' ? (
@@ -646,7 +646,7 @@ const App: React.FC = () => {
                 ))}
                 {strategies.filter(s => {
                   if (['iron_gate', 'iron_gate_day', 'day_trade', 'swing_trade'].includes(s.strategy)) return false;
-                  if (!isAdmin) return false;
+                  if (role !== 'admin') return false;
                   return true;
                 }).map(strategy => (
                   <button
@@ -667,7 +667,7 @@ const App: React.FC = () => {
               {!['iron-gate', 'iron-gate-day'].includes(activeTab) && activeTab !== 'iron-gate-v2' && (
                 <main className="flex-1 p-8 overflow-y-auto">
                   {/* Data Delay Banner */}
-                  <DataDelayBanner onRefresh={refresh} loading={loading} isAdmin={isAdmin} />
+                  <DataDelayBanner onRefresh={refresh} loading={loading} isAdmin={role === 'admin'} />
 
                   {/* Scan Times + Webhook Trigger */}
                   <ScanTimesBar activeTab={activeTab} />
@@ -750,7 +750,7 @@ const App: React.FC = () => {
 
               {activeTab === 'iron-gate' && (
                 <div className="flex-1 overflow-y-auto">
-                  <IronGateTracker onExecute={setExecutingSignal} isAdmin={isAdmin} onNavigateToLifecycle={(sym) => { setLifecycleSymbol(sym); setLifecycleFrom('signals'); setCurrentView('lifecycle'); }} />
+                  <IronGateTracker onExecute={setExecutingSignal} role={role} onNavigateToLifecycle={(sym) => { setLifecycleSymbol(sym); setLifecycleFrom('signals'); setCurrentView('lifecycle'); }} />
                 </div>
               )}
 
@@ -769,7 +769,7 @@ const App: React.FC = () => {
               <AIHub />
             </div>
           ) : currentView === 'smart-feed' ? (
-            <StockFeedView onExecute={setExecutingSignal} isAdmin={isAdmin} onNavigateToLifecycle={(sym) => { setLifecycleSymbol(sym); setLifecycleFrom('smart-feed'); setCurrentView('lifecycle'); }} />
+            <StockFeedView onExecute={setExecutingSignal} role={role} onNavigateToLifecycle={(sym) => { setLifecycleSymbol(sym); setLifecycleFrom('smart-feed'); setCurrentView('lifecycle'); }} />
           ) : currentView === 'structure' ? (
             <div className="flex-1 overflow-y-auto">
               <StructureBoard onNavigateToLifecycle={(sym) => { setLifecycleSymbol(sym); setLifecycleFrom('structure'); setCurrentView('lifecycle'); }} />
@@ -779,7 +779,7 @@ const App: React.FC = () => {
               <QuickTradePage />
             </div>
           ) : currentView === 'auto-trade' ? (
-            <AutoTradePage userId={user?.id || ''} isAdmin={isAdmin} />
+            <AutoTradePage userId={user?.id || ''} isAdmin={role === 'admin'} />
           ) : currentView === 'settings' ? (
             <div className="flex-1 overflow-y-auto">
               <UserProfilePage />
@@ -807,9 +807,9 @@ const App: React.FC = () => {
             </div>
           ) : currentView === 'disclosure' ? (
             <DisclaimerPage userId={user?.id} onBack={() => setCurrentView('signals')} />
-          ) : currentView === 'presence' && isAdmin ? (
+          ) : currentView === 'presence' && role === 'admin' ? (
             <AdminPresence />
-          ) : currentView === 'admin' && isAdmin ? (
+          ) : currentView === 'admin' && role === 'admin' ? (
             <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#0a0712]">
               <AdminPanel currentUser={user} />
             </div>

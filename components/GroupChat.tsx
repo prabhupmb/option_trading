@@ -104,7 +104,7 @@ const renderMessageText = (text: string) => {
 
 // ─── COMPONENT ─────────────────────────────────────────────────
 const GroupChat: React.FC = () => {
-    const { dbUserId, verificationData, isAdmin } = useAuth();
+    const { dbUserId, verificationData, role } = useAuth();
 
     const [groupId, setGroupId] = useState<string | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -519,7 +519,7 @@ const GroupChat: React.FC = () => {
                         <button onClick={() => setShowMobileSignals(true)} className="lg:hidden w-8 h-8 rounded-lg hover:bg-[#161B22] flex items-center justify-center text-gray-400 hover:text-white transition-colors">
                             <span className="material-symbols-outlined text-lg">signal_cellular_alt</span>
                         </button>
-                        {isAdmin && (
+                        {role === 'admin' && (
                             <button
                                 onClick={() => setShowClearConfirm(true)}
                                 className="w-8 h-8 rounded-lg hover:bg-red-500/10 flex items-center justify-center text-gray-400 hover:text-red-400 transition-colors"

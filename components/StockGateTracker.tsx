@@ -548,7 +548,7 @@ const positionToSmartSignal = (pos: StockGatePosition): SmartSignal => ({
     analyzed_at: pos.opened_at,
 });
 
-const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; role?: string; isAdmin?: boolean; onNavigateToLifecycle?: (symbol: string) => void }> = ({ isAdmin = false, onNavigateToLifecycle }) => {
+const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; role?: string; onNavigateToLifecycle?: (symbol: string) => void }> = ({ role, onNavigateToLifecycle }) => {
     const [config, setConfig] = useState<StrategyConfig | null>(null);
     const [positions, setPositions] = useState<StockGatePosition[]>([]);
     const [history, setHistory] = useState<StockGateHistory[]>([]);
@@ -1083,7 +1083,7 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; r
 
                                     <span className="ml-auto text-[9px] text-slate-600 font-bold">{filteredHistory.length} of {history.length} shown</span>
 
-                                    {isAdmin && (
+                                    {role === 'admin' && (
                                         <button
                                             onClick={() => {
                                                 const headers = ['Symbol','Direction','Tier','Entry','Exit','P&L%','P&L$','Result','Duration','Exit Reason','Date'];

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import { UserProfile, UserRole, AccessLevel } from '../types';
 import type { User } from '@supabase/supabase-js';
-import { ADMIN_EMAILS, isAdminEmail } from '../services/admin';
 
 
 const WEBHOOK_APPROVE_USER = import.meta.env.VITE_WEBHOOK_APPROVE_USER || 'https://prabhupadala01.app.n8n.cloud/webhook/approve-user';
@@ -58,7 +57,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
     const [newType, setNewType] = useState<'info' | 'warning' | 'success'>('info');
     const [posting, setPosting] = useState(false);
     const [announcementsOpen, setAnnouncementsOpen] = useState(true);
-    const [accessControlOpen, setAccessControlOpen] = useState(true);
 
     const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
         setToast({ msg, type });
@@ -192,28 +190,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
         () => users.filter(u => !u.is_active),
         [users]
     );
-
-    const adminUsers = useMemo(() => {
-        const allAdminEmails = new Set(ADMIN_EMAILS);
-        users.forEach(u => { if (u.role === 'admin' && u.email) allAdminEmails.add(u.email.toLowerCase()); });
-        return Array.from(allAdminEmails).map(email => {
-            const dbUser = users.find(u => u.email?.toLowerCase() === email);
-            return {
-                email,
-                name: dbUser ? (dbUser.full_name || dbUser.name || dbUser.username || dbUser.user_name || '') : '',
-                source: [] as string[],
-                dbRole: dbUser?.role,
-                accessLevel: dbUser?.access_level,
-                isActive: dbUser?.is_active,
-            };
-        }).map(u => ({
-            ...u,
-            source: [
-                ...(ADMIN_EMAILS.includes(u.email) ? ['ENV'] : []),
-                ...(u.dbRole === 'admin' ? ['DB'] : []),
-            ],
-        }));
-    }, [users]);
 
     const handleEditClick = (user: UserProfile) => {
         setEditingUser(user);
@@ -508,81 +484,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                                 ))}
                             </div>
                         )}
-                    </div>
-                )}
-            </div>
-
-            {/* ── Access Control Section ── */}
-            <div className="mb-6 bg-white dark:bg-[#1e2124] rounded-2xl border border-purple-500/20 shadow-lg overflow-hidden">
-                <button
-                    onClick={() => setAccessControlOpen(!accessControlOpen)}
-                    className="w-full flex items-center justify-between p-5 hover:bg-purple-500/5 transition-colors"
-                >
-                    <div className="flex items-center gap-3">
-                        <span className="material-symbols-outlined text-purple-500">shield_person</span>
-                        <span className="font-bold text-sm text-slate-900 dark:text-white">Access Control</span>
-                        <span className="bg-purple-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                            {adminUsers.length} admin{adminUsers.length !== 1 ? 's' : ''}
-                        </span>
-                    </div>
-                    <span className={`material-symbols-outlined text-slate-400 transition-transform ${accessControlOpen ? 'rotate-180' : ''}`}>
-                        expand_more
-                    </span>
-                </button>
-
-                {accessControlOpen && (
-                    <div className="border-t border-purple-500/10 p-5 space-y-4">
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                            Users with admin access can see all tabs, export data, manage users, and access the Admin Panel.
-                        </p>
-
-                        <div className="space-y-2">
-                            {adminUsers.map(admin => (
-                                <div key={admin.email} className="flex items-center gap-3 p-3 rounded-xl border border-purple-500/10 bg-purple-500/[0.03] hover:bg-purple-500/[0.06] transition-colors">
-                                    <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center flex-shrink-0">
-                                        <span className="material-symbols-outlined text-purple-400 text-base">admin_panel_settings</span>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                                            {admin.name || admin.email}
-                                        </p>
-                                        {admin.name && (
-                                            <p className="text-[11px] text-slate-400 truncate">{admin.email}</p>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                                        {admin.source.map(s => (
-                                            <span key={s} className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                                                s === 'ENV'
-                                                    ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20'
-                                                    : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
-                                            }`}>
-                                                {s}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    {admin.accessLevel && (
-                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide ${
-                                            admin.accessLevel === 'trade' ? 'bg-rh-green/10 text-rh-green'
-                                                : admin.accessLevel === 'paper' ? 'bg-blue-500/10 text-blue-500'
-                                                    : 'bg-orange-500/10 text-orange-500'
-                                        }`}>
-                                            {admin.accessLevel}
-                                        </span>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="pt-2 border-t border-purple-500/10">
-                            <p className="text-[10px] text-slate-500 leading-relaxed">
-                                <span className="inline-flex items-center gap-1 mr-2"><span className="inline-block w-1.5 h-1.5 rounded-full bg-teal-400"></span> ENV</span>
-                                Set via <span className="font-mono text-[9px] text-slate-400">VITE_ADMIN_EMAILS</span> (build-time)
-                                <span className="mx-2 text-slate-600">|</span>
-                                <span className="inline-flex items-center gap-1 mr-2"><span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-400"></span> DB</span>
-                                Set via <span className="font-mono text-[9px] text-slate-400">users.role = admin</span> in database
-                            </p>
-                        </div>
                     </div>
                 )}
             </div>
