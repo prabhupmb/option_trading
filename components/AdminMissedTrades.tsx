@@ -117,10 +117,11 @@ const CandidateTable: React.FC<{ runId: string }> = ({ runId }) => {
         let ignore = false;
         const fetch = async () => {
             setLoading(true);
-            const { data } = await supabase
+            const { data, error } = await supabase
                 .from('v_candidate_why')
                 .select('*')
                 .eq('run_id', runId);
+            if (error) console.error('[MissedTrades] v_candidate_why query error:', error);
             if (!ignore) {
                 setCandidates(data ?? []);
                 setLoading(false);
@@ -197,21 +198,37 @@ const AdminMissedTrades: React.FC = () => {
 
     const fetchRuns = useCallback(async () => {
         setLoading(true);
-        const dayStart = `${date}T00:00:00-04:00`;
-        const dayEnd = `${date}T23:59:59-04:00`;
+
+        // Build ET day boundaries → UTC ISO strings
+        // Create a date string that JS will parse in the ET timezone
+        const toUTC = (localDatetime: string) => {
+            // Intl trick: format the epoch in ET, compare to find offset
+            const refDate = new Date(`${localDatetime}`);
+            const etStr = refDate.toLocaleString('en-US', { timeZone: 'America/New_York' });
+            const etParsed = new Date(etStr);
+            const offsetMs = refDate.getTime() - etParsed.getTime();
+            // Shift: we want the UTC instant that equals localDatetime in ET
+            return new Date(refDate.getTime() + offsetMs).toISOString();
+        };
+
+        const start = toUTC(`${date}T00:00:00`);
+        const end = toUTC(`${date}T23:59:59.999`);
 
         let q = supabase
             .from('v_run_why')
             .select('*')
-            .gte('started_at', dayStart)
-            .lte('started_at', dayEnd)
+            .gte('started_at', start)
+            .lte('started_at', end)
             .order('started_at', { ascending: false });
 
         if (systemFilter) {
             q = q.eq('system', systemFilter);
         }
 
-        const { data } = await q;
+        const { data, error } = await q;
+        if (error) {
+            console.error('[MissedTrades] v_run_why query error:', error);
+        }
         // Hide runs where empty_at_stage = 'WINDOW'
         setRuns((data ?? []).filter(r => r.empty_at_stage !== 'WINDOW'));
         setLoading(false);
