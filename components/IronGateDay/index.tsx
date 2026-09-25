@@ -3,6 +3,7 @@ import { C } from './constants';
 import { useIronGateDay } from './useIronGateDay';
 import { useETClock } from './useETClock';
 import { useScanWindow } from './useScanWindow';
+import { useMdBars } from '../../hooks/useMdBars';
 import { HeaderCard } from './HeaderCard';
 import { SignalCountCards } from './SignalCountCards';
 import { TabSwitcher } from './TabSwitcher';
@@ -174,6 +175,9 @@ const IronGateDayDashboard: React.FC<Props> = ({ onExecute }) => {
     historyPulse, refetch, dismissToast,
   } = useIronGateDay();
 
+  const barSymbols = useMemo(() => openPositions.map(p => p.symbol), [openPositions]);
+  const { barsBySymbol } = useMdBars(barSymbols);
+
   const [historyDateFrom, setHistoryDateFrom] = useState('');
   const [historyDateTo, setHistoryDateTo] = useState('');
   const [historyPreset, setHistoryPreset] = useState<'today' | 'week' | 'month' | 'all'>('today');
@@ -315,6 +319,7 @@ const IronGateDayDashboard: React.FC<Props> = ({ onExecute }) => {
             isWeekend={clock.isWeekend}
             scan={scan}
             onExecute={onExecute}
+            barsBySymbol={barsBySymbol}
           />
         ) : (
           <>

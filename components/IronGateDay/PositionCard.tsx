@@ -3,10 +3,14 @@ import { C } from './constants';
 import { TierBadge, TierSquare } from './TierBadge';
 import { ActionBadge } from './ActionBadge';
 import { ProgressBar } from './ProgressBar';
+import PriceLadder from '../signals/PriceLadder';
+import MiniSuperTrendChart from '../signals/MiniSuperTrendChart';
+import type { Bar } from '../../lib/supertrend';
 import type { IronGateDayPosition } from './types';
 
 interface Props {
   pos: IronGateDayPosition;
+  bars?: Bar[];
   isFlashing?: boolean;
   isUpdated?: boolean;
   isMarketOpen?: boolean;
@@ -49,8 +53,9 @@ const StatCell: React.FC<{ label: string; value: React.ReactNode; valueColor?: s
   </div>
 );
 
-export const PositionCard: React.FC<Props> = ({ pos, isFlashing, isUpdated, isMarketOpen = true, onExecute }) => {
+export const PositionCard: React.FC<Props> = ({ pos, bars, isFlashing, isUpdated, isMarketOpen = true, onExecute }) => {
   const [expanded, setExpanded] = useState(false);
+  const [chartOpen, setChartOpen] = useState(false);
 
   const isBuy = pos.action === 'BUY';
   const current = pos.current_price ?? pos.entry_price;
@@ -135,20 +140,33 @@ export const PositionCard: React.FC<Props> = ({ pos, isFlashing, isUpdated, isMa
           </div>
         </div>
 
-        {/* ─── Progress Bar ─── */}
-        {(() => {
-          // Compute progress from live prices when DB hasn't updated progress_pct yet
-          let progress = pos.progress_pct || 0;
-          if (progress === 0 && pos.entry_price && pos.target_1 && pos.stop_loss) {
-            const current = pos.current_price ?? pos.entry_price;
-            if (isBuy) {
-              progress = Math.max(0, Math.min(100, ((current - pos.stop_loss) / (pos.target_1 - pos.stop_loss)) * 100));
-            } else {
-              progress = Math.max(0, Math.min(100, ((pos.stop_loss - current) / (pos.stop_loss - pos.target_1)) * 100));
-            }
-          }
-          return <ProgressBar progress={progress} isBuy={isBuy} />;
-        })()}
+        {/* ─── Progress Bar + Price Ladder ─── */}
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <div style={{ flex: 1 }}>
+            {(() => {
+              let progress = pos.progress_pct || 0;
+              if (progress === 0 && pos.entry_price && pos.target_1 && pos.stop_loss) {
+                const current = pos.current_price ?? pos.entry_price;
+                if (isBuy) {
+                  progress = Math.max(0, Math.min(100, ((current - pos.stop_loss) / (pos.target_1 - pos.stop_loss)) * 100));
+                } else {
+                  progress = Math.max(0, Math.min(100, ((pos.stop_loss - current) / (pos.stop_loss - pos.target_1)) * 100));
+                }
+              }
+              return <ProgressBar progress={progress} isBuy={isBuy} />;
+            })()}
+          </div>
+          <div style={{ flexShrink: 0, width: 120 }}>
+            <PriceLadder
+              entry={pos.entry_price}
+              target={pos.target_1}
+              stopLoss={pos.stop_loss}
+              current={pos.current_price ?? pos.entry_price}
+              optionType={isBuy ? 'CALL' : 'PUT'}
+              riskReward={`1:${(pos.risk_reward_ratio || 0).toFixed(1)}`}
+            />
+          </div>
+        </div>
 
         {/* ─── Stats Grid ─── */}
         <div style={{ display: 'flex', gap: 8 }}>
@@ -293,6 +311,44 @@ export const PositionCard: React.FC<Props> = ({ pos, isFlashing, isUpdated, isMa
             </button>
           )}
         </div>
+      </div>
+
+      {/* ── Collapsible SuperTrend Chart ── */}
+      <div style={{ borderTop: `1px solid ${C.cardBorder}` }}>
+        <button
+          onClick={() => setChartOpen(v => !v)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 18px',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: 10,
+            fontWeight: 900,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            color: C.textMuted,
+          }}
+        >
+          <span>📊 SuperTrend Chart</span>
+          <span style={{ transition: 'transform 0.2s', transform: chartOpen ? 'rotate(180deg)' : 'none', display: 'inline-block' }}>▼</span>
+        </button>
+        {chartOpen && (
+          <div style={{ padding: '0 16px 16px' }}>
+            <MiniSuperTrendChart
+              symbol={pos.symbol}
+              bars={bars ?? []}
+              entryPrice={pos.entry_price}
+              stopLoss={pos.stop_loss}
+              target={pos.target_1}
+              optionType={isBuy ? 'CALL' : 'PUT'}
+              openedAt={pos.opened_at}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import { OptionSignal } from '../types';
+import { useMdBars } from '../hooks/useMdBars';
+import PriceLadder from './signals/PriceLadder';
+import MiniSuperTrendChart from './signals/MiniSuperTrendChart';
+import type { Bar } from '../lib/supertrend';
 
 // ─── TYPES ────────────────────────────────────────────────────
 
@@ -525,11 +529,13 @@ const GATE_KEYS = ['g1_sma', 'g2_1h', 'g3_15m', 'g4_5m', 'g5_vwap', 'g6_adx'];
 
 const PositionCard: React.FC<{
     position: IronGatePosition;
+    bars?: Bar[];
     onManualClose: (p: IronGatePosition) => void;
     onExecute?: (signal: OptionSignal) => void;
     onNavigateToLifecycle?: (symbol: string) => void;
-}> = ({ position, onManualClose, onExecute, onNavigateToLifecycle }) => {
+}> = ({ position, bars, onManualClose, onExecute, onNavigateToLifecycle }) => {
     const [expanded, setExpanded] = useState(false);
+    const [chartOpen, setChartOpen] = useState(false);
     const isCall = position.option_type?.toUpperCase() === 'CALL';
     const pnl = calcPnl(position);
     const profitable = isProfitable(position);
@@ -660,22 +666,35 @@ const PositionCard: React.FC<{
                     )}
                 </div>
 
-                {/* ── Row 3: Price Trio ── */}
-                <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="bg-gray-100 dark:bg-[#111620] rounded-xl p-2.5 border border-gray-200 dark:border-[#1e2430]">
-                        <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">🔒 Entry</span>
-                        <span className="block text-sm font-black font-mono text-amber-600 dark:text-amber-300">{fmt(position.entry_price)}</span>
+                {/* ── Row 3: Price Trio + Ladder ── */}
+                <div className="flex gap-3">
+                    <div className="flex-1 grid grid-cols-3 gap-2 text-center">
+                        <div className="bg-gray-100 dark:bg-[#111620] rounded-xl p-2.5 border border-gray-200 dark:border-[#1e2430]">
+                            <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">🔒 Entry</span>
+                            <span className="block text-sm font-black font-mono text-amber-600 dark:text-amber-300">{fmt(position.entry_price)}</span>
+                        </div>
+                        <div className={`rounded-xl p-2.5 border ${profitable ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/30' : 'bg-red-50 dark:bg-red-950/15 border-red-200 dark:border-red-900/20'}`}>
+                            <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">📍 Current</span>
+                            <span className={`block text-sm font-black font-mono ${profitable ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>{fmt(position.current_price)}</span>
+                            <span className={`block text-[8px] font-mono font-bold ${profitable ? 'text-[#00d97e]/60' : 'text-[#ff4757]/60'}`}>{profitable ? '▲' : '▼'} {Math.abs(pnl).toFixed(2)}%</span>
+                        </div>
+                        <div className="bg-gray-100 dark:bg-[#111620] rounded-xl p-2.5 border border-gray-200 dark:border-[#1e2430]">
+                            <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">
+                                {(position.target_stage ?? 1) === 2 ? '🏁 T2 Final' : '🎯 Target T1'}
+                            </span>
+                            <span className="block text-sm font-black font-mono text-emerald-600 dark:text-emerald-400">{fmt(position.target_price)}</span>
+                        </div>
                     </div>
-                    <div className={`rounded-xl p-2.5 border ${profitable ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/30' : 'bg-red-50 dark:bg-red-950/15 border-red-200 dark:border-red-900/20'}`}>
-                        <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">📍 Current</span>
-                        <span className={`block text-sm font-black font-mono ${profitable ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>{fmt(position.current_price)}</span>
-                        <span className={`block text-[8px] font-mono font-bold ${profitable ? 'text-[#00d97e]/60' : 'text-[#ff4757]/60'}`}>{profitable ? '▲' : '▼'} {Math.abs(pnl).toFixed(2)}%</span>
-                    </div>
-                    <div className="bg-gray-100 dark:bg-[#111620] rounded-xl p-2.5 border border-gray-200 dark:border-[#1e2430]">
-                        <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">
-                            {(position.target_stage ?? 1) === 2 ? '🏁 T2 Final' : '🎯 Target T1'}
-                        </span>
-                        <span className="block text-sm font-black font-mono text-emerald-600 dark:text-emerald-400">{fmt(position.target_price)}</span>
+                    {/* Vertical Price Ladder */}
+                    <div className="flex-shrink-0 hidden sm:block" style={{ width: 120 }}>
+                        <PriceLadder
+                            entry={position.entry_price}
+                            target={position.target_price}
+                            stopLoss={position.stop_loss}
+                            current={position.current_price}
+                            optionType={position.option_type?.toUpperCase() as 'CALL' | 'PUT'}
+                            riskReward={position.risk_reward_ratio || '—'}
+                        />
                     </div>
                 </div>
 
@@ -853,6 +872,35 @@ const PositionCard: React.FC<{
                     </div>
                 </div>
 
+            </div>
+
+            {/* ── Collapsible SuperTrend Chart ── */}
+            <div className="border-t border-gray-200 dark:border-[#1e2430]">
+                <button
+                    onClick={() => setChartOpen(prev => !prev)}
+                    className="w-full flex items-center justify-between px-5 py-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                    <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-sm">candlestick_chart</span>
+                        SuperTrend Chart
+                    </div>
+                    <span className={`material-symbols-outlined text-sm transition-transform ${chartOpen ? 'rotate-180' : ''}`}>
+                        expand_more
+                    </span>
+                </button>
+                {chartOpen && (
+                    <div className="px-4 pb-4">
+                        <MiniSuperTrendChart
+                            symbol={position.symbol}
+                            bars={bars ?? []}
+                            entryPrice={position.entry_price}
+                            stopLoss={position.stop_loss}
+                            target={position.target_price}
+                            optionType={position.option_type?.toUpperCase() as 'CALL' | 'PUT'}
+                            openedAt={position.opened_at}
+                        />
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -1119,6 +1167,10 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
     const [weakFilter, setWeakFilter] = useState(false);
     const [dipAddFilter, setDipAddFilter] = useState(false);
     const [sortBy, setSortBy] = useState<'default' | '30d_upside'>('default');
+
+    // Bars for charts
+    const barSymbols = useMemo(() => positions.map(p => p.symbol), [positions]);
+    const { barsBySymbol } = useMdBars(barSymbols);
 
     // DIP WATCH data
     const [dipWatch, setDipWatch] = useState<DipWatchRow[]>([]);
@@ -1691,7 +1743,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                 {/* Position grid */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {filteredPositions.map(p => (
-                                        <PositionCard key={p.id} position={p} onManualClose={setClosingPosition} onExecute={onExecute} onNavigateToLifecycle={onNavigateToLifecycle} />
+                                        <PositionCard key={p.id} position={p} bars={barsBySymbol[p.symbol]} onManualClose={setClosingPosition} onExecute={onExecute} onNavigateToLifecycle={onNavigateToLifecycle} />
                                     ))}
                                 </div>
 

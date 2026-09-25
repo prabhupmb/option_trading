@@ -2,6 +2,7 @@ import React from 'react';
 import { PositionCard } from './PositionCard';
 import { EmptyState } from './EmptyState';
 import { C } from './constants';
+import type { Bar } from '../../lib/supertrend';
 import type { IronGateDayPosition, SignalFilter } from './types';
 import type { ScanWindowResult } from './useScanWindow';
 
@@ -15,6 +16,7 @@ interface Props {
   isWeekend: boolean;
   scan: ScanWindowResult;
   onExecute?: (signal: any) => void;
+  barsBySymbol?: Record<string, Bar[]>;
 }
 
 function applyFilter(positions: IronGateDayPosition[], filter: SignalFilter): IronGateDayPosition[] {
@@ -55,7 +57,7 @@ const SkeletonCard: React.FC = () => (
 );
 
 export const OpenPositionsTable: React.FC<Props> = ({
-  positions, activeFilter, flashIds, updatedIds, loading, isMarketOpen, isWeekend, scan, onExecute,
+  positions, activeFilter, flashIds, updatedIds, loading, isMarketOpen, isWeekend, scan, onExecute, barsBySymbol,
 }) => {
   if (loading) {
     return (
@@ -97,6 +99,7 @@ export const OpenPositionsTable: React.FC<Props> = ({
         <PositionCard
           key={pos.id}
           pos={pos}
+          bars={barsBySymbol?.[pos.symbol]}
           isFlashing={flashIds.has(pos.id)}
           isUpdated={updatedIds.has(pos.id)}
           isMarketOpen={isMarketOpen}
