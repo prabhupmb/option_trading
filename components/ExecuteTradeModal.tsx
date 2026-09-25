@@ -280,6 +280,32 @@ interface ContractRecommendation {
     volume?: number;
     open_interest?: number;
     recommended?: boolean;
+    reference_price?: number;
+    default_limit?: number;
+    affordable_at_dip_pct?: number;
+    limit_options?: LimitOption[];
+}
+
+interface LimitOption {
+    dip_pct: number;
+    limit_price: number;
+    actual_dip_pct: number;
+    savings_per_contract: number;
+    total_savings: number;
+    within_budget: boolean;
+    max_contracts: number;
+}
+
+interface OrderConfig {
+    default_order_mode: OrderMode;
+    dip_levels: number[];
+    sl_presets: number[];
+    tp_presets: number[];
+    durations: string[];
+    default_duration: string;
+    default_dip_pct: number;
+    default_sl_pct: number;
+    default_tp_pct: number;
 }
 
 interface FindOptionResponse {
@@ -289,6 +315,7 @@ interface FindOptionResponse {
     cheapest_contract?: ContractRecommendation;
     message?: string;
     over_budget_options?: ContractRecommendation[];
+    order_config?: OrderConfig;
 }
 
 type FlowStep = 1 | 2 | 3;
@@ -298,6 +325,21 @@ type OrderMode = 'bracket' | 'limit';
 
 const SL_PRESETS = [10, 20, 30, 50];
 const TP_PRESETS = [12, 25, 50, 100];
+
+function tickRound(price: number, direction: 'down' | 'up'): number {
+    const tick = price < 3 ? 0.05 : 0.10;
+    return direction === 'down'
+        ? Math.floor(price / tick) * tick
+        : Math.ceil(price / tick) * tick;
+}
+
+const LS_KEY = 'tk_order_prefs';
+function loadOrderPrefs(): { order_mode?: OrderMode; dip_pct?: number; duration?: string } {
+    try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch { return {}; }
+}
+function saveOrderPrefs(prefs: { order_mode?: OrderMode; dip_pct?: number; duration?: string }) {
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ ...loadOrderPrefs(), ...prefs })); } catch {}
+}
 
 // ─── STEP INDICATOR ───────────────────────────────────────────
 
@@ -409,6 +451,9 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
     const [quantity, setQuantity] = useState(1);
     const [totalCostOverride, setTotalCostOverride] = useState<string>('');
     const [confirmText, setConfirmText] = useState('');
+    const [selectedDipIdx, setSelectedDipIdx] = useState<number>(0);
+    const [duration, setDuration] = useState<string>('GTC');
+    const [orderConfig, setOrderConfig] = useState<OrderConfig | null>(null);
 
     // Budget error
     const [budgetError, setBudgetError] = useState<{ message: string; minBudget: number; cheapestContract?: ContractRecommendation } | null>(null);
@@ -421,22 +466,31 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
     const themeColor = isPaper ? 'blue' : isCall ? 'green' : 'red';
     const premium = selectedContract?.premium || 0;
 
+    const selectedLimitOption = (orderMode === 'limit' && selectedContract?.limit_options?.[selectedDipIdx]) || null;
+    const effectiveBase = orderMode === 'limit' ? (selectedLimitOption?.limit_price || parseFloat(limitPrice) || premium) : premium;
+
     const computedSL = useMemo(() => {
         if (slMode === 'off') return null;
-        if (slMode === 'percent') return +(premium * (1 - slPercent / 100)).toFixed(2);
+        if (slMode === 'percent') {
+            const raw = effectiveBase * (1 - slPercent / 100);
+            return orderMode === 'limit' ? +tickRound(raw, 'down').toFixed(2) : +raw.toFixed(2);
+        }
         return parseFloat(slDollar) || null;
-    }, [slMode, slPercent, slDollar, premium]);
+    }, [slMode, slPercent, slDollar, effectiveBase, orderMode]);
 
     const computedTP = useMemo(() => {
         if (tpMode === 'off') return null;
-        if (tpMode === 'percent') return +(premium * (1 + tpPercent / 100)).toFixed(2);
+        if (tpMode === 'percent') {
+            const raw = effectiveBase * (1 + tpPercent / 100);
+            return orderMode === 'limit' ? +tickRound(raw, 'up').toFixed(2) : +raw.toFixed(2);
+        }
         return parseFloat(tpDollar) || null;
-    }, [tpMode, tpPercent, tpDollar, premium]);
+    }, [tpMode, tpPercent, tpDollar, effectiveBase, orderMode]);
 
-    const maxLoss = computedSL != null ? (premium - computedSL) * 100 * quantity : null;
-    const maxGain = computedTP != null ? (computedTP - premium) * 100 * quantity : null;
-    const riskReward = (computedSL != null && computedTP != null && premium - computedSL > 0)
-        ? ((computedTP - premium) / (premium - computedSL)).toFixed(1)
+    const maxLoss = computedSL != null ? (effectiveBase - computedSL) * 100 * quantity : null;
+    const maxGain = computedTP != null ? (computedTP - effectiveBase) * 100 * quantity : null;
+    const riskReward = (computedSL != null && computedTP != null && effectiveBase - computedSL > 0)
+        ? ((computedTP - effectiveBase) / (effectiveBase - computedSL)).toFixed(1)
         : '—';
 
     const dteOptions = [
@@ -509,8 +563,8 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
             setOptionType(signal.option_type as 'CALL' | 'PUT');
             setBudget(user?.user_metadata?.default_budget || 300);
 
-            // Step 3 defaults — bracket only for Schwab
-            setOrderMode(selectedBroker?.broker_name === 'schwab' ? 'bracket' : 'limit');
+            // Step 3 defaults
+            setOrderMode('limit');
             setSlMode('percent');
             setSlPercent(20);
             setSlDollar('');
@@ -518,6 +572,9 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
             setTpPercent(50);
             setTpDollar('');
             setQuantity(1);
+            setSelectedDipIdx(0);
+            setDuration('GTC');
+            setOrderConfig(null);
         }
     }, [signal, isOpen, user]);
 
@@ -589,6 +646,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
 
             if (result.contracts && result.contracts.length > 0) {
                 setContracts(result.contracts);
+                if (result.order_config) setOrderConfig(result.order_config);
                 setStep(2);
             } else {
                 throw new Error('No contracts found matching criteria. Try a wider expiry range or higher budget.');
@@ -638,12 +696,18 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                 limit_price: orderMode === 'limit' ? (parseFloat(limitPrice) || premium) : null,
                 current_price: signal.current_price,
 
-                // Bracket fields — premium-based TP/SL
-                // Schwab: bracket by default; bracketOrder=true when Bracket selected
-                bracketOrder: (selectedBroker?.broker_name === 'schwab' && isBracketActive) ? true : isBracketActive,
-                stop_loss: isBracketActive ? computedSL : null,
-                take_profit: isBracketActive ? computedTP : null,
-                order_mode: isBracketActive ? 'bracket' : 'limit',
+                // Order mode + TP/SL
+                bracketOrder: isBracketActive,
+                order_mode: orderMode,
+                stop_loss: computedSL,
+                take_profit: computedTP,
+                stop_loss_price: computedSL,
+                take_profit_price: computedTP,
+
+                // Dip-buy fields (limit mode)
+                dip_pct: !isBracketActive && selectedLimitOption ? selectedLimitOption.dip_pct : null,
+                reference_price: !isBracketActive && selectedContract?.reference_price ? selectedContract.reference_price : null,
+                duration: !isBracketActive ? duration : null,
 
                 // Broker
                 broker_id: selectedBroker?.id,
@@ -737,11 +801,41 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
 
     const selectContract = (c: ContractRecommendation) => {
         setSelectedContract(c);
+        const prefs = loadOrderPrefs();
+
+        // Order mode: localStorage > order_config > fallback
+        const mode = prefs.order_mode || orderConfig?.default_order_mode || 'limit';
+        setOrderMode(mode);
+
+        // Dip level: find matching index from prefs or order_config default
+        const defaultDip = prefs.dip_pct ?? orderConfig?.default_dip_pct ?? -10;
+        const dipIdx = c.limit_options?.findIndex(o => o.dip_pct === defaultDip) ?? 0;
+        const safeDipIdx = Math.max(0, dipIdx);
+        setSelectedDipIdx(safeDipIdx);
+
+        // Duration: localStorage > order_config > GTC
+        setDuration(prefs.duration || orderConfig?.default_duration || 'GTC');
+
+        // Limit price from selected dip option or ask/premium
+        const dipOpt = c.limit_options?.[safeDipIdx];
+        setLimitPrice(dipOpt ? dipOpt.limit_price.toFixed(2) : (c.ask || c.premium).toFixed(2));
+
+        // Quantity
         setQuantity(1);
-        setLimitPrice((c.ask || c.premium).toFixed(2));
-        // Init dollar inputs from defaults
-        setSlDollar((c.premium * (1 - 20 / 100)).toFixed(2));
-        setTpDollar((c.premium * (1 + 50 / 100)).toFixed(2));
+
+        // SL/TP defaults from order_config
+        const slPct = orderConfig?.default_sl_pct ?? 20;
+        const tpPct = orderConfig?.default_tp_pct ?? 50;
+        setSlPercent(slPct);
+        setTpPercent(tpPct);
+        setSlMode('percent');
+        setTpMode('percent');
+
+        const base = dipOpt ? dipOpt.limit_price : c.premium;
+        setSlDollar((base * (1 - slPct / 100)).toFixed(2));
+        setTpDollar((base * (1 + tpPct / 100)).toFixed(2));
+
+        setTotalCostOverride('');
         setStep(3);
     };
 
@@ -1018,6 +1112,9 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                                         {(c.recommended || i === 0) && (
                                                             <span className="text-[10px] bg-green-500/15 text-green-400 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 border border-green-800">★ BEST</span>
                                                         )}
+                                                        {c.affordable_at_dip_pct != null && (
+                                                            <span className="text-[10px] bg-amber-500/15 text-amber-400 px-2 py-0.5 rounded-full font-bold border border-amber-800">Fits @ {c.affordable_at_dip_pct}%</span>
+                                                        )}
                                                     </div>
                                                     <span className="text-xs text-gray-400 font-mono mt-0.5 block">{c.expiry} ({c.dte}d)</span>
                                                 </div>
@@ -1061,199 +1158,243 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                     </div>
                                 </div>
 
-                                {/* Order Mode Toggle — Schwab only */}
-                                {isSchwab && (
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Order Mode</label>
-                                        <div className="flex bg-[#0d1117] rounded-lg border border-gray-700/60 p-1 gap-1">
-                                            <button
-                                                onClick={() => !limitOnly && setOrderMode('bracket')}
-                                                disabled={limitOnly}
-                                                className={`flex-1 py-2.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-2 ${limitOnly ? 'opacity-40 cursor-not-allowed text-gray-600 border border-transparent' : orderMode === 'bracket' ? 'bg-indigo-900/30 text-indigo-400 border border-indigo-800' : 'text-gray-500 hover:text-white border border-transparent'}`}
-                                            >
-                                                <span className="material-symbols-outlined text-sm">link</span>
-                                                Bracket
-                                            </button>
-                                            <button
-                                                onClick={() => setOrderMode('limit')}
-                                                className={`flex-1 py-2.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-2 ${orderMode === 'limit' ? 'bg-green-900/30 text-green-400 border border-green-800' : 'text-gray-500 hover:text-white border border-transparent'}`}
-                                            >
-                                                <span className="material-symbols-outlined text-sm">tune</span>
-                                                Limit Order
-                                            </button>
+                                {/* Order Mode Toggle */}
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Order Mode</label>
+                                    <div className="flex bg-[#0d1117] rounded-lg border border-gray-700/60 p-1 gap-1">
+                                        <button
+                                            onClick={() => { setOrderMode('limit'); saveOrderPrefs({ order_mode: 'limit' }); }}
+                                            className={`flex-1 py-2.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-2 ${orderMode === 'limit' ? 'bg-green-900/30 text-green-400 border border-green-800' : 'text-gray-500 hover:text-white border border-transparent'}`}
+                                        >
+                                            <span className="material-symbols-outlined text-sm">tune</span>
+                                            Limit Order
+                                        </button>
+                                        <button
+                                            onClick={() => { if (!limitOnly) { setOrderMode('bracket'); saveOrderPrefs({ order_mode: 'bracket' }); } }}
+                                            disabled={limitOnly}
+                                            className={`flex-1 py-2.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-2 ${limitOnly ? 'opacity-40 cursor-not-allowed text-gray-600 border border-transparent' : orderMode === 'bracket' ? 'bg-indigo-900/30 text-indigo-400 border border-indigo-800' : 'text-gray-500 hover:text-white border border-transparent'}`}
+                                        >
+                                            <span className="material-symbols-outlined text-sm">link</span>
+                                            Bracket
+                                        </button>
+                                    </div>
+                                    {limitOnly && (
+                                        <div className="mt-2 bg-amber-500/5 border border-amber-500/20 rounded-lg p-2 flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-amber-400 text-sm shrink-0">schedule</span>
+                                            <span className="text-amber-300/80 text-[10px] leading-relaxed">After 10:00 AM CST — limit orders only. Bracket/market orders are disabled.</span>
                                         </div>
-                                        {limitOnly && (
-                                            <div className="mt-2 bg-amber-500/5 border border-amber-500/20 rounded-lg p-2 flex items-center gap-2">
-                                                <span className="material-symbols-outlined text-amber-400 text-sm shrink-0">schedule</span>
-                                                <span className="text-amber-300/80 text-[10px] leading-relaxed">After 10:00 AM CST — limit orders only. Bracket/market orders are disabled.</span>
+                                    )}
+                                </div>
+
+                                {/* ─── DIP BUY ENTRY — limit mode ─── */}
+                                {orderMode === 'limit' && (
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Dip Buy Entry</label>
+                                        {selectedContract.limit_options && selectedContract.limit_options.length > 0 ? (
+                                            <>
+                                                <div className="flex flex-wrap gap-2 mb-3">
+                                                    {selectedContract.limit_options.map((opt, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            onClick={() => {
+                                                                setSelectedDipIdx(idx);
+                                                                setLimitPrice(opt.limit_price.toFixed(2));
+                                                                saveOrderPrefs({ dip_pct: opt.dip_pct });
+                                                                if (quantity > opt.max_contracts) setQuantity(Math.max(1, opt.max_contracts));
+                                                            }}
+                                                            className={`px-3 py-2 rounded-lg border text-xs font-bold transition-all flex flex-col items-center gap-0.5 min-w-[72px] ${
+                                                                !opt.within_budget
+                                                                    ? 'opacity-40 border-gray-700/40 bg-[#0d1117] text-gray-600 cursor-not-allowed'
+                                                                    : selectedDipIdx === idx
+                                                                        ? 'bg-green-900/30 text-green-400 border-green-800 shadow-lg shadow-green-900/20'
+                                                                        : 'bg-[#0d1117] text-gray-400 border-gray-700/60 hover:border-gray-500'
+                                                            }`}
+                                                            disabled={!opt.within_budget}
+                                                        >
+                                                            <span className="font-black">{opt.dip_pct}%</span>
+                                                            <span className={`text-[10px] font-mono ${selectedDipIdx === idx ? 'text-green-300' : 'text-gray-500'}`}>
+                                                                ${opt.limit_price.toFixed(2)}
+                                                            </span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Duration</span>
+                                                    <div className="flex bg-[#0d1117] rounded border border-gray-700 p-0.5 gap-0.5">
+                                                        {(orderConfig?.durations || ['GTC', 'DAY']).map(d => (
+                                                            <button
+                                                                key={d}
+                                                                onClick={() => { setDuration(d); saveOrderPrefs({ duration: d }); }}
+                                                                className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${
+                                                                    duration === d
+                                                                        ? 'bg-green-900/40 text-green-400 border border-green-800'
+                                                                        : 'text-gray-500 hover:text-gray-300'
+                                                                }`}
+                                                            >
+                                                                {d}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="bg-[#0d1117] rounded-lg p-4 border border-green-800/40">
+                                                <div className="flex items-center bg-[#080c11] border border-gray-700/60 rounded-lg overflow-hidden">
+                                                    <span className="px-3 text-gray-500 font-bold border-r border-gray-700/60">$</span>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        min="0.01"
+                                                        value={limitPrice}
+                                                        onChange={e => setLimitPrice(e.target.value)}
+                                                        placeholder={premium.toFixed(2)}
+                                                        className="flex-1 px-3 py-3 bg-transparent text-white font-mono font-bold text-lg outline-none"
+                                                    />
+                                                    <span className="px-3 text-gray-600 text-xs font-bold border-l border-gray-700/60">per contract</span>
+                                                </div>
+                                                <div className="flex justify-between items-center mt-2 text-[11px]">
+                                                    <span className="text-gray-500">Current Ask</span>
+                                                    <span className="text-white font-mono font-bold">{formatCurrency(selectedContract?.ask || premium)}</span>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
                                 )}
 
-                                {orderMode === 'bracket' ? (
-                                    <>
-                                        {/* ─── Stop Loss ─────────────── */}
+                                {/* ─── Stop Loss ─────────────── */}
+                                <div>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <label className="text-xs font-bold text-red-400 uppercase flex items-center gap-1">▼ Stop Loss</label>
+                                        <ModeToggle value={slMode} onChange={setSlMode} color="red" />
+                                    </div>
+
+                                    {slMode === 'percent' && (
                                         <div>
-                                            <div className="flex justify-between items-center mb-2">
-                                                <label className="text-xs font-bold text-red-400 uppercase flex items-center gap-1">▼ Stop Loss</label>
-                                                <ModeToggle value={slMode} onChange={setSlMode} color="red" />
+                                            <div className="flex gap-1.5 mb-2">
+                                                {(orderConfig?.sl_presets || SL_PRESETS).map(p => (
+                                                    <button
+                                                        key={p}
+                                                        onClick={() => setSlPercent(p)}
+                                                        className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all border ${slPercent === p ? 'bg-red-900/30 text-red-400 border-red-800' : 'bg-[#0d1117] text-gray-400 border-gray-700/60 hover:border-gray-500'}`}
+                                                    >
+                                                        -{p}%
+                                                    </button>
+                                                ))}
                                             </div>
-
-                                            {slMode === 'percent' && (
-                                                <div>
-                                                    <div className="flex gap-1.5 mb-2">
-                                                        {SL_PRESETS.map(p => (
-                                                            <button
-                                                                key={p}
-                                                                onClick={() => setSlPercent(p)}
-                                                                className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all border ${slPercent === p ? 'bg-red-900/30 text-red-400 border-red-800' : 'bg-[#0d1117] text-gray-400 border-gray-700/60 hover:border-gray-500'}`}
-                                                            >
-                                                                -{p}%
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                    <p className="text-[11px] text-gray-400">
-                                                        Exit if premium drops to <span className="text-red-400 font-mono font-bold">{formatCurrency(computedSL || 0)}</span> <span className="text-gray-600">(-{slPercent}%)</span>
-                                                    </p>
-                                                </div>
-                                            )}
-
-                                            {slMode === 'dollar' && (
-                                                <div className="flex items-center bg-[#0d1117] border border-gray-700/60 rounded-lg overflow-hidden">
-                                                    <span className="px-3 text-gray-500 font-bold border-r border-gray-700/60">$</span>
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        value={slDollar}
-                                                        onChange={e => setSlDollar(e.target.value)}
-                                                        placeholder={`e.g. ${(premium * 0.8).toFixed(2)}`}
-                                                        className="flex-1 px-3 py-3 bg-transparent text-white font-mono font-bold outline-none"
-                                                    />
-                                                </div>
-                                            )}
-
-                                            {slMode === 'off' && (
-                                                <p className="text-gray-500 text-xs py-2 px-3 bg-[#0d1117] rounded-lg border border-gray-700/60">No stop loss — manual exit only</p>
-                                            )}
+                                            <p className="text-[11px] text-gray-400">
+                                                Exit if {orderMode === 'limit' ? 'price' : 'premium'} drops to <span className="text-red-400 font-mono font-bold">{formatCurrency(computedSL || 0)}</span> <span className="text-gray-600">(-{slPercent}%)</span>
+                                            </p>
                                         </div>
+                                    )}
 
-                                        {/* ─── Take Profit ─────────────── */}
+                                    {slMode === 'dollar' && (
+                                        <div className="flex items-center bg-[#0d1117] border border-gray-700/60 rounded-lg overflow-hidden">
+                                            <span className="px-3 text-gray-500 font-bold border-r border-gray-700/60">$</span>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={slDollar}
+                                                onChange={e => setSlDollar(e.target.value)}
+                                                placeholder={`e.g. ${(effectiveBase * 0.8).toFixed(2)}`}
+                                                className="flex-1 px-3 py-3 bg-transparent text-white font-mono font-bold outline-none"
+                                            />
+                                        </div>
+                                    )}
+
+                                    {slMode === 'off' && (
+                                        <p className="text-gray-500 text-xs py-2 px-3 bg-[#0d1117] rounded-lg border border-gray-700/60">No stop loss — manual exit only</p>
+                                    )}
+                                </div>
+
+                                {/* ─── Take Profit ─────────────── */}
+                                <div>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <label className="text-xs font-bold text-green-400 uppercase flex items-center gap-1">▲ Take Profit</label>
+                                        <ModeToggle value={tpMode} onChange={setTpMode} color="green" />
+                                    </div>
+
+                                    {tpMode === 'percent' && (
                                         <div>
-                                            <div className="flex justify-between items-center mb-2">
-                                                <label className="text-xs font-bold text-green-400 uppercase flex items-center gap-1">▲ Take Profit</label>
-                                                <ModeToggle value={tpMode} onChange={setTpMode} color="green" />
+                                            <div className="flex gap-1.5 mb-2">
+                                                {(orderConfig?.tp_presets || TP_PRESETS).map(p => (
+                                                    <button
+                                                        key={p}
+                                                        onClick={() => setTpPercent(p)}
+                                                        className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all border ${tpPercent === p ? 'bg-green-900/30 text-green-400 border-green-800' : 'bg-[#0d1117] text-gray-400 border-gray-700/60 hover:border-gray-500'}`}
+                                                    >
+                                                        +{p}%
+                                                    </button>
+                                                ))}
                                             </div>
-
-                                            {tpMode === 'percent' && (
-                                                <div>
-                                                    <div className="flex gap-1.5 mb-2">
-                                                        {TP_PRESETS.map(p => (
-                                                            <button
-                                                                key={p}
-                                                                onClick={() => setTpPercent(p)}
-                                                                className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all border ${tpPercent === p ? 'bg-green-900/30 text-green-400 border-green-800' : 'bg-[#0d1117] text-gray-400 border-gray-700/60 hover:border-gray-500'}`}
-                                                            >
-                                                                +{p}%
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                    <p className="text-[11px] text-gray-400">
-                                                        Exit if premium rises to <span className="text-green-400 font-mono font-bold">{formatCurrency(computedTP || 0)}</span> <span className="text-gray-600">(+{tpPercent}%)</span>
-                                                    </p>
-                                                </div>
-                                            )}
-
-                                            {tpMode === 'dollar' && (
-                                                <div className="flex items-center bg-[#0d1117] border border-gray-700/60 rounded-lg overflow-hidden">
-                                                    <span className="px-3 text-gray-500 font-bold border-r border-gray-700/60">$</span>
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        value={tpDollar}
-                                                        onChange={e => setTpDollar(e.target.value)}
-                                                        placeholder={`e.g. ${(premium * 1.5).toFixed(2)}`}
-                                                        className="flex-1 px-3 py-3 bg-transparent text-white font-mono font-bold outline-none"
-                                                    />
-                                                </div>
-                                            )}
-
-                                            {tpMode === 'off' && (
-                                                <p className="text-gray-500 text-xs py-2 px-3 bg-[#0d1117] rounded-lg border border-gray-700/60">No take profit — manual exit only</p>
-                                            )}
+                                            <p className="text-[11px] text-gray-400">
+                                                Exit if {orderMode === 'limit' ? 'price' : 'premium'} rises to <span className="text-green-400 font-mono font-bold">{formatCurrency(computedTP || 0)}</span> <span className="text-gray-600">(+{tpPercent}%)</span>
+                                            </p>
                                         </div>
+                                    )}
 
-                                        {/* ─── Bracket Summary ─────────── */}
-                                        {(computedSL != null || computedTP != null) && (
-                                            <div className="bg-[#080c11] rounded-xl p-4 border border-gray-800 space-y-1.5">
-                                                <div className="flex justify-between items-center py-1">
-                                                    <span className="text-gray-500 text-xs">Entry Premium</span>
-                                                    <span className="text-white text-xs font-semibold font-mono">{formatCurrency(premium)}</span>
-                                                </div>
-                                                {computedSL != null && (
-                                                    <div className="flex justify-between items-center py-1">
-                                                        <span className="text-red-400 text-xs">▼ Stop Loss</span>
-                                                        <span className="text-red-400 text-xs font-semibold font-mono">
-                                                            {formatCurrency(computedSL)} <span className="text-gray-600">(-{formatCurrency(premium - computedSL)}/ct)</span>
-                                                        </span>
-                                                    </div>
-                                                )}
-                                                {computedTP != null && (
-                                                    <div className="flex justify-between items-center py-1">
-                                                        <span className="text-green-400 text-xs">▲ Take Profit</span>
-                                                        <span className="text-green-400 text-xs font-semibold font-mono">
-                                                            {formatCurrency(computedTP)} <span className="text-gray-600">(+{formatCurrency(computedTP - premium)}/ct)</span>
-                                                        </span>
-                                                    </div>
-                                                )}
-                                                <div className="border-t border-gray-800 pt-2 mt-1 space-y-1">
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-gray-500 text-[11px]">Max Loss / Max Gain</span>
-                                                        <span className="text-xs font-mono">
-                                                            {maxLoss != null ? <span className="text-red-400 font-bold">-{formatCurrency(maxLoss)}</span> : <span className="text-gray-600">—</span>}
-                                                            <span className="text-gray-600 mx-1">/</span>
-                                                            {maxGain != null ? <span className="text-green-400 font-bold">+{formatCurrency(maxGain)}</span> : <span className="text-gray-600">—</span>}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-gray-500 text-[11px]">Risk / Reward</span>
-                                                        <span className="text-yellow-400 text-xs font-bold font-mono">1:{riskReward}</span>
-                                                    </div>
-                                                </div>
+                                    {tpMode === 'dollar' && (
+                                        <div className="flex items-center bg-[#0d1117] border border-gray-700/60 rounded-lg overflow-hidden">
+                                            <span className="px-3 text-gray-500 font-bold border-r border-gray-700/60">$</span>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={tpDollar}
+                                                onChange={e => setTpDollar(e.target.value)}
+                                                placeholder={`e.g. ${(effectiveBase * 1.5).toFixed(2)}`}
+                                                className="flex-1 px-3 py-3 bg-transparent text-white font-mono font-bold outline-none"
+                                            />
+                                        </div>
+                                    )}
+
+                                    {tpMode === 'off' && (
+                                        <p className="text-gray-500 text-xs py-2 px-3 bg-[#0d1117] rounded-lg border border-gray-700/60">No take profit — manual exit only</p>
+                                    )}
+                                </div>
+
+                                {/* ─── Summary Card ─────────── */}
+                                {(computedSL != null || computedTP != null) && (
+                                    <div className="bg-[#080c11] rounded-xl p-4 border border-gray-800 space-y-1.5">
+                                        <div className="flex justify-between items-center py-1">
+                                            <span className="text-gray-500 text-xs">{orderMode === 'limit' ? 'Limit Entry' : 'Entry Premium'}</span>
+                                            <span className="text-white text-xs font-semibold font-mono">{formatCurrency(effectiveBase)}</span>
+                                        </div>
+                                        {orderMode === 'limit' && selectedLimitOption && (
+                                            <div className="flex justify-between items-center py-1">
+                                                <span className="text-green-400 text-xs">Savings vs Ask</span>
+                                                <span className="text-green-400 text-xs font-semibold font-mono">
+                                                    -{formatCurrency(selectedLimitOption.savings_per_contract * 100)}/ct <span className="text-gray-600">({selectedLimitOption.actual_dip_pct.toFixed(1)}%)</span>
+                                                </span>
                                             </div>
                                         )}
-                                    </>
-                                ) : (
-                                    <div className="space-y-4">
-                                        <div className="bg-[#0d1117] rounded-lg p-4 border border-green-800/40">
-                                            <div className="flex items-center gap-2 mb-3">
-                                                <span className="material-symbols-outlined text-green-400 text-sm">tune</span>
-                                                <span className="text-green-400 text-[10px] font-black uppercase tracking-widest">Limit Price</span>
+                                        {computedSL != null && (
+                                            <div className="flex justify-between items-center py-1">
+                                                <span className="text-red-400 text-xs">▼ Stop Loss</span>
+                                                <span className="text-red-400 text-xs font-semibold font-mono">
+                                                    {formatCurrency(computedSL)} <span className="text-gray-600">(-{formatCurrency(effectiveBase - computedSL)}/ct)</span>
+                                                </span>
                                             </div>
-                                            <p className="text-gray-400 text-[11px] mb-3">
-                                                Set the maximum price you're willing to pay per contract. The order will only fill at or below this price.
-                                            </p>
-                                            <div className="flex items-center bg-[#080c11] border border-gray-700/60 rounded-lg overflow-hidden">
-                                                <span className="px-3 text-gray-500 font-bold border-r border-gray-700/60">$</span>
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    min="0.01"
-                                                    value={limitPrice}
-                                                    onChange={e => setLimitPrice(e.target.value)}
-                                                    placeholder={premium.toFixed(2)}
-                                                    className="flex-1 px-3 py-3 bg-transparent text-white font-mono font-bold text-lg outline-none"
-                                                />
-                                                <span className="px-3 text-gray-600 text-xs font-bold border-l border-gray-700/60">per contract</span>
+                                        )}
+                                        {computedTP != null && (
+                                            <div className="flex justify-between items-center py-1">
+                                                <span className="text-green-400 text-xs">▲ Take Profit</span>
+                                                <span className="text-green-400 text-xs font-semibold font-mono">
+                                                    {formatCurrency(computedTP)} <span className="text-gray-600">(+{formatCurrency(computedTP - effectiveBase)}/ct)</span>
+                                                </span>
                                             </div>
-                                            <div className="flex justify-between items-center mt-2 text-[11px]">
-                                                <span className="text-gray-500">Current Ask</span>
-                                                <span className="text-white font-mono font-bold">{formatCurrency(selectedContract?.ask || premium)}</span>
+                                        )}
+                                        <div className="border-t border-gray-800 pt-2 mt-1 space-y-1">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-gray-500 text-[11px]">Max Loss / Max Gain</span>
+                                                <span className="text-xs font-mono">
+                                                    {maxLoss != null ? <span className="text-red-400 font-bold">-{formatCurrency(maxLoss)}</span> : <span className="text-gray-600">—</span>}
+                                                    <span className="text-gray-600 mx-1">/</span>
+                                                    {maxGain != null ? <span className="text-green-400 font-bold">+{formatCurrency(maxGain)}</span> : <span className="text-gray-600">—</span>}
+                                                </span>
                                             </div>
-                                        </div>
-                                        <div className="bg-[#0d1117] rounded-lg p-3 border border-gray-700/40 flex items-start gap-2">
-                                            <span className="material-symbols-outlined text-amber-400 text-sm mt-0.5">info</span>
-                                            <span className="text-gray-400 text-[11px] leading-relaxed">Limit order — no automatic TP/SL. You'll manage exits manually. Order will only execute at your specified price or better.</span>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-gray-500 text-[11px]">Risk / Reward</span>
+                                                <span className="text-yellow-400 text-xs font-bold font-mono">1:{riskReward}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -1266,7 +1407,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                             <span className="material-symbols-outlined text-sm">remove</span>
                                         </button>
                                         <span className="font-mono font-black text-xl w-8 text-center text-white">{quantity}</span>
-                                        <button onClick={() => { const q = Math.min(selectedContract.max_contracts || 10, quantity + 1); setQuantity(q); setTotalCostOverride(''); }} className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#0d1117] border border-gray-700 text-white hover:bg-gray-800 transition-colors">
+                                        <button onClick={() => { const maxQ = (orderMode === 'limit' && selectedLimitOption) ? selectedLimitOption.max_contracts : (selectedContract.max_contracts || 10); const q = Math.min(maxQ, quantity + 1); setQuantity(q); setTotalCostOverride(''); }} className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#0d1117] border border-gray-700 text-white hover:bg-gray-800 transition-colors">
                                             <span className="material-symbols-outlined text-sm">add</span>
                                         </button>
                                     </div>
@@ -1290,7 +1431,8 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                                 const cost = parseFloat(val);
                                                 const unitPrice = (orderMode === 'limit' ? (parseFloat(limitPrice) || premium) : premium) * 100;
                                                 if (cost && unitPrice > 0) {
-                                                    const newQty = Math.max(1, Math.min(selectedContract.max_contracts || 10, Math.floor(cost / unitPrice)));
+                                                    const maxQ = (orderMode === 'limit' && selectedLimitOption) ? selectedLimitOption.max_contracts : (selectedContract.max_contracts || 10);
+                                                    const newQty = Math.max(1, Math.min(maxQ, Math.floor(cost / unitPrice)));
                                                     setQuantity(newQty);
                                                 }
                                             }}
@@ -1357,7 +1499,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                         </div>
                                         <div className="flex justify-between items-center">
                                             <span className="text-gray-500 text-xs font-bold uppercase">Type</span>
-                                            <span className="text-white text-sm font-bold uppercase">{orderMode === 'bracket' ? 'Bracket (OTO)' : 'Market'}</span>
+                                            <span className="text-white text-sm font-bold uppercase">{orderMode === 'bracket' ? 'Bracket (OTO)' : 'Limit (Dip Buy)'}</span>
                                         </div>
                                         <div className="flex justify-between items-center">
                                             <span className="text-gray-500 text-xs font-bold uppercase">Quantity</span>
@@ -1504,7 +1646,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ isOpen, onClose, 
                                     : 'bg-green-600 hover:bg-green-500 text-white'
                                     }`}
                             >
-                                🚀 {orderMode === 'bracket' ? 'Place Bracket Order' : 'Place Order'}
+                                {orderMode === 'bracket' ? 'Place Bracket Order' : `Place Dip Limit @ ${formatCurrency(parseFloat(limitPrice) || premium)}`}
                             </button>
                         </>
                     )}
