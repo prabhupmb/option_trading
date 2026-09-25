@@ -229,7 +229,8 @@ const TradeChart: React.FC<TradeChartProps> = (props) => {
     positionLabels();
 
     // Reposition labels on scroll/zoom/resize
-    const unsub = chart.timeScale().subscribeVisibleLogicalRangeChange(() => positionLabels());
+    const onRangeChange = () => positionLabels();
+    chart.timeScale().subscribeVisibleLogicalRangeChange(onRangeChange);
 
     const ro = new ResizeObserver(entries => {
       for (const e of entries) {
@@ -241,8 +242,8 @@ const TradeChart: React.FC<TradeChartProps> = (props) => {
     ro.observe(el);
 
     return () => {
-      unsub();
       ro.disconnect();
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRangeChange);
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
