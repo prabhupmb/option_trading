@@ -7,6 +7,7 @@ import {
   CandlestickSeries,
   type IChartApi,
   type ISeriesApi,
+  type ISeriesPrimitive,
   type Time,
   type SeriesType,
 } from 'lightweight-charts';
@@ -46,6 +47,14 @@ interface LevelLabel {
   label: string;
   color: string;
   showPct: boolean;
+}
+
+// Forces autoscale to include all price levels
+class LevelAutoscale implements ISeriesPrimitive<Time> {
+  constructor(private _min: number, private _max: number) {}
+  autoscaleInfo() {
+    return { priceRange: { minValue: this._min, maxValue: this._max } };
+  }
 }
 
 const TradeChart: React.FC<TradeChartProps> = (props) => {
@@ -214,14 +223,9 @@ const TradeChart: React.FC<TradeChartProps> = (props) => {
     const minP = Math.min(...allPrices);
     const maxP = Math.max(...allPrices);
     const pad = (maxP - minP) * 0.05;
-    const totalRange = maxP - minP + 2 * pad;
-    const topMargin = (maxP + pad - Math.max(...bars.map(b => b.high))) / totalRange;
-    const botMargin = (Math.min(...bars.map(b => b.low)) - (minP - pad)) / totalRange;
+    series.attachPrimitive(new LevelAutoscale(minP - pad, maxP + pad) as any);
     chart.priceScale('right').applyOptions({
-      scaleMargins: {
-        top: Math.max(0.02, Math.min(0.3, -topMargin + 0.05)),
-        bottom: Math.max(0.02, Math.min(0.3, -botMargin + 0.05)),
-      },
+      scaleMargins: { top: 0.05, bottom: 0.05 },
       autoScale: true,
     });
 
