@@ -1,17 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { OptionSignal, AccessLevel } from '../types';
+import PriceLadder from './signals/PriceLadder';
+import MiniSuperTrendChart from './signals/MiniSuperTrendChart';
+import type { Bar } from '../lib/supertrend';
 
 interface Props {
   signal: OptionSignal;
+  bars?: Bar[];
   onViewAnalysis?: (signal: any) => void;
   onExecute?: (signal: any) => void;
   onQuickTrade?: (signal: OptionSignal) => void;
   accessLevel?: AccessLevel;
 }
 
-const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, onQuickTrade, accessLevel = 'signal' }) => {
+const StockSignalCard: React.FC<Props> = ({ signal, bars, onViewAnalysis, onExecute, onQuickTrade, accessLevel = 'signal' }) => {
   const isNoTrade = signal.tier === 'NO_TRADE';
   const signalText = signal.trading_recommendation?.toUpperCase() || '';
+  const [chartOpen, setChartOpen] = useState(false);
 
   const getSignalBadgeStyle = (text: string) => {
     if (text.includes('STRONG BUY')) return 'bg-green-600 text-white border-green-400 shadow-[0_0_15px_rgba(34,197,94,0.4)]';
@@ -31,24 +36,17 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, o
     }
   };
 
-  const getGatesProgress = (gates: string) => {
-    const [passed, total] = gates.split('/').map(Number);
-    if (!total) return { width: '0%', color: 'bg-gray-300 dark:bg-gray-700' };
-    const pct = (passed / total) * 100;
-
-    let color = 'bg-red-500';
-    if (missedGateCount(gates) === 0) color = 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]';
-    else if (passed >= 4) color = 'bg-amber-500';
-
-    return { width: `${pct}%`, color };
-  };
-
   const missedGateCount = (gates: string) => {
     const [passed, total] = gates.split('/').map(Number);
     return total - passed;
   }
 
   const formatCurrency = (val?: number) => val ? `$${val.toFixed(2)}` : '-';
+
+  // Resolve target: use target_price (swing) or fib_target1
+  const targetPrice = signal.target_price || signal.fib_target1;
+  const slPrice = signal.stop_loss || signal.fib_stop_loss;
+  const entryPrice = signal.entry_price || signal.current_price;
 
   const cardWarnings = (() => {
     if (isNoTrade) return [];
@@ -135,79 +133,55 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, o
           </div>
         </div>
 
-        {/* Targets Section */}
+        {/* Targets + Price Ladder */}
         {!isNoTrade && (
           <div className="space-y-2 pt-2 border-t border-gray-200/50 dark:border-gray-800/50 border-dashed">
-            <div className="flex justify-between items-center bg-green-50 dark:bg-green-900/5 px-2 py-1.5 rounded border border-green-200/50 dark:border-green-500/10">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[14px] text-green-500">my_location</span>
-                <span className="text-[10px] font-bold text-green-600/70 dark:text-green-500/70 uppercase">Target 1</span>
-              </div>
-              <span className="font-mono text-xs font-bold text-green-600 dark:text-green-400">{formatCurrency(signal.fib_target1)}</span>
-            </div>
-
-            <div className="flex justify-between items-center px-2 py-1 opacity-70">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[14px] text-green-500/40">flag</span>
-                <span className="text-[10px] font-bold text-gray-500 uppercase">
-                  {signal.fib_profit_zone_label ? 'Profit Zone' : 'Target 2'}
-                </span>
-              </div>
-              <span className="font-mono text-xs font-bold text-green-700/70 dark:text-green-600/70">
-                {signal.fib_profit_zone_label ?? formatCurrency(signal.fib_target2)}
-              </span>
-            </div>
-
-            <div className="flex justify-between items-center bg-red-50 dark:bg-red-900/5 px-2 py-1.5 rounded mt-1 border border-red-200/50 dark:border-red-500/10">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[14px] text-red-500">do_not_disturb_on</span>
-                <span className="text-[10px] font-bold text-red-600/70 dark:text-red-500/70 uppercase">Stop Loss</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="font-mono text-[10px] text-gray-500">R/R {signal.risk_reward_ratio}</span>
-                <span className="font-mono text-xs font-bold text-red-500">{formatCurrency(signal.fib_stop_loss)}</span>
-              </div>
-            </div>
-
-            {/* ── Price Progress Bar ── */}
-            {signal.fib_target1 > 0 && signal.fib_stop_loss > 0 && signal.current_price > 0 && (() => {
-              const isCall = signal.option_type === 'CALL';
-              const sl = signal.fib_stop_loss;
-              const target = signal.fib_target1;
-              const current = signal.current_price;
-              const range = Math.abs(target - sl);
-              if (range === 0) return null;
-              const rawPct = isCall
-                ? ((current - sl) / (target - sl)) * 100
-                : ((sl - current) / (sl - target)) * 100;
-              const pct = Math.max(0, Math.min(100, rawPct));
-              const barColor = pct >= 75 ? '#00c853' : pct >= 50 ? '#69f0ae' : pct >= 25 ? '#ffd740' : '#ff5252';
-
-              return (
-                <div className="mt-3 space-y-1.5">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">Progress to Target</span>
-                    <span className="text-[11px] font-black font-mono" style={{ color: barColor }}>{pct.toFixed(1)}%</span>
+            <div className="flex gap-4">
+              {/* Left: Target / Profit Zone / SL rows */}
+              <div className="flex-1 space-y-2 min-w-0">
+                <div className="flex justify-between items-center bg-green-50 dark:bg-green-900/5 px-2 py-1.5 rounded border border-green-200/50 dark:border-green-500/10">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[14px] text-green-500">my_location</span>
+                    <span className="text-[10px] font-bold text-green-600/70 dark:text-green-500/70 uppercase">Target 1</span>
                   </div>
-                  <div className="relative h-3 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${pct}%`, background: `linear-gradient(90deg, #ff5252, #ffd740 40%, #69f0ae 70%, #00c853)` }}
-                    />
-                    {/* Current price tick */}
-                    <div
-                      className="absolute top-0 bottom-0 w-0.5 bg-white/90"
-                      style={{ left: `${pct}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-[9px] font-mono font-bold">
-                    <span className="text-red-400">🛑 {formatCurrency(sl)}</span>
-                    <span className="text-gray-400">{formatCurrency(current)}</span>
-                    <span className="text-green-400">🎯 {formatCurrency(target)}</span>
-                  </div>
+                  <span className="font-mono text-xs font-bold text-green-600 dark:text-green-400">{formatCurrency(signal.fib_target1)}</span>
                 </div>
-              );
-            })()}
+
+                <div className="flex justify-between items-center px-2 py-1 opacity-70">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[14px] text-green-500/40">flag</span>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase">
+                      {signal.fib_profit_zone_label ? 'Profit Zone' : 'Target 2'}
+                    </span>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-green-700/70 dark:text-green-600/70">
+                    {signal.fib_profit_zone_label ?? formatCurrency(signal.fib_target2)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center bg-red-50 dark:bg-red-900/5 px-2 py-1.5 rounded mt-1 border border-red-200/50 dark:border-red-500/10">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[14px] text-red-500">do_not_disturb_on</span>
+                    <span className="text-[10px] font-bold text-red-600/70 dark:text-red-500/70 uppercase">Stop Loss</span>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-red-500">{formatCurrency(signal.fib_stop_loss)}</span>
+                </div>
+              </div>
+
+              {/* Right: Vertical Price Ladder */}
+              {targetPrice > 0 && slPrice > 0 && signal.current_price > 0 && (
+                <div className="flex-shrink-0" style={{ width: 120 }}>
+                  <PriceLadder
+                    entry={entryPrice}
+                    target={targetPrice}
+                    stopLoss={slPrice}
+                    current={signal.current_price}
+                    optionType={signal.option_type}
+                    riskReward={signal.risk_reward_ratio}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -235,6 +209,37 @@ const StockSignalCard: React.FC<Props> = ({ signal, onViewAnalysis, onExecute, o
           </div>
         )}
       </div>
+
+      {/* Collapsible Chart Section */}
+      {!isNoTrade && (
+        <div className="border-t border-gray-200/50 dark:border-gray-800/50">
+          <button
+            onClick={() => setChartOpen(prev => !prev)}
+            className="w-full flex items-center justify-between px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-sm">candlestick_chart</span>
+              SuperTrend Chart
+            </div>
+            <span className={`material-symbols-outlined text-sm transition-transform ${chartOpen ? 'rotate-180' : ''}`}>
+              expand_more
+            </span>
+          </button>
+          {chartOpen && (
+            <div className="px-4 pb-4">
+              <MiniSuperTrendChart
+                symbol={signal.symbol}
+                bars={bars ?? []}
+                entryPrice={entryPrice}
+                stopLoss={slPrice}
+                target={targetPrice}
+                optionType={signal.option_type}
+                openedAt={signal.opened_at}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Warning Strip */}
       {cardWarnings.length > 0 && (

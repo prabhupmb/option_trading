@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import ExecuteTradeModal from './components/ExecuteTradeModal';
 import Header from './components/Header';
-import StockSignalCard from './components/StockSignalCard';
+import OptionFeedGrid from './components/signals/OptionFeedGrid';
 import OptionSignalStats from './components/signals/OptionSignalStats';
 import OptionSignalFilters from './components/signals/OptionSignalFilters';
 import Navigation, { View } from './components/Navigation';
@@ -729,25 +729,14 @@ const App: React.FC = () => {
                   )}
 
                   {!loading && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                      {processedSignals.map((signal) => (
-                        <StockSignalCard
-                          key={signal.id || signal.symbol}
-                          signal={signal}
-                          onViewAnalysis={handleViewAnalysis}
-                          onExecute={handleExecute}
-                          onQuickTrade={setQuickTradeSignal}
-                          accessLevel={accessLevel}
-                        />
-                      ))}
-                      {processedSignals.length === 0 && (
-                        <div className="col-span-full py-20 text-center opacity-50">
-                          <span className="material-symbols-outlined text-6xl text-slate-300 dark:text-white/10 mb-4">filter_list_off</span>
-                          <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">No signals match your filter</p>
-                          <button onClick={() => setActiveFilter('ALL')} className="mt-4 text-rh-green font-bold text-xs uppercase hover:underline">Clear Filters</button>
-                        </div>
-                      )}
-                    </div>
+                    <OptionFeedGrid
+                      signals={processedSignals}
+                      onViewAnalysis={handleViewAnalysis}
+                      onExecute={handleExecute}
+                      onQuickTrade={setQuickTradeSignal}
+                      accessLevel={accessLevel}
+                      onClearFilters={() => setActiveFilter('ALL')}
+                    />
                   )}
 
                   <div className="mt-12 text-center border-t border-gray-100 dark:border-white/5 pt-8">
