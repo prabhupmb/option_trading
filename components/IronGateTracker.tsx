@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import { OptionSignal } from '../types';
-import { useMdBars } from '../hooks/useMdBars';
-import PriceLadder from './signals/PriceLadder';
-import MiniSuperTrendChart from './signals/MiniSuperTrendChart';
+import { useMdBars, type Timeframe } from '../hooks/useMdBars';
+import TradeChart from './signals/TradeChart';
 import type { Bar } from '../lib/supertrend';
 
 // ─── TYPES ────────────────────────────────────────────────────
@@ -530,12 +529,13 @@ const GATE_KEYS = ['g1_sma', 'g2_1h', 'g3_15m', 'g4_5m', 'g5_vwap', 'g6_adx'];
 const PositionCard: React.FC<{
     position: IronGatePosition;
     bars?: Bar[];
+    tf: Timeframe;
+    onTfChange: (tf: Timeframe) => void;
     onManualClose: (p: IronGatePosition) => void;
     onExecute?: (signal: OptionSignal) => void;
     onNavigateToLifecycle?: (symbol: string) => void;
-}> = ({ position, bars, onManualClose, onExecute, onNavigateToLifecycle }) => {
+}> = ({ position, bars, tf, onTfChange, onManualClose, onExecute, onNavigateToLifecycle }) => {
     const [expanded, setExpanded] = useState(false);
-    const [chartOpen, setChartOpen] = useState(false);
     const isCall = position.option_type?.toUpperCase() === 'CALL';
     const pnl = calcPnl(position);
     const profitable = isProfitable(position);
@@ -666,105 +666,28 @@ const PositionCard: React.FC<{
                     )}
                 </div>
 
-                {/* ── Row 3: Price Trio + Ladder ── */}
-                <div className="flex gap-3">
-                    <div className="flex-1 grid grid-cols-3 gap-2 text-center">
-                        <div className="bg-gray-100 dark:bg-[#111620] rounded-xl p-2.5 border border-gray-200 dark:border-[#1e2430]">
-                            <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">🔒 Entry</span>
-                            <span className="block text-sm font-black font-mono text-amber-600 dark:text-amber-300">{fmt(position.entry_price)}</span>
-                        </div>
-                        <div className={`rounded-xl p-2.5 border ${profitable ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/30' : 'bg-red-50 dark:bg-red-950/15 border-red-200 dark:border-red-900/20'}`}>
-                            <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">📍 Current</span>
-                            <span className={`block text-sm font-black font-mono ${profitable ? 'text-[#00d97e]' : 'text-[#ff4757]'}`}>{fmt(position.current_price)}</span>
-                            <span className={`block text-[8px] font-mono font-bold ${profitable ? 'text-[#00d97e]/60' : 'text-[#ff4757]/60'}`}>{profitable ? '▲' : '▼'} {Math.abs(pnl).toFixed(2)}%</span>
-                        </div>
-                        <div className="bg-gray-100 dark:bg-[#111620] rounded-xl p-2.5 border border-gray-200 dark:border-[#1e2430]">
-                            <span className="block text-[8px] text-slate-600 font-bold uppercase tracking-widest mb-1">
-                                {(position.target_stage ?? 1) === 2 ? '🏁 T2 Final' : '🎯 Target T1'}
-                            </span>
-                            <span className="block text-sm font-black font-mono text-emerald-600 dark:text-emerald-400">{fmt(position.target_price)}</span>
-                        </div>
-                    </div>
-                    {/* Vertical Price Ladder */}
-                    <div className="flex-shrink-0 hidden sm:block" style={{ width: 120 }}>
-                        <PriceLadder
-                            entry={position.entry_price}
-                            target={position.target_price}
-                            stopLoss={position.stop_loss}
-                            current={position.current_price}
-                            optionType={position.option_type?.toUpperCase() as 'CALL' | 'PUT'}
-                            riskReward={position.risk_reward_ratio || '—'}
-                        />
-                    </div>
-                </div>
-
-                {/* ── Metrics Strip: ADX / TREND / VOLUME / IV~ ── */}
-                <div className="grid grid-cols-4 gap-1.5 max-[480px]:grid-cols-2">
-                    {(() => {
-                        const adxVal = position.adx_value || 0;
-                        const adxColor = adxVal >= 30 ? 'text-[#00d97e]' : adxVal >= 25 ? 'text-amber-400' : 'text-slate-500';
-                        const diSpread = Math.abs((position.plus_di || 0) - (position.minus_di || 0));
-                        const plusDiLeads = (position.plus_di || 0) > (position.minus_di || 0);
-                        const diLabel = plusDiLeads ? `+DI ${diSpread.toFixed(1)}` : `-DI ${diSpread.toFixed(1)}`;
-                        const diAgrees = (isCall && plusDiLeads) || (!isCall && !plusDiLeads);
-                        const diColor = diAgrees ? 'text-[#00d97e]' : 'text-[#ff4757]';
-                        const volTrend = position.volume_trend;
-                        const rvolVal = position.rvol;
-                        const volColor = volTrend === 'SURGE' ? 'text-[#00d97e]' : volTrend === 'HIGH' ? 'text-[#00d97e]' : volTrend === 'LOW' ? 'text-amber-400' : 'text-slate-500';
-                        const volGlow = volTrend === 'SURGE' ? '0 0 6px rgba(0,217,126,0.3)' : undefined;
-                        const ivVal = position.iv_proxy_ann_pct;
-                        return (
-                            <>
-                                <div className="bg-gray-100 dark:bg-[#111620] rounded-lg p-2 text-center border border-gray-200 dark:border-[#1e2430]">
-                                    <div className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">ADX</div>
-                                    <div className={`text-[13px] font-black font-mono ${adxColor}`}>{adxVal.toFixed(1)}</div>
-                                </div>
-                                <div className="bg-gray-100 dark:bg-[#111620] rounded-lg p-2 text-center border border-gray-200 dark:border-[#1e2430]">
-                                    <div className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">TREND</div>
-                                    <div className={`text-[13px] font-black font-mono ${diColor}`}>{diLabel}</div>
-                                </div>
-                                {isDip ? (
-                                    <div className="bg-gray-100 dark:bg-[#111620] rounded-lg p-2 text-center border border-gray-200 dark:border-[#1e2430]">
-                                        <div className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">RETRACE</div>
-                                        <div className="text-[13px] font-black font-mono text-teal-400">{position.dip_retrace_pct != null ? `${position.dip_retrace_pct.toFixed(0)}%` : '—'}</div>
-                                    </div>
-                                ) : (
-                                    <div className="bg-gray-100 dark:bg-[#111620] rounded-lg p-2 text-center border border-gray-200 dark:border-[#1e2430]" style={{ boxShadow: volGlow }}>
-                                        <div className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">VOLUME</div>
-                                        <div className={`text-[13px] font-black font-mono ${volColor}`}>{rvolVal != null ? `${rvolVal.toFixed(2)}x` : '—'}</div>
-                                    </div>
-                                )}
-                                <div className="bg-gray-100 dark:bg-[#111620] rounded-lg p-2 text-center border border-gray-200 dark:border-[#1e2430]" title="Annualized realized volatility (30d proxy) — not broker IV">
-                                    <div className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">IV~</div>
-                                    <div className="text-[13px] font-black font-mono text-slate-500">{ivVal != null ? `${ivVal.toFixed(0)}%` : '—'}</div>
-                                </div>
-                            </>
-                        );
-                    })()}
-                </div>
-
-                {/* ── Row 4: SL + R:R ── */}
-                <div className="flex items-center justify-between text-[10px] px-0.5">
-                    {(position.target_stage ?? 1) === 2 ? (
-                        <div className="flex flex-col">
-                            <span className="text-slate-500 font-bold">🛡️ SL @ BE <span className="text-amber-400 font-mono font-bold">{fmt(position.stop_loss)}</span></span>
-                            {position.original_stop_loss != null && (
-                                <span className="text-[8px] text-slate-500 font-mono ml-4">moved from {fmt(position.original_stop_loss)}</span>
-                            )}
-                        </div>
-                    ) : (
-                        <span className="text-slate-500 font-bold">⛔ SL <span className="text-red-400 font-mono font-bold">{fmt(position.stop_loss)}</span></span>
-                    )}
-                    <div className="text-right">
-                        <span className="text-slate-500 font-bold">R:R <span className="text-slate-900 dark:text-white font-mono font-bold">{position.risk_reward_ratio || '—'}</span></span>
-                        {isDip && position.st1h_armed === false && (
-                            <div className="text-[8px] text-slate-500 font-bold mt-0.5">1H exit arms on 1H turn</div>
-                        )}
-                    </div>
-                </div>
-
-                {/* ── Row 5: Progress Bar ── */}
-                <IronGateProgressBar position={position} />
+                {/* ── TradeChart ── */}
+                <TradeChart
+                    symbol={position.symbol}
+                    bars={bars ?? []}
+                    entryPrice={position.entry_price}
+                    stopLoss={position.stop_loss}
+                    target1={position.target_price}
+                    target2={position.fib_target2 || undefined}
+                    originalStopLoss={position.original_stop_loss ?? undefined}
+                    currentPrice={position.current_price}
+                    highWaterMark={position.high_water_mark}
+                    riskRewardRatio={position.risk_reward_ratio}
+                    progressPct={position.progress_pct}
+                    adxValue={position.adx_value}
+                    plusDi={position.plus_di}
+                    minusDi={position.minus_di}
+                    gatesPassed={position.gates_passed}
+                    optionType={position.option_type?.toUpperCase() as 'CALL' | 'PUT'}
+                    openedAt={position.opened_at}
+                    tf={tf}
+                    onTfChange={onTfChange}
+                />
 
 
 
@@ -874,34 +797,6 @@ const PositionCard: React.FC<{
 
             </div>
 
-            {/* ── Collapsible SuperTrend Chart ── */}
-            <div className="border-t border-gray-200 dark:border-[#1e2430]">
-                <button
-                    onClick={() => setChartOpen(prev => !prev)}
-                    className="w-full flex items-center justify-between px-5 py-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-300 transition-colors"
-                >
-                    <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-sm">candlestick_chart</span>
-                        SuperTrend Chart
-                    </div>
-                    <span className={`material-symbols-outlined text-sm transition-transform ${chartOpen ? 'rotate-180' : ''}`}>
-                        expand_more
-                    </span>
-                </button>
-                {chartOpen && (
-                    <div className="px-4 pb-4">
-                        <MiniSuperTrendChart
-                            symbol={position.symbol}
-                            bars={bars ?? []}
-                            entryPrice={position.entry_price}
-                            stopLoss={position.stop_loss}
-                            target={position.target_price}
-                            optionType={position.option_type?.toUpperCase() as 'CALL' | 'PUT'}
-                            openedAt={position.opened_at}
-                        />
-                    </div>
-                )}
-            </div>
         </div>
     );
 };
@@ -1169,8 +1064,9 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
     const [sortBy, setSortBy] = useState<'default' | '30d_upside'>('default');
 
     // Bars for charts
+    const [chartTf, setChartTf] = useState<Timeframe>('1h');
     const barSymbols = useMemo(() => positions.map(p => p.symbol), [positions]);
-    const { barsBySymbol } = useMdBars(barSymbols);
+    const { barsBySymbol } = useMdBars(barSymbols, chartTf);
 
     // DIP WATCH data
     const [dipWatch, setDipWatch] = useState<DipWatchRow[]>([]);
@@ -1741,9 +1637,9 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                 )}
 
                                 {/* Position grid */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     {filteredPositions.map(p => (
-                                        <PositionCard key={p.id} position={p} bars={barsBySymbol[p.symbol]} onManualClose={setClosingPosition} onExecute={onExecute} onNavigateToLifecycle={onNavigateToLifecycle} />
+                                        <PositionCard key={p.id} position={p} bars={barsBySymbol[p.symbol]} tf={chartTf} onTfChange={setChartTf} onManualClose={setClosingPosition} onExecute={onExecute} onNavigateToLifecycle={onNavigateToLifecycle} />
                                     ))}
                                 </div>
 

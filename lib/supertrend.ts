@@ -43,6 +43,54 @@ export function buildHeikinAshi(bars: Bar[]): Bar[] {
 
 // ─── SuperTrend ─────────────────────────────────────────────
 
+// ─── Session VWAP ──────────────────────────────────────────
+
+export interface VWAPPoint {
+  time: number;
+  value: number;
+}
+
+/**
+ * Compute session VWAP. Resets at 09:30 NY each day.
+ * Uses typical price = (H+L+C)/3 weighted by volume.
+ */
+export function computeVWAP(bars: Bar[]): VWAPPoint[] {
+  if (bars.length === 0) return [];
+  const result: VWAPPoint[] = [];
+  let cumPV = 0;
+  let cumV = 0;
+  let lastSessionDay = -1;
+
+  for (const b of bars) {
+    // Determine NY day from unix timestamp
+    const d = new Date(b.time * 1000);
+    const nyStr = d.toLocaleString('en-US', { timeZone: 'America/New_York' });
+    const nyDate = new Date(nyStr);
+    const nyDay = nyDate.getFullYear() * 10000 + (nyDate.getMonth() + 1) * 100 + nyDate.getDate();
+    const nyHHMM = nyDate.getHours() * 100 + nyDate.getMinutes();
+
+    // Reset at session start (09:30 NY) or new day
+    if (nyDay !== lastSessionDay || nyHHMM <= 930) {
+      cumPV = 0;
+      cumV = 0;
+      lastSessionDay = nyDay;
+    }
+
+    const vol = b.volume ?? 0;
+    if (vol > 0) {
+      const tp = (b.high + b.low + b.close) / 3;
+      cumPV += tp * vol;
+      cumV += vol;
+    }
+
+    result.push({ time: b.time, value: cumV > 0 ? cumPV / cumV : b.close });
+  }
+
+  return result;
+}
+
+// ─── SuperTrend ─────────────────────────────────────────────
+
 export function computeSuperTrend(
   bars: Bar[],
   period: number = 10,

@@ -3,6 +3,7 @@ import { PositionCard } from './PositionCard';
 import { EmptyState } from './EmptyState';
 import { C } from './constants';
 import type { Bar } from '../../lib/supertrend';
+import type { Timeframe } from '../../hooks/useMdBars';
 import type { IronGateDayPosition, SignalFilter } from './types';
 import type { ScanWindowResult } from './useScanWindow';
 
@@ -17,6 +18,8 @@ interface Props {
   scan: ScanWindowResult;
   onExecute?: (signal: any) => void;
   barsBySymbol?: Record<string, Bar[]>;
+  tf: Timeframe;
+  onTfChange: (tf: Timeframe) => void;
 }
 
 function applyFilter(positions: IronGateDayPosition[], filter: SignalFilter): IronGateDayPosition[] {
@@ -57,7 +60,7 @@ const SkeletonCard: React.FC = () => (
 );
 
 export const OpenPositionsTable: React.FC<Props> = ({
-  positions, activeFilter, flashIds, updatedIds, loading, isMarketOpen, isWeekend, scan, onExecute, barsBySymbol,
+  positions, activeFilter, flashIds, updatedIds, loading, isMarketOpen, isWeekend, scan, onExecute, barsBySymbol, tf, onTfChange,
 }) => {
   if (loading) {
     return (
@@ -100,6 +103,8 @@ export const OpenPositionsTable: React.FC<Props> = ({
           key={pos.id}
           pos={pos}
           bars={barsBySymbol?.[pos.symbol]}
+          tf={tf}
+          onTfChange={onTfChange}
           isFlashing={flashIds.has(pos.id)}
           isUpdated={updatedIds.has(pos.id)}
           isMarketOpen={isMarketOpen}
