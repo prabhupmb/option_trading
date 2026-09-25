@@ -358,49 +358,59 @@ const App: React.FC = () => {
   }, [currentView, selectedStrategy, getAutoRefreshIntervalMs, refresh]);
 
   // ─── GLOBAL IRON GATE DAY SCHEDULER ───
+  // Same scan times as Iron Gate Swing (CST-based, every 15 min)
   useEffect(() => {
     const IRON_GATE_DAY_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/Irorn_gate_day_trade';
     const IRON_GATE_DAY_SCAN_TIMES = [
-      '09:35', '09:50', '10:05', '10:20', '10:35',
-      '11:05', '11:20', '11:35', '11:50',
-      '12:05', '12:20', '12:35', '12:50',
-      '13:05', '13:20', '13:35', '13:50',
-      '14:05', '14:20', '14:35', '14:50',
-      '15:05', '15:20', '15:35', '15:50',
+      '08:31', '08:45', '09:00', '09:15', '09:30', '09:45',
+      '10:00', '10:15', '10:30', '10:45',
+      '11:00', '11:15', '11:30', '11:45',
+      '12:00', '12:15', '12:30', '12:45',
+      '13:00', '13:15', '13:30', '13:45',
+      '14:00', '14:15', '14:30', '14:45',
     ];
+    const secret = (import.meta.env.VITE_TK_WEBHOOK_SECRET as string | undefined) ?? '';
     const firedRef = new Set<string>();
 
-    const getETHHMM = () => {
-      const et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
-      return `${String(et.getHours()).padStart(2, '0')}:${String(et.getMinutes()).padStart(2, '0')}`;
-    };
-
-    const isETWeekday = () => {
-      const et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
-      const day = et.getDay();
-      return day !== 0 && day !== 6;
+    const getCSTHHMM = () => {
+      const cst = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+      return cst.toTimeString().slice(0, 5);
     };
 
     const check = () => {
-      if (!isETWeekday()) return;
-      const hhmm = getETHHMM();
+      if (!secret) return;
+      if (!isCSTWeekday()) return;
+      const hhmm = getCSTHHMM();
       if (IRON_GATE_DAY_SCAN_TIMES.includes(hhmm) && !firedRef.has(hhmm)) {
         firedRef.add(hhmm);
-        console.log(`[IronGateDay Global] Firing webhook at ${hhmm} ET → ${IRON_GATE_DAY_WEBHOOK}`);
+        console.log(`[IronGateDay Global] Firing webhook at ${hhmm} CST → ${IRON_GATE_DAY_WEBHOOK}`);
         fetch(IRON_GATE_DAY_WEBHOOK, {
           method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain' },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-TK-Secret': secret,
+          },
           body: JSON.stringify({ triggered_by: `scheduled_${hhmm}` }),
         })
-          .then(() => console.log(`[IronGateDay Global] Webhook OK at ${hhmm}`))
+          .then(async res => {
+            if (res.ok) {
+              const text = await res.text();
+              if (!text || text.trim() === '') {
+                console.error(`[IronGateDay Global] Webhook rejected at ${hhmm} — empty body (auth failure)`);
+              } else {
+                console.log(`[IronGateDay Global] Webhook OK at ${hhmm}`);
+              }
+            } else {
+              console.error(`[IronGateDay Global] Webhook failed at ${hhmm}: HTTP ${res.status}`);
+            }
+          })
           .catch(err => console.error(`[IronGateDay Global] Webhook failed at ${hhmm}:`, err));
       }
     };
 
     check();
     const i = setInterval(check, 30000);
-    const midnight = setInterval(() => { if (getETHHMM() === '00:00') firedRef.clear(); }, 60000);
+    const midnight = setInterval(() => { if (getCSTHHMM() === '00:00') firedRef.clear(); }, 60000);
     return () => { clearInterval(i); clearInterval(midnight); };
   }, []);
 

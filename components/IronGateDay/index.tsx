@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { C } from './constants';
 import { useIronGateDay } from './useIronGateDay';
 import { useETClock } from './useETClock';
@@ -128,7 +128,7 @@ interface Props {
 }
 
 const IRON_GATE_DAY_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/Irorn_gate_day_trade';
-const OPTION_DIP_WEBHOOK = 'https://prabhupadala01.app.n8n.cloud/webhook/d7731fbf-5331-49c0-91ca-08cb31c376ec';
+const TK_WEBHOOK_SECRET = (import.meta.env.VITE_TK_WEBHOOK_SECRET as string | undefined) ?? '';
 
 const IronGateDayDashboard: React.FC<Props> = ({ onExecute }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('positions');
@@ -137,23 +137,27 @@ const IronGateDayDashboard: React.FC<Props> = ({ onExecute }) => {
 
   const handleManualScan = async () => {
     if (scanStatus === 'scanning') return;
+    if (!TK_WEBHOOK_SECRET) { setScanStatus('err'); setTimeout(() => setScanStatus('idle'), 4000); return; }
     setScanStatus('scanning');
     try {
-      await Promise.all([
-        fetch(IRON_GATE_DAY_WEBHOOK, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({ triggered_by: 'manual' }),
-        }),
-        fetch(OPTION_DIP_WEBHOOK, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({ triggered_by: 'manual' }),
-        }),
-      ]);
-      setScanStatus('ok');
+      const res = await fetch(IRON_GATE_DAY_WEBHOOK, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-TK-Secret': TK_WEBHOOK_SECRET,
+        },
+        body: JSON.stringify({ triggered_by: 'manual' }),
+      });
+      if (res.ok) {
+        const text = await res.text();
+        if (!text || text.trim() === '') {
+          setScanStatus('err');
+        } else {
+          setScanStatus('ok');
+        }
+      } else {
+        setScanStatus('err');
+      }
     } catch {
       setScanStatus('err');
     } finally {
@@ -161,35 +165,7 @@ const IronGateDayDashboard: React.FC<Props> = ({ onExecute }) => {
     }
   };
 
-  // Auto-scan every 7 min during 9:30–11:30 ET (8:30–10:30 CST), weekdays only
-  const autoScanRef = useRef(false);
-  useEffect(() => {
-    const INTERVAL_MS = 7 * 60 * 1000;
-
-    const isInWindow = () => {
-      const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
-      const day = now.getDay();
-      if (day === 0 || day === 6) return false; // weekends
-      const mins = now.getHours() * 60 + now.getMinutes();
-      return mins >= 510 && mins <= 630; // 8:30 (510) to 10:30 (630) CST
-    };
-
-    const fire = () => {
-      if (!isInWindow()) return;
-      console.log('[AutoScan] Triggering Iron Gate Day scan');
-      fetch(IRON_GATE_DAY_WEBHOOK, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ triggered_by: 'auto_7m' }) }).catch(() => {});
-      fetch(OPTION_DIP_WEBHOOK, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ triggered_by: 'auto_7m' }) }).catch(() => {});
-    };
-
-    // Fire immediately if in window on mount
-    if (isInWindow() && !autoScanRef.current) {
-      autoScanRef.current = true;
-      fire();
-    }
-
-    const id = setInterval(fire, INTERVAL_MS);
-    return () => clearInterval(id);
-  }, []);
+  // Auto-scan removed — global scheduler in App.tsx handles all scan times
 
   const {
     openPositions, todayHistory, allHistory,
