@@ -1,145 +1,137 @@
 /**
- * TradeChart — Full TradingView-style chart for Iron Gate position cards.
- * Replaces the old MiniSuperTrendChart + PriceLadder + metrics strip + progress bar.
+ * TradeChart — candles + 5 labelled price levels. Nothing else.
  */
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   createChart,
   CandlestickSeries,
-  LineSeries,
-  HistogramSeries,
-  createSeriesMarkers,
   type IChartApi,
   type ISeriesApi,
-  type CandlestickData,
-  type LineData,
-  type HistogramData,
-  type SeriesMarker,
   type Time,
   type SeriesType,
 } from 'lightweight-charts';
-import {
-  computeSuperTrend,
-  buildHeikinAshi,
-  computeVWAP,
-  type Bar,
-} from '../../lib/supertrend';
-import { TradePlanPlugin } from './TradePlanPlugin';
+import type { Bar } from '../../lib/supertrend';
 import type { Timeframe } from '../../hooks/useMdBars';
 
-// ─── Types ──────────────────────────────────────────────────
-
 export interface TradeChartProps {
-  symbol: string;
   bars: Bar[];
   entryPrice: number;
   stopLoss: number;
   target1: number;
   target2?: number;
-  originalStopLoss?: number;
   currentPrice: number;
-  highWaterMark?: number;      // progress % (0-100)
-  riskRewardRatio?: string | number;
-  progressPct?: number;
-  adxValue?: number;
-  plusDi?: number;
-  minusDi?: number;
-  gatesPassed?: string | number;
   optionType: 'CALL' | 'PUT';
-  openedAt?: string;
-  showVwap?: boolean;          // true for Day cards
   tf: Timeframe;
   onTfChange: (tf: Timeframe) => void;
 }
-
-// ─── Constants ──────────────────────────────────────────────
 
 const BG = '#0b0e15';
 const GRID = '#161c28';
 const TEXT = '#8b93a7';
 const ENTRY_COLOR = '#facc15';
 const T1_COLOR = '#22c55e';
+const T2_COLOR = '#16a34a';
 const SL_COLOR = '#ef4444';
-const VWAP_COLOR = '#a78bfa';
-const CURRENT_UP = '#22c55e';
-const CURRENT_DN = '#ef4444';
+const SL_LOCKED_COLOR = '#22c55e';
+const MONO = "'JetBrains Mono', monospace";
 
 const TF_OPTIONS: Timeframe[] = ['5min', '15min', '1h', '4h', '1D'];
 const TF_LABELS: Record<Timeframe, string> = {
-  '5min': '5m',
-  '15min': '15m',
-  '1h': '1h',
-  '4h': '4h',
-  '1D': '1D',
+  '5min': '5m', '15min': '15m', '1h': '1h', '4h': '4h', '1D': '1D',
 };
 
-type ChartStyle = 'candles' | 'line';
-type STSource = 'regular' | 'ha';
+interface LevelLabel {
+  key: string;
+  price: number;
+  label: string;
+  color: string;
+  showPct: boolean;
+}
 
-// ─── Component ──────────────────────────────────────────────
+const TradeChart: React.FC<TradeChartProps> = (props) => {
+  const { bars, entryPrice, stopLoss, target1, target2, currentPrice, optionType, tf, onTfChange } = props;
 
-const TradeChart: React.FC<TradeChartProps> = ({
-  symbol, bars, entryPrice, stopLoss, target1, target2, originalStopLoss,
-  currentPrice, highWaterMark, riskRewardRatio, progressPct, adxValue,
-  plusDi, minusDi, gatesPassed, optionType, openedAt, showVwap, tf, onTfChange,
-}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const [chartStyle, setChartStyle] = useState<ChartStyle>('candles');
-  const [stSource, setStSource] = useState<STSource>('regular');
+  const seriesRef = useRef<ISeriesApi<SeriesType, Time> | null>(null);
+  const labelsRef = useRef<HTMLDivElement>(null);
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   const isCall = optionType === 'CALL';
-  const isProfitable = isCall
-    ? currentPrice >= entryPrice
-    : currentPrice <= entryPrice;
+  const stopLocked = isCall ? stopLoss > entryPrice : stopLoss < entryPrice;
 
-  // Compute SuperTrend
-  const stOutput = useMemo(() => {
-    const source = stSource === 'ha' ? buildHeikinAshi(bars) : bars;
-    return computeSuperTrend(source, 10, 3);
-  }, [bars, stSource]);
+  // Position labels using priceToCoordinate
+  const positionLabels = useCallback(() => {
+    const series = seriesRef.current;
+    const overlay = labelsRef.current;
+    if (!series || !overlay) return;
 
-  // Compute VWAP (for intraday Day cards)
-  const vwapData = useMemo(() => {
-    if (!showVwap || tf === '1D') return [];
-    return computeVWAP(bars);
-  }, [bars, showVwap, tf]);
+    const slColor = stopLocked ? SL_LOCKED_COLOR : SL_COLOR;
+    const slLabel = stopLocked ? 'Stop (locked)' : 'Stop loss';
 
-  // Current ST info
-  const currentST = stOutput.values.length > 0
-    ? stOutput.values[stOutput.values.length - 1]
-    : null;
-  const stAgainstTrade = (isCall && currentST?.trend === -1) ||
-    (!isCall && currentST?.trend === 1);
+    const levels: LevelLabel[] = [];
+    if (target2 != null) levels.push({ key: 't2', price: target2, label: 'Target 2', color: T2_COLOR, showPct: true });
+    levels.push({ key: 't1', price: target1, label: 'Target 1', color: T1_COLOR, showPct: true });
+    levels.push({ key: 'entry', price: entryPrice, label: 'Entry', color: ENTRY_COLOR, showPct: false });
+    levels.push({ key: 'sl', price: stopLoss, label: slLabel, color: slColor, showPct: true });
 
-  // HWM price (reconstruct from progress %)
-  const hwmPrice = useMemo(() => {
-    if (highWaterMark == null || highWaterMark <= 0) return null;
-    if (isCall) {
-      return stopLoss + (highWaterMark / 100) * (target1 - stopLoss);
-    } else {
-      return stopLoss - (highWaterMark / 100) * (stopLoss - target1);
+    // Compute pixel positions
+    const items: { key: string; y: number; html: string; color: string; isEntry: boolean }[] = [];
+    for (const lv of levels) {
+      const y = series.priceToCoordinate(lv.price);
+      if (y == null) continue;
+      const pct = lv.showPct ? ` · ${((lv.price - currentPrice) / currentPrice * 100) >= 0 ? '+' : ''}${((lv.price - currentPrice) / currentPrice * 100).toFixed(2)}%` : '';
+      const text = lv.key === 'entry' ? `${lv.label} ${lv.price.toFixed(2)}` : `${lv.label} ${lv.price.toFixed(2)}${pct}`;
+      items.push({ key: lv.key, y: y as number, html: text, color: lv.color, isEntry: lv.key === 'entry' });
     }
-  }, [highWaterMark, isCall, stopLoss, target1]);
 
-  // ── Chart rendering ──
+    // Overlap resolution: push labels that are < 20px apart
+    items.sort((a, b) => a.y - b.y);
+    for (let i = 1; i < items.length; i++) {
+      if (items[i].y - items[i - 1].y < 20) {
+        items[i].y = items[i - 1].y + 20;
+      }
+    }
+
+    // Render
+    overlay.innerHTML = '';
+    for (const item of items) {
+      const el = document.createElement('div');
+      el.style.cssText = `position:absolute;left:4px;top:${item.isEntry ? item.y + 4 : item.y - 12}px;background:${BG};border:1px solid ${item.color};color:${item.color};font-size:11px;font-family:${MONO};font-weight:600;border-radius:3px;padding:1px 6px;pointer-events:none;white-space:nowrap;z-index:5;line-height:16px;`;
+      el.textContent = item.html;
+      overlay.appendChild(el);
+    }
+  }, [entryPrice, stopLoss, target1, target2, currentPrice, stopLocked]);
+
+  // Escape to close fullscreen
+  useEffect(() => {
+    if (!isFullScreen) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsFullScreen(false); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isFullScreen]);
+
+  // Chart rendering
   useEffect(() => {
     if (!containerRef.current || bars.length < 2) return;
 
     if (chartRef.current) {
       chartRef.current.remove();
       chartRef.current = null;
+      seriesRef.current = null;
     }
 
-    const chart = createChart(containerRef.current, {
-      width: containerRef.current.clientWidth,
-      height: 340,
+    const el = containerRef.current;
+    const chart = createChart(el, {
+      width: el.clientWidth,
+      height: el.clientHeight || 280,
       layout: {
         background: { color: BG },
         textColor: TEXT,
-        fontSize: 10,
-        fontFamily: "'JetBrains Mono', monospace",
-      },
+        fontSize: 11,
+        fontFamily: MONO,
+        attributionLogo: false,
+      } as any,
       grid: {
         vertLines: { color: GRID },
         horzLines: { color: GRID },
@@ -151,408 +143,174 @@ const TradeChart: React.FC<TradeChartProps> = ({
       },
       rightPriceScale: {
         borderColor: GRID,
-        scaleMargins: { top: 0.05, bottom: 0.22 },
       },
       timeScale: {
         borderColor: GRID,
-        timeVisible: true,
+        timeVisible: tf !== '4h' && tf !== '1D',
         secondsVisible: false,
       },
     });
     chartRef.current = chart;
 
-    // ── Volume histogram (bottom pane via priceScaleId) ──
-    const volSeries = chart.addSeries(HistogramSeries, {
-      priceFormat: { type: 'volume' },
-      priceScaleId: 'vol',
-      color: 'rgba(139,147,167,0.15)',
+    // Candle series
+    const series = chart.addSeries(CandlestickSeries, {
+      upColor: '#22c55e',
+      downColor: '#ef4444',
+      borderUpColor: '#22c55e',
+      borderDownColor: '#ef4444',
+      wickUpColor: '#22c55e',
+      wickDownColor: '#ef4444',
+      priceLineVisible: false,
     });
-    chart.priceScale('vol').applyOptions({
-      scaleMargins: { top: 0.82, bottom: 0 },
-    });
-    const volData: HistogramData<Time>[] = bars.map(b => ({
+
+    // Build candle data, updating last bar if currentPrice is newer
+    const candleData = bars.map((b, i) => ({
       time: b.time as Time,
-      value: b.volume ?? 0,
-      color: b.close >= b.open ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)',
+      open: b.open,
+      high: i === bars.length - 1 ? Math.max(b.high, currentPrice) : b.high,
+      low: i === bars.length - 1 ? Math.min(b.low, currentPrice) : b.low,
+      close: i === bars.length - 1 ? currentPrice : b.close,
     }));
-    volSeries.setData(volData);
+    series.setData(candleData);
+    seriesRef.current = series;
 
-    // ── Main series: Candles or Line ──
-    let mainSeries: ISeriesApi<SeriesType, Time>;
-    if (chartStyle === 'candles') {
-      const s = chart.addSeries(CandlestickSeries, {
-        upColor: '#00c853',
-        downColor: '#ff5252',
-        borderUpColor: '#00c853',
-        borderDownColor: '#ff5252',
-        wickUpColor: 'rgba(0,200,83,0.5)',
-        wickDownColor: 'rgba(255,82,82,0.5)',
-      });
-      const candleData: CandlestickData<Time>[] = bars.map(b => ({
-        time: b.time as Time,
-        open: b.open,
-        high: b.high,
-        low: b.low,
-        close: b.close,
-      }));
-      s.setData(candleData);
-      mainSeries = s;
-    } else {
-      const s = chart.addSeries(LineSeries, {
-        color: '#60a5fa',
-        lineWidth: 2,
-        crosshairMarkerVisible: true,
-      });
-      const lineData: LineData<Time>[] = bars.map(b => ({
-        time: b.time as Time,
-        value: b.close,
-      }));
-      s.setData(lineData);
-      mainSeries = s;
-    }
-
-    // ── Trade Plan overlay (rectangles) ──
-    const plugin = new TradePlanPlugin({
-      entry: entryPrice,
-      target: target1,
-      stopLoss,
-    });
-    mainSeries.attachPrimitive(plugin as any);
-
-    // ── SuperTrend overlay ──
-    if (stOutput.values.length > 0) {
-      const greenLine: LineData<Time>[] = [];
-      const redLine: LineData<Time>[] = [];
-      let prevTrend: number | null = null;
-
-      for (const v of stOutput.values) {
-        const point: LineData<Time> = { time: v.time as Time, value: v.st };
-        if (v.trend === 1) {
-          greenLine.push(point);
-          redLine.push(prevTrend === -1 ? point : { time: v.time as Time, value: NaN });
-        } else {
-          redLine.push(point);
-          greenLine.push(prevTrend === 1 ? point : { time: v.time as Time, value: NaN });
-        }
-        prevTrend = v.trend;
-      }
-
-      const gSeries = chart.addSeries(LineSeries, {
-        color: '#00c853',
-        lineWidth: 2,
-        priceLineVisible: false,
-        lastValueVisible: false,
-        crosshairMarkerVisible: false,
-      });
-      gSeries.setData(greenLine);
-
-      const rSeries = chart.addSeries(LineSeries, {
-        color: '#ff5252',
-        lineWidth: 2,
-        priceLineVisible: false,
-        lastValueVisible: false,
-        crosshairMarkerVisible: false,
-      });
-      rSeries.setData(redLine);
-    }
-
-    // ── VWAP overlay ──
-    if (vwapData.length > 0) {
-      const vwapSeries = chart.addSeries(LineSeries, {
-        color: VWAP_COLOR,
-        lineWidth: 1,
-        lineStyle: 2,
-        priceLineVisible: false,
-        lastValueVisible: false,
-        crosshairMarkerVisible: false,
-      });
-      vwapSeries.setData(
-        vwapData.map(v => ({ time: v.time as Time, value: v.value }))
-      );
-    }
-
-    // ── Price lines ──
-    mainSeries.createPriceLine({
-      price: entryPrice,
-      color: ENTRY_COLOR,
-      lineWidth: 1,
-      lineStyle: 2, // dashed
-      axisLabelVisible: true,
-      title: 'Entry',
-    });
-
-    mainSeries.createPriceLine({
-      price: target1,
-      color: T1_COLOR,
-      lineWidth: 1,
-      lineStyle: 0, // solid
-      axisLabelVisible: true,
-      title: 'T1',
-    });
-
-    if (target2 && target2 !== target1) {
-      mainSeries.createPriceLine({
-        price: target2,
-        color: T1_COLOR,
-        lineWidth: 1,
-        lineStyle: 3, // dotted
-        axisLabelVisible: true,
-        title: 'T2',
-      });
-    }
-
-    mainSeries.createPriceLine({
-      price: stopLoss,
-      color: SL_COLOR,
-      lineWidth: 1,
-      lineStyle: 0, // solid
-      axisLabelVisible: true,
-      title: 'SL',
-    });
-
-    if (originalStopLoss && originalStopLoss !== stopLoss) {
-      mainSeries.createPriceLine({
-        price: originalStopLoss,
-        color: 'rgba(239,68,68,0.3)',
-        lineWidth: 1,
-        lineStyle: 3, // dotted
-        axisLabelVisible: false,
-        title: 'Orig SL',
-      });
-    }
-
-    // Current price line
-    mainSeries.createPriceLine({
+    // "Now" tag — use a hidden price line to show only the axis label
+    series.createPriceLine({
       price: currentPrice,
-      color: isProfitable ? CURRENT_UP : CURRENT_DN,
-      lineWidth: 1,
-      lineStyle: 0,
+      lineVisible: false,
       axisLabelVisible: true,
+      axisLabelColor: '#ffffff',
+      axisLabelTextColor: '#0b0e15',
       title: '',
-    });
+      lineWidth: 1,
+      color: 'transparent',
+    } as any);
 
-    // HWM tick
-    if (hwmPrice) {
-      mainSeries.createPriceLine({
-        price: hwmPrice,
-        color: 'rgba(250,204,21,0.4)',
-        lineWidth: 1,
-        lineStyle: 3,
-        axisLabelVisible: false,
-        title: 'HWM',
+    // Price lines (visible horizontal lines, no axis labels)
+    const slColor = stopLocked ? SL_LOCKED_COLOR : SL_COLOR;
+
+    if (target2 != null) {
+      series.createPriceLine({
+        price: target2, color: T2_COLOR, lineWidth: 2, lineStyle: 1,
+        axisLabelVisible: false, title: '',
       });
     }
+    series.createPriceLine({
+      price: target1, color: T1_COLOR, lineWidth: 2, lineStyle: 0,
+      axisLabelVisible: false, title: '',
+    });
+    series.createPriceLine({
+      price: entryPrice, color: ENTRY_COLOR, lineWidth: 2, lineStyle: 0,
+      axisLabelVisible: false, title: '',
+    });
+    series.createPriceLine({
+      price: stopLoss, color: slColor, lineWidth: 2, lineStyle: 0,
+      axisLabelVisible: false, title: '',
+    });
 
-    // ── Entry marker ──
-    if (openedAt && bars.length > 0) {
-      const openedTime = new Date(openedAt).getTime() / 1000;
-      // Find closest bar
-      let closestIdx = 0;
-      let closestDiff = Infinity;
-      for (let i = 0; i < bars.length; i++) {
-        const diff = Math.abs(bars[i].time - openedTime);
-        if (diff < closestDiff) {
-          closestDiff = diff;
-          closestIdx = i;
-        }
-      }
-      if (closestDiff < 86400 * 5) { // within 5 days
-        const markers: SeriesMarker<Time>[] = [{
-          time: bars[closestIdx].time as Time,
-          position: isCall ? 'belowBar' : 'aboveBar',
-          color: ENTRY_COLOR,
-          shape: isCall ? 'arrowUp' : 'arrowDown',
-          text: isCall ? 'CALL' : 'PUT',
-        }];
-        createSeriesMarkers(mainSeries, markers);
-      }
-    }
+    // Autoscale: ensure all levels visible with 5% padding
+    const allPrices = [entryPrice, stopLoss, target1, currentPrice];
+    if (target2 != null) allPrices.push(target2);
+    const minP = Math.min(...allPrices);
+    const maxP = Math.max(...allPrices);
+    const pad = (maxP - minP) * 0.05;
+    const totalRange = maxP - minP + 2 * pad;
+    const topMargin = (maxP + pad - Math.max(...bars.map(b => b.high))) / totalRange;
+    const botMargin = (Math.min(...bars.map(b => b.low)) - (minP - pad)) / totalRange;
+    chart.priceScale('right').applyOptions({
+      scaleMargins: {
+        top: Math.max(0.02, Math.min(0.3, -topMargin + 0.05)),
+        bottom: Math.max(0.02, Math.min(0.3, -botMargin + 0.05)),
+      },
+      autoScale: true,
+    });
 
     chart.timeScale().fitContent();
+    positionLabels();
 
-    // Resize observer
+    // Reposition labels on scroll/zoom/resize
+    const unsub = chart.timeScale().subscribeVisibleLogicalRangeChange(() => positionLabels());
+
     const ro = new ResizeObserver(entries => {
       for (const e of entries) {
         chart.applyOptions({ width: e.contentRect.width });
+        if (isFullScreen) chart.applyOptions({ height: e.contentRect.height });
       }
+      positionLabels();
     });
-    ro.observe(containerRef.current);
+    ro.observe(el);
 
     return () => {
+      unsub();
       ro.disconnect();
       chart.remove();
       chartRef.current = null;
+      seriesRef.current = null;
     };
-  }, [bars, stOutput, vwapData, chartStyle, entryPrice, stopLoss, target1, target2,
-    originalStopLoss, currentPrice, isProfitable, hwmPrice, openedAt, isCall]);
+  }, [bars, entryPrice, stopLoss, target1, target2, currentPrice, stopLocked, tf, isFullScreen, positionLabels]);
 
-  // ── Empty state ──
   if (bars.length < 2) {
     return (
-      <div style={{
-        background: BG,
-        borderRadius: 12,
-        padding: '32px 16px',
-        textAlign: 'center',
-        color: TEXT,
-        fontSize: 12,
-      }}>
+      <div style={{ background: BG, borderRadius: 12, padding: '32px 16px', textAlign: 'center', color: TEXT, fontSize: 12 }}>
         Waiting for chart data...
       </div>
     );
   }
 
-  const rrDisplay = typeof riskRewardRatio === 'number'
-    ? `1:${riskRewardRatio.toFixed(1)}`
-    : riskRewardRatio || '-';
+  const toolbar = (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '4px 8px', background: BG,
+    }}>
+      <div style={{ display: 'flex', gap: 2 }}>
+        {TF_OPTIONS.map(t => (
+          <button key={t} onClick={() => onTfChange(t)} style={{
+            padding: '3px 8px', borderRadius: 4, border: 'none', cursor: 'pointer',
+            fontSize: 10, fontWeight: 800, fontFamily: MONO,
+            background: tf === t ? 'rgba(255,255,255,0.12)' : 'transparent',
+            color: tf === t ? '#fff' : TEXT,
+          }}>
+            {TF_LABELS[t]}
+          </button>
+        ))}
+      </div>
+      <button
+        onClick={() => setIsFullScreen(v => !v)}
+        aria-label="Full screen"
+        style={{
+          padding: '3px 8px', borderRadius: 4, border: 'none', cursor: 'pointer',
+          fontSize: 13, color: TEXT, background: 'transparent',
+        }}
+      >
+        {isFullScreen ? '✕' : '\u2922'}
+      </button>
+    </div>
+  );
 
+  // Fullscreen overlay
+  if (isFullScreen) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: BG, display: 'flex', flexDirection: 'column',
+      }}>
+        {toolbar}
+        <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+          <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+          <div ref={labelsRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
+        </div>
+      </div>
+    );
+  }
+
+  // Card mode
   return (
     <div style={{ background: BG, borderRadius: 12, overflow: 'hidden' }}>
-      {/* ── Toolbar: TF picker + Style toggles ── */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '6px 10px',
-        borderBottom: `1px solid ${GRID}`,
-        flexWrap: 'wrap',
-        gap: 6,
-      }}>
-        {/* TF buttons */}
-        <div style={{ display: 'flex', gap: 2 }}>
-          {TF_OPTIONS.map(t => (
-            <button
-              key={t}
-              onClick={() => onTfChange(t)}
-              style={{
-                padding: '3px 8px',
-                borderRadius: 4,
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: 10,
-                fontWeight: 800,
-                fontFamily: "'JetBrains Mono', monospace",
-                background: tf === t ? 'rgba(255,255,255,0.12)' : 'transparent',
-                color: tf === t ? '#fff' : TEXT,
-                transition: 'all 0.15s',
-              }}
-            >
-              {TF_LABELS[t]}
-            </button>
-          ))}
-        </div>
-
-        {/* Style + ST source toggles */}
-        <div style={{ display: 'flex', gap: 6 }}>
-          <div style={{ display: 'flex', gap: 2 }}>
-            {(['candles', 'line'] as const).map(s => (
-              <button
-                key={s}
-                onClick={() => setChartStyle(s)}
-                style={{
-                  padding: '3px 8px',
-                  borderRadius: 4,
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: 9,
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  background: chartStyle === s ? 'rgba(255,255,255,0.12)' : 'transparent',
-                  color: chartStyle === s ? '#fff' : TEXT,
-                  transition: 'all 0.15s',
-                }}
-              >
-                {s === 'candles' ? 'Candles' : 'Line'}
-              </button>
-            ))}
-          </div>
-          <div style={{ width: 1, background: GRID, margin: '2px 0' }} />
-          <div style={{ display: 'flex', gap: 2 }}>
-            {(['regular', 'ha'] as const).map(s => (
-              <button
-                key={s}
-                onClick={() => setStSource(s)}
-                style={{
-                  padding: '3px 8px',
-                  borderRadius: 4,
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: 9,
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  background: stSource === s ? 'rgba(255,255,255,0.12)' : 'transparent',
-                  color: stSource === s ? '#fff' : TEXT,
-                  transition: 'all 0.15s',
-                }}
-              >
-                {s === 'regular' ? 'Regular' : 'H-Ashi'}
-              </button>
-            ))}
-          </div>
-        </div>
+      {toolbar}
+      <div style={{ position: 'relative', height: 280 }}>
+        <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+        <div ref={labelsRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
       </div>
-
-      {/* ── Legend overlay ── */}
-      <div style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 8,
-        padding: '6px 10px',
-        fontSize: 10,
-        fontFamily: "'JetBrains Mono', monospace",
-        fontWeight: 700,
-        color: TEXT,
-        borderBottom: `1px solid ${GRID}`,
-        alignItems: 'center',
-      }}>
-        {/* ST info */}
-        {currentST && (
-          <span style={{ color: currentST.trend === 1 ? '#00c853' : '#ff5252' }}>
-            ST {currentST.st.toFixed(2)}
-          </span>
-        )}
-        {stAgainstTrade && (
-          <span style={{
-            padding: '1px 6px',
-            borderRadius: 4,
-            fontSize: 9,
-            background: 'rgba(245,158,11,0.12)',
-            color: '#f59e0b',
-            border: '1px solid rgba(245,158,11,0.25)',
-          }}>
-            ST AGAINST
-          </span>
-        )}
-        <span style={{ color: TEXT }}>R:R {rrDisplay}</span>
-        {progressPct != null && (
-          <span style={{ color: progressPct >= 50 ? '#00c853' : TEXT }}>
-            {progressPct.toFixed(0)}%
-          </span>
-        )}
-        {adxValue != null && (
-          <span style={{ color: adxValue >= 25 ? '#00c853' : adxValue >= 20 ? '#f59e0b' : TEXT }}>
-            ADX {adxValue.toFixed(0)}
-          </span>
-        )}
-        {plusDi != null && minusDi != null && (
-          <span style={{ color: plusDi > minusDi ? '#00c853' : '#ff5252' }}>
-            {plusDi > minusDi ? '+' : '-'}DI {Math.abs(plusDi - minusDi).toFixed(0)}
-          </span>
-        )}
-        {gatesPassed != null && (
-          <span style={{ color: TEXT }}>
-            Gates {typeof gatesPassed === 'number' ? `${gatesPassed}/6` : gatesPassed}
-          </span>
-        )}
-        {showVwap && vwapData.length > 0 && (
-          <span style={{ color: VWAP_COLOR }}>
-            VWAP {vwapData[vwapData.length - 1].value.toFixed(2)}
-          </span>
-        )}
-      </div>
-
-      {/* ── Chart container ── */}
-      <div ref={containerRef} />
     </div>
   );
 };

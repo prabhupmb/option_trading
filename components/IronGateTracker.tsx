@@ -668,23 +668,13 @@ const PositionCard: React.FC<{
 
                 {/* ── TradeChart ── */}
                 <TradeChart
-                    symbol={position.symbol}
                     bars={bars ?? []}
                     entryPrice={position.entry_price}
                     stopLoss={position.stop_loss}
                     target1={position.target_price}
                     target2={position.fib_target2 || undefined}
-                    originalStopLoss={position.original_stop_loss ?? undefined}
                     currentPrice={position.current_price}
-                    highWaterMark={position.high_water_mark}
-                    riskRewardRatio={position.risk_reward_ratio}
-                    progressPct={position.progress_pct}
-                    adxValue={position.adx_value}
-                    plusDi={position.plus_di}
-                    minusDi={position.minus_di}
-                    gatesPassed={position.gates_passed}
                     optionType={position.option_type?.toUpperCase() as 'CALL' | 'PUT'}
-                    openedAt={position.opened_at}
                     tf={tf}
                     onTfChange={onTfChange}
                 />
@@ -1064,7 +1054,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
     const [sortBy, setSortBy] = useState<'default' | '30d_upside'>('default');
 
     // Bars for charts
-    const [chartTf, setChartTf] = useState<Timeframe>('1h');
+    const [chartTf, setChartTf] = useState<Timeframe>('4h');
     const barSymbols = useMemo(() => positions.map(p => p.symbol), [positions]);
     const { barsBySymbol } = useMdBars(barSymbols, chartTf);
 

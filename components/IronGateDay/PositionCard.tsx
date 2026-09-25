@@ -98,23 +98,13 @@ export const PositionCard: React.FC<Props> = ({ pos, bars, tf, onTfChange, isFla
 
         {/* -- TradeChart -- */}
         <TradeChart
-          symbol={pos.symbol}
           bars={bars ?? []}
           entryPrice={pos.entry_price}
           stopLoss={pos.stop_loss}
           target1={pos.target_1}
           target2={pos.target_2 || undefined}
           currentPrice={current}
-          highWaterMark={pos.high_water_mark}
-          riskRewardRatio={pos.risk_reward_ratio}
-          progressPct={pos.progress_pct}
-          adxValue={pos.adx_value}
-          plusDi={pos.plus_di}
-          minusDi={pos.minus_di}
-          gatesPassed={`${pos.gate_score || 0}/5`}
           optionType={isBuy ? 'CALL' : 'PUT'}
-          openedAt={pos.opened_at}
-          showVwap
           tf={tf}
           onTfChange={onTfChange}
         />
