@@ -283,17 +283,17 @@ const TradeChart: React.FC<TradeChartProps> = (props) => {
       }
     }
 
-    // Autoscale: ensure all levels visible with 4% padding
+    // Autoscale: ensure all levels visible with 5% padding
     const allPrices = [entryPrice, stopLoss, target1, currentPrice];
     if (target2 != null) allPrices.push(target2);
     if (support1 != null) allPrices.push(support1);
     if (support2 != null) allPrices.push(support2);
     const minP = Math.min(...allPrices);
     const maxP = Math.max(...allPrices);
-    const pad = (maxP - minP) * 0.04;
+    const pad = (maxP - minP) * 0.05;
     series.attachPrimitive(new LevelAutoscale(minP - pad, maxP + pad) as any);
     chart.priceScale('right').applyOptions({
-      scaleMargins: { top: 0.04, bottom: 0.04 },
+      scaleMargins: { top: 0.05, bottom: 0.05 },
       autoScale: true,
     });
 
@@ -304,20 +304,16 @@ const TradeChart: React.FC<TradeChartProps> = (props) => {
     const onRangeChange = () => positionLabels();
     chart.timeScale().subscribeVisibleLogicalRangeChange(onRangeChange);
 
-    let resizeTimer: ReturnType<typeof setTimeout>;
     const ro = new ResizeObserver(entries => {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        for (const e of entries) {
-          chart.applyOptions({ width: e.contentRect.width, height: e.contentRect.height });
-        }
-        positionLabels();
-      }, 50);
+      for (const e of entries) {
+        chart.applyOptions({ width: e.contentRect.width });
+        if (isFullScreen) chart.applyOptions({ height: e.contentRect.height });
+      }
+      positionLabels();
     });
     ro.observe(el);
 
     return () => {
-      clearTimeout(resizeTimer);
       ro.disconnect();
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRangeChange);
       chart.remove();
@@ -380,11 +376,11 @@ const TradeChart: React.FC<TradeChartProps> = (props) => {
     );
   }
 
-  // Card mode — fills parent height; toolbar fixed, chart takes remaining space
+  // Card mode
   return (
-    <div style={{ background: BG, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ background: BG, borderRadius: 12, overflow: 'hidden' }}>
       {toolbar}
-      <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+      <div style={{ position: 'relative', height: 280 }}>
         <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
         <div ref={labelsRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
       </div>

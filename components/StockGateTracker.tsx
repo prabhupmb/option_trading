@@ -167,8 +167,7 @@ const STATE_CFG: Record<string, { label: string; color: string; bg: string; bord
 const SCAN_TIMES_CT = ['08:39', '08:54', '09:19', '09:49', '10:24', '10:54', '11:34', '12:34', '13:34', '14:19', '14:49'];
 
 const BLOCK_LABELS: Record<string, string> = {
-    SHORT_BLOCKLIST: 'Blocked: commodity / leveraged ETF',
-    BUY_UNDER_RESISTANCE: 'Blocked: buying under resistance',
+    SHORT_BLOCKLIST: 'Blocked: commodity/leveraged ETF',
     SHORT_ON_SUPPORT: 'Blocked: short sitting on support',
     STOP_TOO_WIDE: 'Blocked: stop too wide',
 };
@@ -398,7 +397,6 @@ interface CardProps {
     qualified?: boolean;
     blockReason?: string | null;
     watchReason?: string | null;
-    entryLocationPct?: number | null;
     isLocked?: boolean;
     gatesStr?: string;
     // Info
@@ -428,16 +426,7 @@ const LevelLadderCard: React.FC<CardProps> = (p) => {
         } else if (p.qualified) {
             statusLine = <span className="text-amber-400">Locks next scan</span>;
         } else if (p.blockReason) {
-            const locPct = p.entryLocationPct != null ? ` (${p.entryLocationPct.toFixed(0)}% of range)` : '';
-            let blockText: string;
-            switch (p.blockReason) {
-                case 'BUY_UNDER_RESISTANCE': blockText = `Blocked: buying under resistance${locPct}`; break;
-                case 'SHORT_ON_SUPPORT': blockText = `Blocked: short sitting on support${locPct}`; break;
-                case 'SHORT_BLOCKLIST': blockText = 'Blocked: commodity / leveraged ETF'; break;
-                case 'STOP_TOO_WIDE': blockText = 'Blocked: stop too wide'; break;
-                default: blockText = `Blocked: ${p.blockReason}`;
-            }
-            statusLine = <span className="text-slate-500">{blockText}</span>;
+            statusLine = <span className="text-slate-500">{BLOCK_LABELS[p.blockReason] || `Blocked: ${p.blockReason}`}</span>;
         } else if (p.watchReason) {
             statusLine = <span className="text-sky-400">{WATCH_LABELS[p.watchReason] || p.watchReason}</span>;
         } else if (p.gatesStr) {
@@ -486,9 +475,9 @@ const LevelLadderCard: React.FC<CardProps> = (p) => {
                     </div>
                 </div>
 
-                {/* ── Row 2: Chart + Ladder (grid, items-stretch) ── */}
-                <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-2 items-stretch">
-                    <div className="flex flex-col h-[360px] md:h-auto md:min-h-[420px]">
+                {/* ── Row 2: Chart + Ladder ── */}
+                <div className="flex flex-col md:flex-row gap-2">
+                    <div className="flex-1 min-w-0 md:w-3/4">
                         <TradeChart
                             bars={p.bars}
                             entryPrice={p.entryPrice}
@@ -504,7 +493,7 @@ const LevelLadderCard: React.FC<CardProps> = (p) => {
                             isShort={isShort}
                         />
                     </div>
-                    <div className="bg-[#080b10] rounded-xl border border-[#1e2430]">
+                    <div className="md:w-1/4 bg-[#080b10] rounded-xl border border-[#1e2430]">
                         <LevelLadder rungs={rungs} currentPrice={p.currentPrice} />
                     </div>
                 </div>
@@ -1175,7 +1164,6 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; r
                                         qualified={row.qualified}
                                         blockReason={row.block_reason}
                                         watchReason={row.watch_reason}
-                                        entryLocationPct={row.entry_location_pct}
                                         isLocked={lockedSymbols.has(row.symbol)}
                                         gatesStr={row.gates_passed}
                                         infoData={boardInfoData(row)}
