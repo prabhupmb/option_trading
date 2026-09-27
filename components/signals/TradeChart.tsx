@@ -24,6 +24,9 @@ export interface TradeChartProps {
   optionType: 'CALL' | 'PUT';
   tf: Timeframe;
   onTfChange: (tf: Timeframe) => void;
+  support1?: number;
+  support2?: number;
+  isShort?: boolean;
 }
 
 const BG = '#0b0e15';
@@ -34,6 +37,8 @@ const T1_COLOR = '#22c55e';
 const T2_COLOR = '#16a34a';
 const SL_COLOR = '#ef4444';
 const SL_LOCKED_COLOR = '#22c55e';
+const S1_COLOR = '#22d3ee';
+const S2_COLOR = '#a78bfa';
 const MONO = "'JetBrains Mono', monospace";
 
 const TF_OPTIONS: Timeframe[] = ['5min', '15min', '1h', '4h', '1D'];
@@ -58,7 +63,7 @@ class LevelAutoscale implements ISeriesPrimitive<Time> {
 }
 
 const TradeChart: React.FC<TradeChartProps> = (props) => {
-  const { bars, entryPrice, stopLoss, target1, target2, currentPrice, optionType, tf, onTfChange } = props;
+  const { bars, entryPrice, stopLoss, target1, target2, currentPrice, optionType, tf, onTfChange, support1, support2, isShort } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -84,12 +89,26 @@ const TradeChart: React.FC<TradeChartProps> = (props) => {
     levels.push({ key: 'entry', price: entryPrice, label: 'Entry', color: ENTRY_COLOR, showPct: false });
     levels.push({ key: 'sl', price: stopLoss, label: slLabel, color: slColor, showPct: true });
 
+    // Support / resistance levels
+    if (support1 != null || support2 != null) {
+      const sL1 = isShort ? 'R1' : 'S1';
+      const sL2 = isShort ? 'R2' : 'S2';
+      const merged = support1 != null && support2 != null && Math.abs(support1 - support2) / Math.max(support1, support2) < 0.003;
+      if (merged) {
+        levels.push({ key: 's1s2', price: (support1! + support2!) / 2, label: `${sL1}+${sL2}`, color: S2_COLOR, showPct: true });
+      } else {
+        if (support1 != null) levels.push({ key: 's1', price: support1, label: sL1, color: S1_COLOR, showPct: true });
+        if (support2 != null) levels.push({ key: 's2', price: support2, label: sL2, color: S2_COLOR, showPct: true });
+      }
+    }
+
     // Compute pixel positions
     const items: { key: string; y: number; html: string; color: string; isEntry: boolean }[] = [];
     for (const lv of levels) {
       const y = series.priceToCoordinate(lv.price);
       if (y == null) continue;
-      const pct = lv.showPct ? ` · ${((lv.price - currentPrice) / currentPrice * 100) >= 0 ? '+' : ''}${((lv.price - currentPrice) / currentPrice * 100).toFixed(2)}%` : '';
+      const pctFromEntry = ((lv.price - entryPrice) / entryPrice * 100);
+      const pct = lv.showPct ? ` · ${pctFromEntry >= 0 ? '+' : ''}${pctFromEntry.toFixed(2)}%` : '';
       const text = lv.key === 'entry' ? `${lv.label} ${lv.price.toFixed(2)}` : `${lv.label} ${lv.price.toFixed(2)}${pct}`;
       items.push({ key: lv.key, y: y as number, html: text, color: lv.color, isEntry: lv.key === 'entry' });
     }
@@ -104,13 +123,39 @@ const TradeChart: React.FC<TradeChartProps> = (props) => {
 
     // Render
     overlay.innerHTML = '';
+
+    // Zone band between S1 and S2
+    if (support1 != null && support2 != null) {
+      const zy1 = series.priceToCoordinate(support1);
+      const zy2 = series.priceToCoordinate(support2);
+      if (zy1 != null && zy2 != null) {
+        const ztop = Math.min(zy1 as number, zy2 as number);
+        const zht = Math.abs((zy1 as number) - (zy2 as number));
+        if (zht > 4) {
+          const zoneEl = document.createElement('div');
+          const zc = isShort ? 'rgba(167,139,250,0.06)' : 'rgba(34,211,238,0.06)';
+          const zb = isShort ? 'rgba(167,139,250,0.15)' : 'rgba(34,211,238,0.15)';
+          zoneEl.style.cssText = `position:absolute;left:0;right:60px;top:${ztop}px;height:${zht}px;background:${zc};border-top:1px dashed ${zb};border-bottom:1px dashed ${zb};pointer-events:none;z-index:1;`;
+          // Zone label
+          if (zht > 16) {
+            const zoneLbl = document.createElement('div');
+            const zoneText = isShort ? 'resistance zone' : 'support zone';
+            zoneLbl.style.cssText = `position:absolute;right:4px;top:50%;transform:translateY(-50%);font-size:8px;font-family:${MONO};font-weight:700;color:${zb};text-transform:uppercase;letter-spacing:0.08em;pointer-events:none;`;
+            zoneLbl.textContent = zoneText;
+            zoneEl.appendChild(zoneLbl);
+          }
+          overlay.appendChild(zoneEl);
+        }
+      }
+    }
+
     for (const item of items) {
       const el = document.createElement('div');
       el.style.cssText = `position:absolute;left:4px;top:${item.isEntry ? item.y + 4 : item.y - 12}px;background:${BG};border:1px solid ${item.color};color:${item.color};font-size:11px;font-family:${MONO};font-weight:600;border-radius:3px;padding:1px 6px;pointer-events:none;white-space:nowrap;z-index:5;line-height:16px;`;
       el.textContent = item.html;
       overlay.appendChild(el);
     }
-  }, [entryPrice, stopLoss, target1, target2, currentPrice, stopLocked]);
+  }, [entryPrice, stopLoss, target1, target2, currentPrice, stopLocked, support1, support2, isShort]);
 
   // Escape to close fullscreen
   useEffect(() => {
@@ -217,9 +262,32 @@ const TradeChart: React.FC<TradeChartProps> = (props) => {
       axisLabelVisible: false, title: '',
     });
 
+    // Support / resistance lines
+    if (support1 != null && support2 != null && Math.abs(support1 - support2) / Math.max(support1, support2) < 0.003) {
+      series.createPriceLine({
+        price: (support1 + support2) / 2, color: S2_COLOR, lineWidth: 2, lineStyle: 2,
+        axisLabelVisible: false, title: '',
+      });
+    } else {
+      if (support1 != null) {
+        series.createPriceLine({
+          price: support1, color: S1_COLOR, lineWidth: 1, lineStyle: 2,
+          axisLabelVisible: false, title: '',
+        });
+      }
+      if (support2 != null) {
+        series.createPriceLine({
+          price: support2, color: S2_COLOR, lineWidth: 2, lineStyle: 2,
+          axisLabelVisible: false, title: '',
+        });
+      }
+    }
+
     // Autoscale: ensure all levels visible with 5% padding
     const allPrices = [entryPrice, stopLoss, target1, currentPrice];
     if (target2 != null) allPrices.push(target2);
+    if (support1 != null) allPrices.push(support1);
+    if (support2 != null) allPrices.push(support2);
     const minP = Math.min(...allPrices);
     const maxP = Math.max(...allPrices);
     const pad = (maxP - minP) * 0.05;
@@ -252,7 +320,7 @@ const TradeChart: React.FC<TradeChartProps> = (props) => {
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, [bars, entryPrice, stopLoss, target1, target2, currentPrice, stopLocked, tf, isFullScreen, positionLabels]);
+  }, [bars, entryPrice, stopLoss, target1, target2, currentPrice, stopLocked, tf, isFullScreen, positionLabels, support1, support2]);
 
   if (bars.length < 2) {
     return (
