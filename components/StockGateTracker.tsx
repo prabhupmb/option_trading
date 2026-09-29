@@ -262,7 +262,6 @@ const buildRungs = (
     rungs.push({ key: 'T1', label: 'T1', price: t1, color: '#22c55e' });
     rungs.push({ key: 'ENTRY', label: 'ENTRY', price: entry, color: '#facc15' });
     if (s1 != null) rungs.push({ key: 'S1', label: isShort ? 'R1' : 'S1', price: s1, color: '#22d3ee', source: s1Src });
-    if (s2 != null) rungs.push({ key: 'S2', label: isShort ? 'R2' : 'S2', price: s2, color: '#a78bfa', source: s2Src, isVeryStrong: true });
     rungs.push({ key: 'SL', label: 'SL', price: sl, color: '#ef4444' });
     return rungs;
 };
@@ -489,7 +488,6 @@ const LevelLadderCard: React.FC<CardProps> = (p) => {
                             tf={p.tf}
                             onTfChange={p.onTfChange}
                             support1={p.support1 || undefined}
-                            support2={p.support2 || undefined}
                             isShort={isShort}
                         />
                     </div>
