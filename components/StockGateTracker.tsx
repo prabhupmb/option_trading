@@ -261,7 +261,6 @@ const buildRungs = (
     if (t2 != null) rungs.push({ key: 'T2', label: 'T2', price: t2, color: '#16a34a' });
     rungs.push({ key: 'T1', label: 'T1', price: t1, color: '#22c55e' });
     rungs.push({ key: 'ENTRY', label: 'ENTRY', price: entry, color: '#facc15' });
-    if (s1 != null) rungs.push({ key: 'S1', label: isShort ? 'R1' : 'S1', price: s1, color: '#22d3ee', source: s1Src });
     rungs.push({ key: 'SL', label: 'SL', price: sl, color: '#ef4444' });
     return rungs;
 };
@@ -487,7 +486,6 @@ const LevelLadderCard: React.FC<CardProps> = (p) => {
                             optionType={isBuy ? 'CALL' : 'PUT'}
                             tf={p.tf}
                             onTfChange={p.onTfChange}
-                            support1={p.support1 || undefined}
                             isShort={isShort}
                         />
                     </div>
