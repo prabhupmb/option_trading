@@ -36,7 +36,6 @@ const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, o
       {
         key: 'research', label: 'Research', icon: 'search',
         items: [
-          { id: 'structure', label: 'Structure', icon: 'stacked_bar_chart' },
           { id: 'lifecycle', label: 'Stock Lifecycle', icon: 'timeline' },
           { id: 'india-signals', label: 'India Signals', icon: 'currency_rupee' },
           { id: 'trending', label: 'Trending', icon: 'trending_up' },
