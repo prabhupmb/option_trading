@@ -256,7 +256,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
         setShowConfirm(false);
     };
 
-    const quickAction = async (userId: string, updates: Record<string, any>, reason: string) => {
+    const quickAction = async (userId: string, updates: Record<string, any>, reason: string, userEmail?: string, userName?: string) => {
         // Determine which webhook to call based on the action
         const isApproval = 'is_active' in updates;
         const webhookUrl = isApproval ? WEBHOOK_APPROVE_USER : WEBHOOK_UPGRADE_USER;
@@ -275,6 +275,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                     action: reason,
                     updates,
                     admin_email: currentUser?.email || 'unknown',
+                    user_email: userEmail || undefined,
+                    user_name: userName || undefined,
+                    send_welcome_email: isApproval && updates.is_active === true,
                     timestamp: new Date().toISOString(),
                 }),
             });
@@ -295,7 +298,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
         if (!rejectDialog || !rejectMessage.trim()) return;
         setIsRejecting(true);
         try {
-            await quickAction(rejectDialog.userId, { is_active: false, rejection_message: rejectMessage.trim() }, `Rejected: ${rejectMessage.trim()}`);
+            await quickAction(rejectDialog.userId, { is_active: false, rejection_message: rejectMessage.trim() }, `Rejected: ${rejectMessage.trim()}`, rejectDialog.email, rejectDialog.userName);
             showToast(`User "${rejectDialog.userName}" rejected with message sent.`, 'success');
             setRejectDialog(null);
             setRejectMessage('');
@@ -560,7 +563,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
                                                 </div>
                                                 <div className="flex items-center gap-2 ml-4">
                                                     <button
-                                                        onClick={() => quickAction(user.id, { is_active: true }, 'Approved new user signup')}
+                                                        onClick={() => quickAction(user.id, { is_active: true }, 'Approved new user signup', user.email, user.username || user.user_name || '')}
                                                         className="flex items-center gap-1.5 bg-rh-green/10 hover:bg-rh-green/20 text-rh-green px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
                                                     >
                                                         <span className="material-symbols-outlined text-sm">check</span>
