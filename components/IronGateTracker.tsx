@@ -1060,7 +1060,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
 
     // DIP WATCH data
     const [dipWatch, setDipWatch] = useState<DipWatchRow[]>([]);
-    const [dipWatchOpen, setDipWatchOpen] = useState(true);
+    const [dipWatchOpen, setDipWatchOpen] = useState(false);
     const [webhookStatus, setWebhookStatus] = useState<'idle' | 'triggering' | 'ok' | 'err'>('idle');
     const [lastTriggeredTime, setLastTriggeredTime] = useState<string | null>(null);
     const [firedTimes, setFiredTimes] = useState<Set<string>>(new Set());
