@@ -156,7 +156,7 @@ const STATE_ORDER: Record<string, number> = {
 };
 
 const STATE_CFG: Record<string, { label: string; color: string; bg: string; border: string }> = {
-    STRONG_BUY:  { label: 'Strong Buy',  color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.25)' },
+    STRONG_BUY:  { label: 'Strong Buy',  color: '#22c55e', bg: 'rgba(34,197,94,0.12)',   border: 'rgba(34,197,94,0.25)' },
     BUY:         { label: 'Buy',         color: '#22c55e', bg: 'rgba(34,197,94,0.1)',    border: 'rgba(34,197,94,0.25)' },
     DIP_BUY:     { label: 'Dip Buy',     color: '#14b8a6', bg: 'rgba(20,184,166,0.1)',   border: 'rgba(20,184,166,0.25)' },
     DIP_WATCH:   { label: 'Dip Watch',   color: '#38bdf8', bg: 'rgba(56,189,248,0.08)',  border: 'rgba(56,189,248,0.25)' },
