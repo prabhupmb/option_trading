@@ -1025,7 +1025,11 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; r
                             const isActive = stateFilter === key;
                             return (
                                 <button key={key} onClick={() => { if (count === 0) return; setStateFilter(isActive ? null : key); }}
-                                    style={{ borderColor: isActive ? cfg.border : '#1e2430', background: isActive ? cfg.bg : 'transparent', color: isActive ? cfg.color : (count === 0 ? '#4a5959' : '#7a8c8c') }}
+                                    style={{
+                                        borderColor: isActive ? cfg.border : (key === 'STRONG_BUY' || key === 'STRONG_SELL') && count > 0 ? cfg.border : '#1e2430',
+                                        background: isActive ? cfg.bg : (key === 'STRONG_BUY' || key === 'STRONG_SELL') && count > 0 ? cfg.bg : 'transparent',
+                                        color: isActive ? cfg.color : (key === 'STRONG_BUY' || key === 'STRONG_SELL') && count > 0 ? cfg.color : (count === 0 ? '#4a5959' : '#7a8c8c'),
+                                    }}
                                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all uppercase tracking-wide ${count === 0 ? 'opacity-40 cursor-default' : 'cursor-pointer hover:opacity-80'}`}>
                                     {cfg.label}
                                     <span className="font-black bg-black/20 px-1.5 py-0.5 rounded-full text-[9px]">{count}</span>
