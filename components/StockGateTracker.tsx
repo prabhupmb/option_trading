@@ -161,7 +161,7 @@ const STATE_CFG: Record<string, { label: string; color: string; bg: string; bord
     DIP_BUY:     { label: 'Dip Buy',     color: '#14b8a6', bg: 'rgba(20,184,166,0.1)',   border: 'rgba(20,184,166,0.25)' },
     DIP_WATCH:   { label: 'Dip Watch',   color: '#38bdf8', bg: 'rgba(56,189,248,0.08)',  border: 'rgba(56,189,248,0.25)' },
     SELL:        { label: 'Sell',         color: '#f97316', bg: 'rgba(249,115,22,0.1)',   border: 'rgba(249,115,22,0.25)' },
-    STRONG_SELL: { label: 'Strong Sell',  color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.25)' },
+    STRONG_SELL: { label: 'Strong Sell',  color: '#f43f5e', bg: 'rgba(244,63,94,0.12)',   border: 'rgba(244,63,94,0.25)' },
 };
 
 const SCAN_TIMES_CT = ['08:39', '08:54', '09:19', '09:49', '10:24', '10:54', '11:34', '12:34', '13:34', '14:19', '14:49'];
