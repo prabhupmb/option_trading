@@ -57,10 +57,16 @@ export function useAuth() {
     const [isTrialUser, setIsTrialUser] = useState(false);
     const [dbUserId, setDbUserId] = useState<string | undefined>();
 
+    // --- Password recovery flag ---
+    const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+
     // --- onAuthStateChange: synchronous state only, no network calls ---
     useEffect(() => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, sess) => {
             console.log('Auth state changed:', event);
+            if (event === 'PASSWORD_RECOVERY') {
+                setIsPasswordRecovery(true);
+            }
             setSession(sess);
             setAuthReady(true);
         });
@@ -218,6 +224,10 @@ export function useAuth() {
         }
     }, []);
 
+    const clearPasswordRecovery = useCallback(() => {
+        setIsPasswordRecovery(false);
+    }, []);
+
     return {
         user: session?.user ?? null,
         session,
@@ -230,7 +240,9 @@ export function useAuth() {
         trialDaysLeft,
         isTrialUser,
         dbUserId,
+        isPasswordRecovery,
         signInWithGoogle,
         signOut,
+        clearPasswordRecovery,
     };
 }

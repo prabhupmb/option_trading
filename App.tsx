@@ -253,8 +253,131 @@ const ScanTimesBar: React.FC<{ activeTab: string }> = ({ activeTab }) => {
   );
 };
 
+// ─── RESET PASSWORD VIEW ─────────────────────────────────────
+const ResetPasswordView: React.FC<{ onDone: () => void; onSignOut: () => void }> = ({ onDone, onSignOut }) => {
+  const [newPassword, setNewPassword] = React.useState('');
+  const [confirmPassword, setConfirmPassword] = React.useState('');
+  const [showPw, setShowPw] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const [success, setSuccess] = React.useState(false);
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (newPassword.length < 8) { setError('Password must be at least 8 characters.'); return; }
+    if (newPassword !== confirmPassword) { setError('Passwords do not match.'); return; }
+
+    setLoading(true);
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+      if (updateError) {
+        setError(updateError.message || 'Failed to update password.');
+      } else {
+        setSuccess(true);
+      }
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex items-center justify-center p-6 relative overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-rh-green/10 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+      </div>
+      <div className="relative w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center mb-6">
+            <div className="bg-rh-green p-4 rounded-2xl shadow-2xl shadow-rh-green/30">
+              <span className="material-symbols-outlined text-white text-4xl">lock_reset</span>
+            </div>
+          </div>
+          <h1 className="text-2xl font-black text-white tracking-tight mb-2">Set New Password</h1>
+          <p className="text-slate-400 text-sm">Choose a strong password for your account</p>
+        </div>
+
+        <div className="bg-white/[0.03] backdrop-blur-2xl rounded-3xl border border-white/[0.08] p-8 shadow-2xl">
+          {success ? (
+            <div className="text-center">
+              <span className="material-symbols-outlined text-rh-green text-5xl mb-4 block">check_circle</span>
+              <h2 className="text-lg font-bold text-white mb-2">Password Updated</h2>
+              <p className="text-slate-400 text-sm mb-6">Your password has been changed successfully.</p>
+              <button
+                onClick={onDone}
+                className="w-full py-3 px-6 rounded-2xl bg-rh-green hover:bg-rh-green/90 text-white font-bold text-sm transition-all"
+              >
+                Continue to Dashboard
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleReset} noValidate className="space-y-4">
+              {error && (
+                <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3">
+                  <span className="material-symbols-outlined text-red-400 text-lg mt-0.5">error</span>
+                  <p className="text-sm text-red-400">{error}</p>
+                </div>
+              )}
+
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-500 text-lg">lock</span>
+                <input
+                  type={showPw ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={e => { setNewPassword(e.target.value); setError(''); }}
+                  placeholder="New password (min. 8 characters)"
+                  autoFocus
+                  className="w-full bg-white/[0.04] border border-white/10 rounded-2xl pl-10 pr-12 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:border-rh-green/50 focus:ring-rh-green/20 transition-all"
+                />
+                <button type="button" onClick={() => setShowPw(p => !p)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors">
+                  <span className="material-symbols-outlined text-lg">{showPw ? 'visibility_off' : 'visibility'}</span>
+                </button>
+              </div>
+
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-500 text-lg">lock_reset</span>
+                <input
+                  type={showPw ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={e => { setConfirmPassword(e.target.value); setError(''); }}
+                  placeholder="Confirm new password"
+                  className="w-full bg-white/[0.04] border border-white/10 rounded-2xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:border-rh-green/50 focus:ring-rh-green/20 transition-all"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={!newPassword || !confirmPassword || loading}
+                className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-2xl bg-rh-green hover:bg-rh-green/90 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm transition-all"
+              >
+                {loading ? (
+                  <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
+                ) : (
+                  <span className="material-symbols-outlined text-lg">save</span>
+                )}
+                Update Password
+              </button>
+            </form>
+          )}
+        </div>
+
+        {!success && (
+          <p className="text-center text-slate-500 text-sm mt-6">
+            <button onClick={onSignOut} className="text-slate-400 hover:text-red-400 font-semibold transition-colors">
+              Cancel &amp; Sign Out
+            </button>
+          </p>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const App: React.FC = () => {
-  const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut, role, accessLevel, trialDaysLeft, isTrialUser } = useAuth();
+  const { user, session, loading: authLoading, isAuthenticated, verificationStatus, verificationData, signInWithGoogle, signOut, role, accessLevel, trialDaysLeft, isTrialUser, isPasswordRecovery, clearPasswordRecovery } = useAuth();
   const [showRegister, setShowRegister] = useState(false);
 
   // Disclaimer gate
@@ -568,6 +691,11 @@ const App: React.FC = () => {
       return <RegisterPage onBackToLogin={() => setShowRegister(false)} />;
     }
     return <LoginPage onGoogleLogin={signInWithGoogle} onShowRegister={() => setShowRegister(true)} />;
+  }
+
+  // Password Recovery — user clicked reset link in email
+  if (isPasswordRecovery) {
+    return <ResetPasswordView onDone={clearPasswordRecovery} onSignOut={signOut} />;
   }
 
   // Verifying

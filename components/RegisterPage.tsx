@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from 'react';
-import { registerUser } from '../services/registerUser';
+import React, { useState } from 'react';
+import { supabase } from '../services/supabase';
 
 interface RegisterPageProps {
   onBackToLogin: () => void;
 }
 
-type FieldErrors = Partial<Record<'fullName' | 'userName' | 'email' | 'phone' | 'password' | 'confirmPassword' | 'general', string>>;
+type FieldErrors = Partial<Record<'fullName' | 'email' | 'password' | 'confirmPassword' | 'general', string>>;
 
 function getPasswordStrength(password: string): { label: string; color: string; width: string } {
   if (password.length === 0) return { label: '', color: '', width: '0%' };
@@ -21,13 +21,9 @@ function getPasswordStrength(password: string): { label: string; color: string; 
   return { label: 'Strong', color: 'bg-rh-green', width: '100%' };
 }
 
-const USERNAME_REGEX = /^[a-z0-9_]{3,20}$/;
-
 const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
   const [fullName, setFullName] = useState('');
-  const [userName, setUserName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -38,23 +34,14 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
 
   const passwordStrength = getPasswordStrength(password);
 
-  const validateUserName = useCallback((value: string) => {
-    if (!value) return 'Username is required.';
-    if (!USERNAME_REGEX.test(value)) return '3–20 chars, lowercase letters, numbers, or underscore only.';
-    return '';
-  }, []);
-
   const validate = (): FieldErrors => {
     const errs: FieldErrors = {};
     if (!fullName.trim()) errs.fullName = 'Full name is required.';
-    const unErr = validateUserName(userName);
-    if (unErr) errs.userName = unErr;
     if (!email.trim()) {
       errs.email = 'Email is required.';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       errs.email = 'Enter a valid email address.';
     }
-    if (!phone.trim()) errs.phone = 'Phone number is required.';
     if (!password) {
       errs.password = 'Password is required.';
     } else if (password.length < 8) {
@@ -70,9 +57,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
 
   const isFormValid =
     fullName.trim() &&
-    USERNAME_REGEX.test(userName) &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) &&
-    phone.trim() &&
     password.length >= 8 &&
     confirmPassword === password;
 
@@ -86,39 +71,37 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
     setErrors({});
     setLoading(true);
     try {
-      const result = await registerUser({ fullName, userName, email, phone: phone || undefined, password });
-      if (result.status === 'email_confirmation_needed') {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: { full_name: fullName.trim() },
+          emailRedirectTo: window.location.origin,
+        },
+      });
+
+      if (error) {
+        setErrors({ general: error.message });
+        return;
+      }
+
+      // If no session was returned, email confirmation is required
+      if (!data.session) {
         setPageStatus('email_confirmation');
         return;
       }
-      if (result.status === 'success') {
-        setPageStatus('success');
-        return;
-      }
-      // error handling
-      if (result.code === 400) {
-        const newErrors: FieldErrors = { general: result.message };
-        if (result.details && result.details.length > 0) {
-          newErrors.general = result.details.join(' ');
-        }
-        setErrors(newErrors);
-      } else if (result.code === 401) {
-        setErrors({ general: result.message });
-      } else if (result.code === 409) {
-        if (result.field === 'username') {
-          setErrors({ userName: result.message });
-        } else {
-          setErrors({ email: result.message });
-        }
-      } else {
-        setErrors({ general: result.message });
-      }
+
+      // Session exists — sign out immediately (user needs admin approval)
+      await supabase.auth.signOut();
+      setPageStatus('success');
+    } catch {
+      setErrors({ general: 'Network error. Please try again.' });
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Email confirmation screen
+  // Email confirmation screen
   if (pageStatus === 'email_confirmation') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex items-center justify-center p-6 relative overflow-hidden">
@@ -132,7 +115,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
           <div className="bg-white/[0.03] backdrop-blur-2xl rounded-3xl border border-white/[0.08] p-8 shadow-2xl">
             <h2 className="text-xl font-bold text-white mb-3">Check your email</h2>
             <p className="text-slate-400 text-sm mb-6">
-              We sent a confirmation link to <span className="text-white font-semibold">{email}</span>. Confirm your email, then return here to complete setup.
+              We sent a confirmation link to <span className="text-white font-semibold">{email}</span>. Confirm your email, then return here to sign in.
             </p>
             <button
               onClick={onBackToLogin}
@@ -146,7 +129,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
     );
   }
 
-  // ── Success screen
+  // Success screen
   if (pageStatus === 'success') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex items-center justify-center p-6 relative overflow-hidden">
@@ -174,13 +157,12 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
     );
   }
 
-  // ── Registration form
+  // Registration form
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex items-center justify-center p-6 relative overflow-hidden">
       <BackgroundDecorations />
 
       <div className="relative w-full max-w-[480px]">
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center mb-6">
             <div className="bg-rh-green p-4 rounded-2xl shadow-2xl shadow-rh-green/30">
@@ -191,11 +173,9 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
           <p className="text-slate-400 text-sm font-medium">Auto-trade options &amp; equities across Schwab and Alpaca</p>
         </div>
 
-        {/* Card */}
         <div className="bg-white/[0.03] backdrop-blur-2xl rounded-3xl border border-white/[0.08] p-8 shadow-2xl">
           <form onSubmit={handleSubmit} noValidate className="space-y-4">
 
-            {/* Global error */}
             {errors.general && (
               <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3">
                 <span className="material-symbols-outlined text-red-400 text-lg mt-0.5">error</span>
@@ -205,7 +185,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
 
             {/* Full Name */}
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Full Name <span className="normal-case text-slate-600 font-medium">(mandatory)</span></label>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Full Name</label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-500 text-lg">person</span>
                 <input
@@ -217,28 +197,6 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
                 />
               </div>
               {errors.fullName && <p className="text-xs text-red-400 mt-1 ml-1">{errors.fullName}</p>}
-            </div>
-
-            {/* Username */}
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Username</label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-500 text-lg">alternate_email</span>
-                <input
-                  type="text"
-                  value={userName}
-                  onChange={e => {
-                    const v = e.target.value.toLowerCase();
-                    setUserName(v);
-                    const err = validateUserName(v);
-                    setErrors(p => ({ ...p, userName: err }));
-                  }}
-                  placeholder="jane_doe123"
-                  maxLength={20}
-                  className={`w-full bg-white/[0.04] border rounded-2xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 transition-all ${errors.userName ? 'border-red-500/50 focus:ring-red-500/30' : 'border-white/10 focus:border-rh-green/50 focus:ring-rh-green/20'}`}
-                />
-              </div>
-              {errors.userName && <p className="text-xs text-red-400 mt-1 ml-1">{errors.userName}</p>}
             </div>
 
             {/* Email */}
@@ -255,22 +213,6 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
                 />
               </div>
               {errors.email && <p className="text-xs text-red-400 mt-1 ml-1">{errors.email}</p>}
-            </div>
-
-            {/* Phone */}
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Phone Number <span className="normal-case text-slate-600 font-medium">(mandatory)</span></label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-500 text-lg">phone</span>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={e => { setPhone(e.target.value); if (errors.phone) setErrors(p => ({ ...p, phone: '' })); }}
-                  placeholder="+1 555 000 0000"
-                  className={`w-full bg-white/[0.04] border rounded-2xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 transition-all ${errors.phone ? 'border-red-500/50 focus:ring-red-500/30' : 'border-white/10 focus:border-rh-green/50 focus:ring-rh-green/20'}`}
-                />
-              </div>
-              {errors.phone && <p className="text-xs text-red-400 mt-1 ml-1">{errors.phone}</p>}
             </div>
 
             {/* Password */}
@@ -293,7 +235,6 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
                   <span className="material-symbols-outlined text-lg">{showPassword ? 'visibility_off' : 'visibility'}</span>
                 </button>
               </div>
-              {/* Strength indicator */}
               {password.length > 0 && (
                 <div className="mt-2 space-y-1">
                   <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
@@ -355,7 +296,6 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
           </form>
         </div>
 
-        {/* Footer */}
         <p className="text-center text-slate-500 text-sm mt-6">
           Already have an account?{' '}
           <button
