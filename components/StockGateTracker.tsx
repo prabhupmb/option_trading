@@ -694,7 +694,7 @@ const StockGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; r
     const [topTab, setTopTab] = useState<TopTab>('positions');
     const [stateFilter, setStateFilter] = useState<StateFilter>(null);
     const [execFilter, setExecFilter] = useState<ExecFilter>(null);
-    const [sortMode, setSortMode] = useState<SortMode>('default');
+    const [sortMode, setSortMode] = useState<SortMode>('pnl');
 
     // History filters
     const [historyTodayOnly, setHistoryTodayOnly] = useState(false);

@@ -1051,7 +1051,7 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
     const [holdFilter, setHoldFilter] = useState(false);
     const [weakFilter, setWeakFilter] = useState(false);
     const [dipAddFilter, setDipAddFilter] = useState(false);
-    const [sortBy, setSortBy] = useState<'default' | '30d_upside'>('default');
+    const [sortBy, setSortBy] = useState<'default' | 'pnl' | '30d_upside'>('pnl');
 
     // Bars for charts
     const [chartTf, setChartTf] = useState<Timeframe>('4h');
@@ -1299,7 +1299,9 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
         return true;
     });
 
-    if (sortBy === '30d_upside') {
+    if (sortBy === 'pnl') {
+        filteredPositions.sort((a, b) => calcPnl(b) - calcPnl(a));
+    } else if (sortBy === '30d_upside') {
         filteredPositions.sort((a, b) => (b.horizon_move_pct ?? -Infinity) - (a.horizon_move_pct ?? -Infinity));
     }
 
@@ -1594,10 +1596,11 @@ const IronGateTracker: React.FC<{ onExecute?: (signal: OptionSignal) => void; ro
                                     {/* Sort */}
                                     <select
                                         value={sortBy}
-                                        onChange={e => setSortBy(e.target.value as 'default' | '30d_upside')}
+                                        onChange={e => setSortBy(e.target.value as 'default' | 'pnl' | '30d_upside')}
                                         className="ml-auto text-[9px] font-bold bg-transparent border border-gray-200 dark:border-[#1e2430] rounded-md px-2 py-1 text-slate-600 dark:text-slate-400 cursor-pointer"
                                     >
                                         <option value="default">Sort: Default</option>
+                                        <option value="pnl">Sort: P&L %</option>
                                         <option value="30d_upside">Sort: 30D upside</option>
                                     </select>
 
