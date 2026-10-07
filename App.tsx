@@ -913,7 +913,7 @@ const App: React.FC = () => {
             </div>
           ) : currentView === 'trending' ? (
             <div className="flex-1 overflow-y-auto">
-              <TrendingStocks />
+              <TrendingStocks onNavigateToLifecycle={(sym) => { setLifecycleSymbol(sym); setLifecycleFrom('trending'); setCurrentView('lifecycle'); }} />
             </div>
           ) : currentView === 'market-news' ? (
             <div className="flex-1 overflow-hidden">
@@ -924,7 +924,7 @@ const App: React.FC = () => {
               <StockLifecycleView
                 initialSymbol={lifecycleSymbol}
                 onBack={lifecycleFrom ? () => { setCurrentView(lifecycleFrom!); setLifecycleSymbol(null); setLifecycleFrom(null); } : undefined}
-                backLabel={lifecycleFrom === 'smart-feed' ? 'Stock Feed' : lifecycleFrom === 'signals' ? 'Option Feed' : lifecycleFrom === 'structure' ? 'Structure' : undefined}
+                backLabel={lifecycleFrom === 'smart-feed' ? 'Stock Feed' : lifecycleFrom === 'signals' ? 'Option Feed' : lifecycleFrom === 'structure' ? 'Structure' : lifecycleFrom === 'trending' ? 'Trending' : undefined}
                 onSymbolConsumed={() => setLifecycleSymbol(null)}
               />
             </div>
