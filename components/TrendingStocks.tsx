@@ -126,6 +126,8 @@ const SignalBadges: React.FC<{ row: TrendingRow }> = ({ row }) => {
 const TrendingStocks: React.FC<{ onNavigateToLifecycle?: (symbol: string) => void }> = ({ onNavigateToLifecycle }) => {
     const [rows, setRows] = useState<TrendingRow[]>([]);
     const [loading, setLoading] = useState(true);
+    const [scanning, setScanning] = useState(false);
+    const [scanStatus, setScanStatus] = useState<'idle' | 'ok' | 'err'>('idle');
     const [tab, setTab] = useState<Tab>('up');
     const [signalFilter, setSignalFilter] = useState<SignalFilter>('all');
     const [, setTick] = useState(0); // force re-render for relative time
@@ -187,6 +189,20 @@ const TrendingStocks: React.FC<{ onNavigateToLifecycle?: (symbol: string) => voi
     const hasSignalCount = useMemo(() => displayed.filter(r => r.stock_signal_dir || r.option_signal_dir).length, [displayed]);
     const alignedCount = useMemo(() => displayed.filter(r => r.signal_aligned).length, [displayed]);
 
+    const handleScanNow = async () => {
+        if (scanning) return;
+        setScanning(true);
+        setScanStatus('idle');
+        try {
+            await fetch('https://prabhupadala01.app.n8n.cloud/webhook/trending', { method: 'POST' });
+            setScanStatus('ok');
+            setTimeout(() => { fetchData(); setScanning(false); setScanStatus('idle'); }, 15_000);
+        } catch {
+            setScanStatus('err');
+            setTimeout(() => { setScanning(false); setScanStatus('idle'); }, 3000);
+        }
+    };
+
     const handleSymbolClick = (symbol: string) => {
         if (onNavigateToLifecycle) onNavigateToLifecycle(symbol);
     };
@@ -214,6 +230,24 @@ const TrendingStocks: React.FC<{ onNavigateToLifecycle?: (symbol: string) => voi
                         </p>
                     </div>
                 </div>
+                <button
+                    onClick={handleScanNow}
+                    disabled={scanning}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wide border transition-all ${
+                        scanStatus === 'ok'
+                            ? 'bg-rh-green/10 border-rh-green/30 text-rh-green'
+                            : scanStatus === 'err'
+                                ? 'bg-red-500/10 border-red-500/30 text-red-400'
+                                : scanning
+                                    ? 'bg-rh-green/5 border-rh-green/20 text-rh-green/60 cursor-not-allowed'
+                                    : 'border-rh-green/40 text-rh-green hover:bg-rh-green/10'
+                    }`}
+                >
+                    <span className={`material-symbols-outlined text-sm ${scanning ? 'animate-spin' : ''}`}>
+                        {scanStatus === 'ok' ? 'check_circle' : scanStatus === 'err' ? 'error' : 'play_arrow'}
+                    </span>
+                    {scanStatus === 'ok' ? 'Scanning...' : scanStatus === 'err' ? 'Failed' : scanning ? 'Scanning...' : 'Scan Now'}
+                </button>
             </div>
 
             {/* Tabs */}
