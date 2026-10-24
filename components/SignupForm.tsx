@@ -99,8 +99,8 @@ const SignupForm: React.FC<SignupFormProps> = ({ verificationData, session, onSi
 
     // ═══════════════ SUCCESS SCREEN ═══════════════
     if (submitStatus === 'success') {
-        // Sign out immediately — user must wait for admin approval before accessing the app
-        setTimeout(() => onSignOut(), 1500);
+        // Reload to trigger re-verification — user gets auto-allowed for 30-day trial
+        setTimeout(() => window.location.reload(), 1500);
 
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex items-center justify-center p-6 relative overflow-hidden">
@@ -114,12 +114,12 @@ const SignupForm: React.FC<SignupFormProps> = ({ verificationData, session, onSi
                             <span className="material-symbols-outlined text-white text-5xl">check_circle</span>
                         </div>
                     </div>
-                    <h1 className="text-3xl font-black text-rh-green tracking-tight mb-3">Registration Successful!</h1>
+                    <h1 className="text-3xl font-black text-rh-green tracking-tight mb-3">Welcome!</h1>
                     <p className="text-rh-green font-bold text-sm mb-8">
-                        Your account is pending admin approval.
+                        Your 30-day free trial starts now.
                     </p>
                     <p className="text-slate-500 text-xs animate-pulse">
-                        Redirecting to login in 5 seconds...
+                        Loading your dashboard...
                     </p>
                 </div>
             </div>

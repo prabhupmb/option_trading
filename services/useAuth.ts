@@ -100,7 +100,7 @@ export function useAuth() {
                 return;
             }
 
-            const { data, error } = await supabase
+            const { data: initialData, error } = await supabase
                 .from('users')
                 .select('*')
                 .eq('email', email)
@@ -108,7 +108,7 @@ export function useAuth() {
 
             if (ignore) return;
 
-            console.log('[auth] Profile query done. Found:', !!data, '| Error:', error?.code, error?.message);
+            console.log('[auth] Profile query done. Found:', !!initialData, '| Error:', error?.code, error?.message);
 
             if (error) {
                 setProfile(undefined);
@@ -118,8 +118,10 @@ export function useAuth() {
                 return;
             }
 
-            if (!data) {
-                // User not in DB — auto-register via n8n
+            let profileData = initialData;
+
+            if (!profileData) {
+                // User not in DB — auto-register via n8n and wait for it
                 console.log('[auth] User not in DB — auto-registering via n8n');
                 const fullName = session.user.user_metadata.full_name || session.user.user_metadata.name || '';
                 const phone = session.user.user_metadata.phone || '';
@@ -128,44 +130,65 @@ export function useAuth() {
                     || email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 20)
                 );
 
-                fetch('https://prabhupadala01.app.n8n.cloud/webhook/register-user', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${session.access_token}`,
-                    },
-                    body: JSON.stringify({ userName, fullName, email, phone }),
-                }).catch(() => {});
+                try {
+                    await fetch('https://prabhupadala01.app.n8n.cloud/webhook/register-user', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${session.access_token}`,
+                        },
+                        body: JSON.stringify({ userName, fullName, email, phone }),
+                    });
+                } catch {}
 
-                setProfile(null);
-                setProfileError(null);
-                setVerificationStatus('denied');
-                setVerificationData({
-                    email,
-                    message: 'Your account registration is pending admin approval.',
-                });
-                return;
+                if (ignore) return;
+
+                // Re-fetch profile after webhook creates the record
+                const { data: refetchData } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('email', email)
+                    .maybeSingle();
+
+                if (ignore) return;
+                profileData = refetchData;
+
+                if (!profileData) {
+                    setProfile(null);
+                    setProfileError(null);
+                    setVerificationStatus('denied');
+                    setVerificationData({
+                        email,
+                        message: 'Your account is being set up. Please refresh in a moment.',
+                    });
+                    return;
+                }
             }
 
-            // User found
-            setProfile(data);
+            // User found in DB
+            setProfile(profileData);
             setProfileError(null);
 
-            if (!data.is_active) {
-                setVerificationStatus('denied');
-                setVerificationData({
-                    email,
-                    message: 'Your account is pending admin approval.',
-                });
-                return;
+            if (!profileData.is_active) {
+                // Unapproved user — allow during 30-day free trial
+                const trialDays = profileData.created_at ? getTrialDaysLeft(profileData.created_at) : 0;
+                if (trialDays <= 0) {
+                    setVerificationStatus('trial_expired');
+                    setVerificationData({
+                        email,
+                        message: 'Your 30-day free trial has expired. Please contact admin for access.',
+                    });
+                    return;
+                }
+                // Within trial period — fall through to allow access
             }
 
-            // Active user — check trial status
-            const userRole = data.role as UserRole;
-            const userAccessLevel = data.access_level as AccessLevel;
-            const trialEligible = isTrialEligible(userRole, userAccessLevel);
-            const daysLeft = trialEligible && data.created_at
-                ? getTrialDaysLeft(data.created_at)
+            // Active user or trial user — set up access
+            const userRole = profileData.role as UserRole;
+            const userAccessLevel = profileData.access_level as AccessLevel;
+            const trialEligible = !profileData.is_active || isTrialEligible(userRole, userAccessLevel);
+            const daysLeft = trialEligible && profileData.created_at
+                ? getTrialDaysLeft(profileData.created_at)
                 : undefined;
             const trialExpired = trialEligible && daysLeft !== undefined && daysLeft <= 0;
 
@@ -173,12 +196,12 @@ export function useAuth() {
             setAccessLevel(userAccessLevel);
             setIsTrialUser(trialEligible);
             setTrialDaysLeft(daysLeft);
-            setDbUserId(data.id);
+            setDbUserId(profileData.id);
             setVerificationStatus(trialExpired ? 'trial_expired' : 'allowed');
             setVerificationData({
-                email: data.email,
+                email: profileData.email,
                 fullName: (() => {
-                    const raw = data.display_name || data.full_name || data.user_name || session.user.user_metadata.full_name || '';
+                    const raw = profileData.display_name || profileData.full_name || profileData.user_name || session.user.user_metadata.full_name || '';
                     return raw.charAt(0).toUpperCase() + raw.slice(1);
                 })(),
                 avatarUrl: session.user.user_metadata.avatar_url,

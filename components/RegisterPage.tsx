@@ -143,7 +143,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToLogin }) => {
           <div className="bg-white/[0.03] backdrop-blur-2xl rounded-3xl border border-white/[0.08] p-8 shadow-2xl">
             <h2 className="text-xl font-bold text-white mb-3">Registration Successful!</h2>
             <p className="text-slate-400 text-sm mb-6">
-              Your account is <span className="text-rh-green font-semibold">pending admin approval</span>. You'll receive an email when your account is activated.
+              Your <span className="text-rh-green font-semibold">30-day free trial</span> starts now. Sign in to get started!
             </p>
             <button
               onClick={onBackToLogin}
