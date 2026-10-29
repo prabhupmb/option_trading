@@ -31,6 +31,7 @@ const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, o
         items: [
           { id: 'signals', label: 'Option Feed', icon: 'dashboard' },
           { id: 'smart-feed', label: 'Stock Feed', icon: 'query_stats' },
+          { id: 'trending', label: 'Trending', icon: 'trending_up' },
         ],
       },
       {
@@ -38,7 +39,6 @@ const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, o
         items: [
           { id: 'lifecycle', label: 'Stock Lifecycle', icon: 'timeline' },
           { id: 'india-signals', label: 'India Signals', icon: 'currency_rupee' },
-          { id: 'trending', label: 'Trending', icon: 'trending_up' },
           { id: 'market-news', label: 'Market News', icon: 'newspaper' },
         ],
       },
