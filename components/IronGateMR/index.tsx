@@ -95,7 +95,7 @@ const IronGateMRDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<MRSubTab>('open');
   const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'ok' | 'err'>('idle');
   const [scanPreview, setScanPreview] = useState<string | null>(null);
-  const [chartTf, setChartTf] = useState<Timeframe>('1D');
+  const [chartTf, setChartTf] = useState<Timeframe>('4h');
   const [closeResult, setCloseResult] = useState<{ msg: string; ok: boolean } | null>(null);
 
   const {

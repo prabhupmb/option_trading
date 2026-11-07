@@ -375,6 +375,18 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onShowRegister, lo
                 <p className="text-center text-slate-600 text-[10px] mt-6 tracking-wide">
                     By signing in, you agree to our Terms of Service and Privacy Policy
                 </p>
+
+                <div className="mt-4 text-center">
+                    <a
+                        href={import.meta.env.VITE_SUPPORT_URL || 'https://buymeacoffee.com/tradingkarna.ai'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-slate-500 hover:text-amber-400 text-[11px] transition-colors inline-flex items-center gap-1.5"
+                    >
+                        <span>☕</span>
+                        <span>Support TradingKarna</span>
+                    </a>
+                </div>
             </div>
         </div>
     );

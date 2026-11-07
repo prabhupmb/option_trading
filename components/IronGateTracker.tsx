@@ -671,12 +671,16 @@ const PositionCard: React.FC<{
                     bars={bars ?? []}
                     entryPrice={position.entry_price}
                     stopLoss={position.stop_loss}
-                    target1={position.target_price}
+                    target1={position.fib_target1 || position.target_price}
                     target2={position.fib_target2 || undefined}
                     currentPrice={position.current_price}
                     optionType={position.option_type?.toUpperCase() as 'CALL' | 'PUT'}
                     tf={tf}
                     onTfChange={onTfChange}
+                    t1Hit={!!(position.target_stage && position.target_stage >= 2) || !!position.t1_hit_at}
+                    t1HitPrice={position.t1_hit_price ?? undefined}
+                    beRatcheted={!!(position.target_stage && position.target_stage >= 2 && position.original_stop_loss != null)}
+                    originalStopLoss={position.original_stop_loss ?? undefined}
                 />
 
 

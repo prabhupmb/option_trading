@@ -196,6 +196,19 @@ const Navigation: React.FC<NavigationProps> = ({ activeView, onNavigate, user, o
         </button>
       </div>
 
+      {/* Support link */}
+      <div className="px-4 pb-0.5 flex-shrink-0">
+        <a
+          href={import.meta.env.VITE_SUPPORT_URL || 'https://buymeacoffee.com/tradingkarna.ai'}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest text-slate-600 hover:text-amber-400 transition-colors"
+        >
+          <span>☕</span>
+          Support TradingKarna
+        </a>
+      </div>
+
       {/* Legal link */}
       <div className="px-4 pb-1 flex-shrink-0">
         <button

@@ -38,6 +38,7 @@ const INTRADAY_TFS = new Set<Timeframe>(['5min', '15min', '1h', '4h']);
 export function useMdBars(symbols: string[], tf: Timeframe = '5min') {
   const [barsBySymbol, setBarsBySymbol] = useState<Record<string, Bar[]>>({});
   const [loading, setLoading] = useState(false);
+  const [fetched, setFetched] = useState(false);
   const prevKeyRef = useRef('');
 
   const fetchBars = useCallback(async (syms: string[], timeframe: Timeframe) => {
@@ -59,6 +60,7 @@ export function useMdBars(symbols: string[], tf: Timeframe = '5min') {
     if (error) {
       console.error('[useMdBars] query error:', error);
       setLoading(false);
+      setFetched(true);
       return;
     }
 
@@ -90,12 +92,14 @@ export function useMdBars(symbols: string[], tf: Timeframe = '5min') {
 
     setBarsBySymbol(grouped);
     setLoading(false);
+    setFetched(true);
   }, []);
 
   useEffect(() => {
     const key = `${tf}:${[...symbols].sort().join(',')}`;
-    if (key === prevKeyRef.current && Object.keys(barsBySymbol).length > 0) return;
+    if (key === prevKeyRef.current && fetched) return;
     prevKeyRef.current = key;
+    setFetched(false);
     fetchBars(symbols, tf);
   }, [symbols, tf, fetchBars]);
 
@@ -106,7 +110,7 @@ export function useMdBars(symbols: string[], tf: Timeframe = '5min') {
     return () => clearInterval(id);
   }, [symbols, tf, fetchBars]);
 
-  return { barsBySymbol, loading };
+  return { barsBySymbol, loading, fetched };
 }
 
 /** Convert a NY wall-clock datetime string to unix seconds */

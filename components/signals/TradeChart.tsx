@@ -27,6 +27,11 @@ export interface TradeChartProps {
   support1?: number;
   support2?: number;
   isShort?: boolean;
+  // Two-stage target / BE stop props
+  t1Hit?: boolean;           // true when target_stage >= 2 or t1_hit_at is set
+  t1HitPrice?: number;       // price at which T1 was hit
+  beRatcheted?: boolean;     // stop is at breakeven (stage 2)
+  originalStopLoss?: number; // original SL before BE ratchet
 }
 
 const BG = '#0b0e15';
@@ -34,9 +39,11 @@ const GRID = '#161c28';
 const TEXT = '#8b93a7';
 const ENTRY_COLOR = '#facc15';
 const T1_COLOR = '#22c55e';
+const T1_HIT_COLOR = '#22c55e80'; // dimmed for hit T1
 const T2_COLOR = '#16a34a';
 const SL_COLOR = '#ef4444';
 const SL_LOCKED_COLOR = '#22c55e';
+const ORIG_SL_COLOR = '#ef444440'; // faint for original SL
 const S1_COLOR = '#22d3ee';
 const S2_COLOR = '#a78bfa';
 const MONO = "'JetBrains Mono', monospace";
@@ -63,7 +70,7 @@ class LevelAutoscale implements ISeriesPrimitive<Time> {
 }
 
 const TradeChart: React.FC<TradeChartProps> = (props) => {
-  const { bars, entryPrice, stopLoss, target1, target2, currentPrice, optionType, tf, onTfChange, support1, support2, isShort } = props;
+  const { bars, entryPrice, stopLoss, target1, target2, currentPrice, optionType, tf, onTfChange, support1, support2, isShort, t1Hit, t1HitPrice, beRatcheted, originalStopLoss } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -80,14 +87,24 @@ const TradeChart: React.FC<TradeChartProps> = (props) => {
     const overlay = labelsRef.current;
     if (!series || !overlay) return;
 
-    const slColor = stopLocked ? SL_LOCKED_COLOR : SL_COLOR;
-    const slLabel = stopLocked ? 'Stop (locked)' : 'Stop loss';
+    const slColor = beRatcheted ? SL_LOCKED_COLOR : stopLocked ? SL_LOCKED_COLOR : SL_COLOR;
+    const slLabel = beRatcheted ? 'Stop (BE)' : stopLocked ? 'Stop (locked)' : 'Stop loss';
 
     const levels: LevelLabel[] = [];
-    if (target2 != null) levels.push({ key: 't2', price: target2, label: 'Target 2', color: T2_COLOR, showPct: true });
-    levels.push({ key: 't1', price: target1, label: 'Target 1', color: T1_COLOR, showPct: true });
+    if (target2 != null) {
+      const t2Active = t1Hit;
+      levels.push({ key: 't2', price: target2, label: 'Target 2', color: t2Active ? T1_COLOR : T2_COLOR, showPct: true });
+    }
+    if (t1Hit && t1HitPrice != null) {
+      levels.push({ key: 't1', price: target1, label: `T1 ✓ HIT ${t1HitPrice.toFixed(2)}`, color: T1_HIT_COLOR, showPct: false });
+    } else {
+      levels.push({ key: 't1', price: target1, label: 'Target 1', color: T1_COLOR, showPct: true });
+    }
     levels.push({ key: 'entry', price: entryPrice, label: 'Entry', color: ENTRY_COLOR, showPct: false });
     levels.push({ key: 'sl', price: stopLoss, label: slLabel, color: slColor, showPct: true });
+    if (beRatcheted && originalStopLoss != null) {
+      levels.push({ key: 'origsl', price: originalStopLoss, label: 'Orig SL', color: ORIG_SL_COLOR, showPct: false });
+    }
 
     // Support / resistance levels
     if (support1 != null || support2 != null) {
@@ -155,7 +172,7 @@ const TradeChart: React.FC<TradeChartProps> = (props) => {
       el.textContent = item.html;
       overlay.appendChild(el);
     }
-  }, [entryPrice, stopLoss, target1, target2, currentPrice, stopLocked, support1, support2, isShort]);
+  }, [entryPrice, stopLoss, target1, target2, currentPrice, stopLocked, support1, support2, isShort, t1Hit, t1HitPrice, beRatcheted, originalStopLoss]);
 
   // Escape to close fullscreen
   useEffect(() => {
@@ -241,16 +258,16 @@ const TradeChart: React.FC<TradeChartProps> = (props) => {
     } as any);
 
     // Price lines (visible horizontal lines, no axis labels)
-    const slColor = stopLocked ? SL_LOCKED_COLOR : SL_COLOR;
+    const slColor = beRatcheted ? SL_LOCKED_COLOR : stopLocked ? SL_LOCKED_COLOR : SL_COLOR;
 
     if (target2 != null) {
       series.createPriceLine({
-        price: target2, color: T2_COLOR, lineWidth: 2, lineStyle: 1,
+        price: target2, color: t1Hit ? T1_COLOR : T2_COLOR, lineWidth: 2, lineStyle: t1Hit ? 0 : 1,
         axisLabelVisible: false, title: '',
       });
     }
     series.createPriceLine({
-      price: target1, color: T1_COLOR, lineWidth: 2, lineStyle: 0,
+      price: target1, color: t1Hit ? T1_HIT_COLOR : T1_COLOR, lineWidth: t1Hit ? 1 : 2, lineStyle: t1Hit ? 2 : 0,
       axisLabelVisible: false, title: '',
     });
     series.createPriceLine({
@@ -261,6 +278,12 @@ const TradeChart: React.FC<TradeChartProps> = (props) => {
       price: stopLoss, color: slColor, lineWidth: 2, lineStyle: 0,
       axisLabelVisible: false, title: '',
     });
+    if (beRatcheted && originalStopLoss != null) {
+      series.createPriceLine({
+        price: originalStopLoss, color: ORIG_SL_COLOR, lineWidth: 1, lineStyle: 3,
+        axisLabelVisible: false, title: '',
+      });
+    }
 
     // Support / resistance lines
     if (support1 != null && support2 != null && Math.abs(support1 - support2) / Math.max(support1, support2) < 0.003) {
@@ -286,6 +309,7 @@ const TradeChart: React.FC<TradeChartProps> = (props) => {
     // Autoscale: ensure all levels visible with 5% padding
     const allPrices = [entryPrice, stopLoss, target1, currentPrice];
     if (target2 != null) allPrices.push(target2);
+    if (originalStopLoss != null) allPrices.push(originalStopLoss);
     if (support1 != null) allPrices.push(support1);
     if (support2 != null) allPrices.push(support2);
     const minP = Math.min(...allPrices);
@@ -320,15 +344,7 @@ const TradeChart: React.FC<TradeChartProps> = (props) => {
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, [bars, entryPrice, stopLoss, target1, target2, currentPrice, stopLocked, tf, isFullScreen, positionLabels, support1, support2]);
-
-  if (bars.length < 2) {
-    return (
-      <div style={{ background: BG, borderRadius: 12, padding: '32px 16px', textAlign: 'center', color: TEXT, fontSize: 12 }}>
-        Waiting for chart data...
-      </div>
-    );
-  }
+  }, [bars, entryPrice, stopLoss, target1, target2, currentPrice, stopLocked, tf, isFullScreen, positionLabels, support1, support2, t1Hit, beRatcheted, originalStopLoss]);
 
   const toolbar = (
     <div style={{
@@ -359,6 +375,18 @@ const TradeChart: React.FC<TradeChartProps> = (props) => {
       </button>
     </div>
   );
+
+  // No bars — show toolbar so user can try different TF
+  if (bars.length < 2) {
+    return (
+      <div style={{ background: BG, borderRadius: 12, overflow: 'hidden' }}>
+        {toolbar}
+        <div style={{ padding: '24px 16px', textAlign: 'center', color: TEXT, fontSize: 11 }}>
+          No chart data for this timeframe
+        </div>
+      </div>
+    );
+  }
 
   // Fullscreen overlay
   if (isFullScreen) {

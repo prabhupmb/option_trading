@@ -100,6 +100,18 @@ const Header: React.FC<HeaderProps> = ({ lastUpdated, onRefresh, loading, user, 
             </button>
           )}
 
+          {/* Support Link */}
+          <a
+            href={import.meta.env.VITE_SUPPORT_URL || 'https://buymeacoffee.com/tradingkarna.ai'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 transition-colors text-xs font-medium"
+            title="Support TradingKarna"
+          >
+            <span>☕</span>
+            <span className="hidden sm:inline">Support</span>
+          </a>
+
           {/* Notification Bell */}
           <NotificationInbox onNavigate={onNavigate} />
 
