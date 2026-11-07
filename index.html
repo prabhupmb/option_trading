@@ -31,17 +31,9 @@
             darkMode: 'class',
         }
 
-        // Apply saved theme (default: dark)
-        (function() {
-          var theme = localStorage.getItem('tk-theme') || 'dark';
-          var el = document.documentElement;
-          el.classList.remove('dark', 'theme-midnight', 'theme-terminal');
-          if (theme === 'light') { /* no class needed */ }
-          else if (theme === 'midnight') { el.classList.add('dark', 'theme-midnight'); }
-          else if (theme === 'terminal') { el.classList.add('dark', 'theme-terminal'); }
-          else { el.classList.add('dark'); }
-          el.setAttribute('data-theme', theme);
-        })();
+        // Force dark mode always
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
     </script>
     <script type="importmap">
 {
